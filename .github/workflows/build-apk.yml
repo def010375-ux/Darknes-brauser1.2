@@ -24,13 +24,13 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.13'
+          gradle-version: '9.5.0'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
       - name: Install Android SDK components
-        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+        run: sdkmanager 'platforms;android-37' 'build-tools;36.0.0'
 
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
