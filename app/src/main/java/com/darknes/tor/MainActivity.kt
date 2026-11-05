@@ -1025,7 +1025,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
         }
         error.isNotBlank() -> Text(error, color = Peach, fontSize = 13.sp)
         versions.isEmpty() -> Text("Пока опубликована только стартовая версия 1.2 Alpha Release. Новые версии появятся здесь после публикации APK в GitHub Releases.", color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
-        else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.weight(1f, fill = false)) {
+        else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
             items(versions) { version ->
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
