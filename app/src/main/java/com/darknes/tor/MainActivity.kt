@@ -746,7 +746,7 @@ private fun HomeSearchBar(
     Row(verticalAlignment=Alignment.CenterVertically) {
         PanelTitle("Вкладки")
         Spacer(Modifier.weight(1f))
-        TextButton(onClick=addTab) { Text("＋ Новая", color=Orange) }
+        TextButton(onClick=addTab) { Icon(Icons.Default.Add, contentDescription = null, tint = Orange, modifier = Modifier.size(17.dp)); Spacer(Modifier.width(4.dp)); Text("Новая", color=Orange) }
         TextButton(onClick=done) { Text("Готово", color=Orange) }
     }
     Row(verticalAlignment=Alignment.CenterVertically) {
