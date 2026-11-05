@@ -71,25 +71,41 @@ class MainActivity : ComponentActivity() {
     private lateinit var session: GeckoSession
     private lateinit var saveDownloadLauncher: ActivityResultLauncher<String>
     private var pendingDownload: WebResponse? = null
+    private var pendingDownloadId: Long? = null
+    private val downloadRecords = mutableStateListOf<DownloadRecord>()
+
+    private fun updateDownload(id: Long?, status: String, uri: String? = null) {
+        if (id == null) return
+        runOnUiThread {
+            val index = downloadRecords.indexOfFirst { it.id == id }
+            if (index >= 0) downloadRecords[index] = downloadRecords[index].copy(status = status, savedUri = uri)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         saveDownloadLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { destination ->
             val response = pendingDownload
+            val recordId = pendingDownloadId
             pendingDownload = null
+            pendingDownloadId = null
             if (destination == null || response == null) {
                 response?.body?.close()
+                updateDownload(recordId, "Отменено")
                 Toast.makeText(this, "Скачивание отменено", Toast.LENGTH_SHORT).show()
             } else {
+                updateDownload(recordId, "Скачивается")
                 Thread {
                     try {
                         val body = response.body ?: throw IllegalStateException("Нет данных файла")
                         val output = contentResolver.openOutputStream(destination)
                             ?: throw IllegalStateException("Не удалось открыть место сохранения")
                         body.use { input -> output.use { target -> input.copyTo(target) } }
+                        updateDownload(recordId, "Сохранено", destination.toString())
                         runOnUiThread { Toast.makeText(this, "Файл сохранён", Toast.LENGTH_LONG).show() }
                     } catch (error: Exception) {
                         response.body?.close()
+                        updateDownload(recordId, "Ошибка")
                         runOnUiThread { Toast.makeText(this, "Не удалось скачать файл: ${error.message}", Toast.LENGTH_LONG).show() }
                     }
                 }.start()
@@ -101,7 +117,7 @@ class MainActivity : ComponentActivity() {
         runtime = GeckoRuntime.create(this)
         session = GeckoSession().also { it.open(runtime) }
         setContent { MaterialTheme(colorScheme = darkColorScheme(background = Ink, surface = Glass, primary = Orange)) {
-            DarknesApp(runtime, ::requestDownload)
+            DarknesApp(runtime, ::requestDownload, downloadRecords.toList())
         } }
     }
 
@@ -115,6 +131,9 @@ class MainActivity : ComponentActivity() {
         val rawName = Uri.parse(response.uri).lastPathSegment?.substringBefore("?").orEmpty()
         val filename = rawName.takeIf { it.isNotBlank() && it != "/" }
             ?.replace(Regex("[\\\\/:*?\"<>|]"), "_") ?: "download"
+        val recordId = System.currentTimeMillis()
+        pendingDownloadId = recordId
+        downloadRecords.add(0, DownloadRecord(recordId, filename, "Ожидает сохранения"))
         saveDownloadLauncher.launch(filename)
     }
 
