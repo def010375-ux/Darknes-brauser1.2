@@ -3,6 +3,8 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val releaseKeystorePath = System.getenv("DARKNES_KEYSTORE_PATH")
+
 android {
     namespace = "com.darknes.tor"
     compileSdk = 37
@@ -12,8 +14,27 @@ android {
         applicationId = "com.darknes.tor"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
+    }
+
+    signingConfigs {
+        create("release") {
+            if (!releaseKeystorePath.isNullOrBlank()) {
+                storeFile = file(releaseKeystorePath)
+                storePassword = System.getenv("DARKNES_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("DARKNES_KEY_ALIAS")
+                keyPassword = System.getenv("DARKNES_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            if (!releaseKeystorePath.isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
     }
 
     buildFeatures {
