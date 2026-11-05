@@ -114,6 +114,32 @@ private suspend fun fetchSearchResults(query: String, engine: String): List<Sear
     found.values.take(20).toList()
 }
 
+
+private suspend fun fetchFallbackResults(query: String): List<SearchResult> = withContext(Dispatchers.IO) {
+    val url = "https://html.duckduckgo.com/html/?q=" + URLEncoder.encode(query, "UTF-8")
+    val doc = Jsoup.connect(url)
+        .userAgent("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36")
+        .referrer("https://duckduckgo.com/").timeout(18000).get()
+    val found = linkedMapOf<String, SearchResult>()
+    doc.select(".result, .web-result").forEach { item ->
+        val a = item.selectFirst("a.result__a, a.result-link")
+        val title = a?.text().orEmpty()
+        val href = a?.attr("href").orEmpty()
+        val snippet = item.selectFirst(".result__snippet, .result-snippet")?.text().orEmpty()
+        val decoded = runCatching {
+            val parsed = java.net.URI(href)
+            val queryPart = parsed.rawQuery.orEmpty()
+            if (parsed.host.orEmpty().contains("duckduckgo.com") && queryPart.contains("uddg="))
+                java.net.URLDecoder.decode(queryPart.substringAfter("uddg=").substringBefore("&"), "UTF-8")
+            else href
+        }.getOrDefault(href)
+        val host = runCatching { java.net.URI(decoded).host.orEmpty().lowercase().removePrefix("www.") }.getOrDefault("")
+        if (title.length > 2 && host.isNotBlank() && decoded.startsWith("http"))
+            found.putIfAbsent(decoded, SearchResult(title, decoded, snippet, host))
+    }
+    found.values.take(20).toList()
+}
+
 private fun resolveAddress(raw: String, engine: String): String {
     val s = raw.trim()
     if (s.startsWith("https://") || s.startsWith("http://")) return s
@@ -180,6 +206,7 @@ private fun DarknesApp(runtime: GeckoRuntime) {
     var searchError by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
     var activeSearchText by remember { mutableStateOf("") }
+    var searchSource by remember { mutableStateOf(engine) }
     var tabCount by remember { mutableIntStateOf(1) }
     var toast by remember { mutableStateOf("") }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -210,6 +237,7 @@ private fun DarknesApp(runtime: GeckoRuntime) {
             return
         }
         activeSearchText = text
+        searchSource = engine
         query = text
         showSearchResults = true
         loaded = false
@@ -218,9 +246,13 @@ private fun DarknesApp(runtime: GeckoRuntime) {
         searchResults = emptyList()
         scope.launch {
             try {
-                val results = fetchSearchResults(text, engine)
+                var results = fetchSearchResults(text, engine)
+                if (results.isEmpty()) {
+                    results = fetchFallbackResults(text)
+                    if (results.isNotEmpty()) searchSource = "Резервный поиск (DuckDuckGo)"
+                }
                 searchResults = results
-                if (results.isEmpty()) searchError = "Поисковая система не вернула результаты. Попробуй другой запрос."
+                if (results.isEmpty()) searchError = "Не удалось получить результаты. Поисковик мог ограничить запрос. Попробуй ещё раз."
             } catch (error: Exception) {
                 searchError = when (error) {
                     is java.net.UnknownHostException -> "Нет подключения к интернету."
@@ -317,7 +349,7 @@ private fun DarknesApp(runtime: GeckoRuntime) {
             }
             if (showSearchResults) {
                 SearchResultsScreen(
-                    query = activeSearchText, engine = engine, results = searchResults,
+                    query = activeSearchText, engine = searchSource, results = searchResults,
                     loading = searchLoading, error = searchError, accent = accent,
                     onRetry = { runSearch(activeSearchText) },
                     onBackToHome = { showSearchResults = false; loaded = false },
