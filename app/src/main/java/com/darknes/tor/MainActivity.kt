@@ -727,6 +727,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     }
     LaunchedEffect(trackers, sessions.size) {
         sessions.forEach { it.settings.setUseTrackingProtection(trackers) }
+        splitSession.settings.setUseTrackingProtection(trackers)
     }
     LaunchedEffect(desktopMode, sessions.size) {
         sessions.forEach { browserSession ->
@@ -741,6 +742,8 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 GeckoSessionSettings.VIEWPORT_MODE_MOBILE
             }
         }
+        splitSession.settings.userAgentMode = if (desktopMode) GeckoSessionSettings.USER_AGENT_MODE_DESKTOP else GeckoSessionSettings.USER_AGENT_MODE_MOBILE
+        splitSession.settings.viewportMode = if (desktopMode) GeckoSessionSettings.VIEWPORT_MODE_DESKTOP else GeckoSessionSettings.VIEWPORT_MODE_MOBILE
     }
     LaunchedEffect(darkSites, nightPages) {
         runtime.settings.setPreferredColorScheme(
