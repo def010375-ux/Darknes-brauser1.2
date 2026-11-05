@@ -31,10 +31,10 @@ jobs:
 
       - name: Install Android SDK components
         run: |
-          sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
-          # Android SDK publishes API 37.0 in android-37.0, while AGP looks for android-37.
-          if [ -d "$ANDROID_HOME/platforms/android-37.0" ] && [ ! -e "$ANDROID_HOME/platforms/android-37" ]; then
-            ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"
+          sdkmanager 'platforms;android-37.2' 'build-tools;36.0.0'
+          # Android SDK installs API 37.2 in android-37.2; AGP resolves the platform through android-37.
+          if [ -d "$ANDROID_HOME/platforms/android-37.2" ] && [ ! -e "$ANDROID_HOME/platforms/android-37" ]; then
+            ln -s android-37.2 "$ANDROID_HOME/platforms/android-37"
           fi
           test -f "$ANDROID_HOME/platforms/android-37/android.jar"
 
