@@ -74,18 +74,26 @@ private fun resolveAddress(raw: String, engine: String): String {
 @Composable
 private fun DarknesApp(runtime: GeckoRuntime) {
     val sessions = remember { mutableStateListOf(GeckoSession().also { it.open(runtime) }) }
+    val tabTitles = remember { mutableStateListOf("Новая вкладка") }
+    val tabUrls = remember { mutableStateListOf("") }
     var activeTab by remember { mutableIntStateOf(0) }
     val session = sessions[activeTab.coerceIn(0, sessions.lastIndex)]
     var canGoBack by remember { mutableStateOf(false) }
     var canGoForward by remember { mutableStateOf(false) }
     fun addTab() {
         sessions.add(GeckoSession().also { it.open(runtime) })
+        tabTitles.add("Новая вкладка")
+        tabUrls.add("")
         activeTab = sessions.lastIndex
+        canGoBack = false
+        canGoForward = false
     }
     fun closeTab(index: Int) {
         if (sessions.size > 1) {
             sessions[index].close()
             sessions.removeAt(index)
+            tabTitles.removeAt(index)
+            tabUrls.removeAt(index)
             activeTab = when {
                 index < activeTab -> activeTab - 1
                 index == activeTab -> (index - 1).coerceAtLeast(0)
@@ -94,6 +102,8 @@ private fun DarknesApp(runtime: GeckoRuntime) {
         } else {
             sessions[0].purgeHistory()
             sessions[0].loadUri("about:blank")
+            tabTitles[0] = "Новая вкладка"
+            tabUrls[0] = ""
             canGoBack = false
             canGoForward = false
         }
@@ -127,10 +137,22 @@ private fun DarknesApp(runtime: GeckoRuntime) {
             override fun onCanGoForward(session: GeckoSession, value: Boolean) { canGoForward = value }
             override fun onLocationChange(session: GeckoSession, url: String?, perms: List<GeckoSession.PermissionDelegate.ContentPermission>, hasUserGesture: Boolean) {
                 loaded = !url.isNullOrBlank() && url != "about:blank"
-                if (!url.isNullOrBlank()) query = url
+                if (!url.isNullOrBlank()) {
+                    query = url
+                    tabUrls[activeTab] = url
+                    if (url == "about:blank") tabTitles[activeTab] = "Новая вкладка"
+                }
             }
         })
-        onDispose { session.setNavigationDelegate(null) }
+        session.setContentDelegate(object : GeckoSession.ContentDelegate {
+            override fun onTitleChange(session: GeckoSession, title: String) {
+                tabTitles[activeTab] = title.ifBlank { "Без названия" }
+            }
+        })
+        onDispose {
+            session.setNavigationDelegate(null)
+            session.setContentDelegate(null)
+        }
     }
     BackHandler(enabled = panel.isNotEmpty() || islandOpen || incognito) {
         when {
@@ -222,7 +244,7 @@ private fun DarknesApp(runtime: GeckoRuntime) {
                             "Расширения" -> ExtensionsPanel(adBlock, { adBlock = it }, passwords, { passwords = it }, nightPages, { nightPages = it }) { toast = "Установка расширений появится позже" }
                             "Аккаунт" -> AccountPanel { toast = "Вход в Darknes появится позже" }
                             "ИИ-чат" -> ChatPanel(model, { model = it }, chatInput, { chatInput = it }, sent, { sent = it })
-                            "Вкладки" -> TabsPanel(sessions.size, activeTab, incognito, { incognito = it }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = false; panel = "" }, { panel = "" })
+                            "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), activeTab, incognito, { incognito = it }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { panel = "" })
                         }
                     }
                 }
@@ -361,7 +383,7 @@ private fun HomeScreen(accent: Color, blur: Float, animations: Boolean, onShortc
         Box(Modifier.size(42.dp).background(Orange,CircleShape).clickable { if(input.isNotBlank()) { setSent(input); setInput("") } },contentAlignment=Alignment.Center) { Text("➤",color=Ink) }
     }
 }
-@Composable private fun TabsPanel(count:Int, activeIndex:Int, incognito:Boolean, setIncognito:(Boolean)->Unit, addTab:()->Unit, closeTab:(Int)->Unit, selectTab:(Int)->Unit, done:()->Unit) {
+@Composable private fun TabsPanel(titles:List<String>, urls:List<String>, activeIndex:Int, incognito:Boolean, setIncognito:(Boolean)->Unit, addTab:()->Unit, closeTab:(Int)->Unit, selectTab:(Int)->Unit, done:()->Unit) {
     Row(verticalAlignment=Alignment.CenterVertically) {
         PanelTitle("Вкладки")
         Spacer(Modifier.weight(1f))
@@ -374,12 +396,12 @@ private fun HomeScreen(accent: Color, blur: Float, animations: Boolean, onShortc
         FilterChip(selected=incognito,onClick={setIncognito(true)},label={Text("Инкогнито")})
     }
     LazyVerticalGrid(columns=GridCells.Fixed(2),verticalArrangement=Arrangement.spacedBy(12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-        items(count) { index ->
+        items(titles.size) { index ->
             Column(Modifier.aspectRatio(.75f).clip(RoundedCornerShape(20.dp)).background(Brush.linearGradient(if(incognito) listOf(Color(0xFF503A87),Color(0xFF211A35)) else listOf(Color(0xFF9C4B12),Color(0xFF342014)))).border(2.dp,if(index==activeIndex) if(incognito)Violet else Orange else Border,RoundedCornerShape(20.dp)).clickable { selectTab(index) }.padding(12.dp),verticalArrangement=Arrangement.Bottom) {
                 Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) { Text("×",color=Paper,modifier=Modifier.clickable { closeTab(index) }.padding(4.dp)) }
                 Spacer(Modifier.weight(1f))
-                Text(if(index==activeIndex) "Активная вкладка" else "Вкладка ${index+1}",color=Paper,fontWeight=FontWeight.Bold)
-                Text(if(incognito)"Инкогнито" else "Стартовая страница",color=Paper.copy(alpha=.65f),fontSize=11.sp)
+                Text(titles[index].ifBlank { "Вкладка ${index+1}" },color=Paper,fontWeight=FontWeight.Bold,maxLines=2)
+                Text(urls.getOrNull(index).orEmpty().ifBlank { if(incognito) "Инкогнито" else "Стартовая страница" },color=Paper.copy(alpha=.65f),fontSize=10.sp,maxLines=2)
             }
         }
     }
