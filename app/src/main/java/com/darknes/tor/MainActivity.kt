@@ -34,6 +34,9 @@ import androidx.compose.ui.unit.*
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.jsoup.Jsoup
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoRuntimeSettings
 import org.mozilla.geckoview.ContentBlocking
@@ -64,6 +67,48 @@ class MainActivity : ComponentActivity() {
         } }
     }
     override fun onDestroy() { if (::session.isInitialized) session.close(); super.onDestroy() }
+}
+
+private data class SearchResult(val title: String, val url: String, val snippet: String, val displayUrl: String)
+
+private suspend fun fetchSearchResults(query: String, engine: String): List<SearchResult> = withContext(Dispatchers.IO) {
+    val encoded = URLEncoder.encode(query, "UTF-8")
+    val searchUrl = if (engine == "Google") "https://www.google.com/search?q=$encoded&num=20" else "https://yandex.ru/search/?text=$encoded"
+    val doc = Jsoup.connect(searchUrl)
+        .userAgent("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36")
+        .timeout(18000).followRedirects(true).get()
+    val found = linkedMapOf<String, SearchResult>()
+    fun add(titleRaw: String, hrefRaw: String, snippetRaw: String) {
+        val title = titleRaw.trim()
+        var url = hrefRaw.trim()
+        if (url.startsWith("/url?q=")) url = url.substringAfter("/url?q=").substringBefore("&")
+        if (url.startsWith("//")) url = "https:$url"
+        if (title.length < 3 || !(url.startsWith("https://") || url.startsWith("http://"))) return
+        val host = runCatching { java.net.URI(url).host.orEmpty().lowercase() }.getOrDefault("")
+        if (host.isBlank() || host.contains("google.") || host.contains("yandex.") || host.contains("ya.ru")) return
+        found.putIfAbsent(url, SearchResult(title, url, snippetRaw.trim(), host.removePrefix("www.")))
+    }
+    if (engine == "Google") {
+        doc.select("a:has(h3)").forEach { a ->
+            val title = a.selectFirst("h3")?.text().orEmpty()
+            val snippet = a.parent()?.parent()?.selectFirst(".VwiC3b, .yXK7lf, .s3v9rd")?.text().orEmpty()
+            add(title, a.attr("href"), snippet)
+        }
+    } else {
+        doc.select(".serp-item, li.serp-item").forEach { item ->
+            val a = item.selectFirst("a.OrganicTitle-Link, h2 a[href], a[href]")
+            val title = item.selectFirst("h2, .OrganicTitle, .OrganicTitle-Link")?.text().orEmpty().ifBlank { a?.text().orEmpty() }
+            val snippet = item.selectFirst(".OrganicTextContentSpan, .TextContainer, .OrganicText")?.text().orEmpty()
+            if (a != null) add(title, a.attr("href"), snippet)
+        }
+    }
+    if (found.isEmpty()) {
+        doc.select("a[href]").forEach { a ->
+            val text = a.text().trim()
+            if (text.length >= 18 && a.selectFirst("h3") == null) add(text, a.absUrl("href"), "")
+        }
+    }
+    found.values.take(20).toList()
 }
 
 private fun resolveAddress(raw: String, engine: String): String {
@@ -127,6 +172,11 @@ private fun DarknesApp(runtime: GeckoRuntime) {
     var chatInput by remember { mutableStateOf("") }
     var sent by remember { mutableStateOf("") }
     var loaded by remember { mutableStateOf(false) }
+    var showSearchResults by remember { mutableStateOf(false) }
+    var searchLoading by remember { mutableStateOf(false) }
+    var searchError by remember { mutableStateOf("") }
+    var searchResults by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
+    var activeSearchText by remember { mutableStateOf("") }
     var tabCount by remember { mutableIntStateOf(1) }
     var toast by remember { mutableStateOf("") }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -147,6 +197,38 @@ private fun DarknesApp(runtime: GeckoRuntime) {
         )
     }
     val scope = rememberCoroutineScope()
+    fun runSearch(raw: String) {
+        val text = raw.trim()
+        if (text.isEmpty()) return
+        if (text.startsWith("https://") || text.startsWith("http://") || (text.contains(".") && !text.contains(" "))) {
+            showSearchResults = false
+            loaded = true
+            onLoad(text)
+            return
+        }
+        activeSearchText = text
+        query = text
+        showSearchResults = true
+        loaded = false
+        searchLoading = true
+        searchError = ""
+        searchResults = emptyList()
+        scope.launch {
+            try {
+                val results = fetchSearchResults(text, engine)
+                searchResults = results
+                if (results.isEmpty()) searchError = "Поисковая система не вернула результаты. Попробуй другой запрос."
+            } catch (error: Exception) {
+                searchError = when (error) {
+                    is java.net.UnknownHostException -> "Нет подключения к интернету."
+                    is java.net.SocketTimeoutException -> "Поиск занял слишком много времени. Попробуй ещё раз."
+                    else -> "Не удалось получить результаты. Возможно, поисковая система временно ограничила запросы."
+                }
+            } finally {
+                searchLoading = false
+            }
+        }
+    }
     val transition = updateTransition(targetState = panel, label = "panels")
     DisposableEffect(session) {
         session.setNavigationDelegate(object : GeckoSession.NavigationDelegate {
@@ -212,13 +294,13 @@ private fun DarknesApp(runtime: GeckoRuntime) {
                             singleLine = true, textStyle = TextStyle(color = Paper, fontSize = 14.sp),
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
                             keyboardActions = KeyboardActions(onGo = {
-                                if (query.isNotBlank()) { onLoad(resolveAddress(query, engine)); loaded = true }
+                                if (query.isNotBlank()) runSearch(query)
                                 keyboard?.hide(); islandOpen = false
                             }),
                             decorationBox = { inner -> Box { if (query.isEmpty()) Text("Поиск или адрес", color = Muted, fontSize = 14.sp); inner() } }
                         )
                         Box(Modifier.size(42.dp).background(accent, CircleShape).clickable {
-                            if (query.isNotBlank()) { onLoad(resolveAddress(query, engine)); loaded = true }
+                            if (query.isNotBlank()) runSearch(query)
                             keyboard?.hide(); islandOpen = false
                         }, contentAlignment = Alignment.Center) { Text("➜", color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold) }
                     }
@@ -230,7 +312,20 @@ private fun DarknesApp(runtime: GeckoRuntime) {
             key(session) {
                 AndroidView(factory = { ctx -> GeckoView(ctx).apply { setSession(session) } }, modifier = Modifier.fillMaxSize())
             }
-            if (!loaded) HomeScreen(
+            if (showSearchResults) {
+                SearchResultsScreen(
+                    query = activeSearchText, engine = engine, results = searchResults,
+                    loading = searchLoading, error = searchError, accent = accent,
+                    onRetry = { runSearch(activeSearchText) },
+                    onBackToHome = { showSearchResults = false; loaded = false },
+                    onOpenResult = { url ->
+                        showSearchResults = false
+                        loaded = true
+                        query = url
+                        session.loadUri(url)
+                    }
+                )
+            } else if (!loaded) HomeScreen(
                 accent = accent,
                 blur = blur,
                 animations = animations,
@@ -240,11 +335,8 @@ private fun DarknesApp(runtime: GeckoRuntime) {
                 onEngineChange = { engine = it },
                 onSecretSettings = { panel = "Настройки" },
                 onSearch = {
-                    if (query.isNotBlank()) {
-                        onLoad(query)
-                        loaded = true
-                        keyboard?.hide()
-                    }
+                    runSearch(query)
+                    keyboard?.hide()
                 },
                 onShortcut = { link ->
                     query = link
@@ -306,6 +398,79 @@ private fun DarknesApp(runtime: GeckoRuntime) {
                 Text("${sessions.size}", color = Paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             }
             NavCircle("•••", accent) { panel = "Меню" }
+        }
+    }
+}
+
+@Composable
+private fun SearchResultsScreen(
+    query: String, engine: String, results: List<SearchResult>, loading: Boolean, error: String,
+    accent: Color, onRetry: () -> Unit, onBackToHome: () -> Unit, onOpenResult: (String) -> Unit
+) {
+    Column(Modifier.fillMaxSize().background(Ink)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBackToHome) { Icon(Icons.Default.ArrowBack, contentDescription = "Назад", tint = Paper) }
+            Column(Modifier.weight(1f)) {
+                Text("Результаты поиска", color = Paper, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Darknes · $engine", color = accent, fontSize = 11.sp)
+            }
+            Text("\${results.size}", color = Muted, fontSize = 12.sp)
+        }
+        Surface(color = Color(0xFF171311), shape = RoundedCornerShape(18.dp),
+            border = BorderStroke(1.dp, accent.copy(alpha = .35f)),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+            Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Search, tint = accent, contentDescription = null)
+                Spacer(Modifier.width(10.dp))
+                Text(query, color = Paper, fontSize = 14.sp, maxLines = 2, modifier = Modifier.weight(1f))
+                Text(engine, color = Peach, fontSize = 11.sp)
+            }
+        }
+        when {
+            loading -> Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = accent, strokeWidth = 3.dp)
+                    Spacer(Modifier.height(14.dp))
+                    Text("Ищем в интернете…", color = Muted, fontSize = 13.sp)
+                }
+            }
+            error.isNotEmpty() -> Box(Modifier.fillMaxWidth().weight(1f).padding(28.dp), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.SearchOff, contentDescription = null, tint = accent, modifier = Modifier.size(42.dp))
+                    Spacer(Modifier.height(12.dp))
+                    Text(error, color = Paper, fontSize = 14.sp)
+                    Spacer(Modifier.height(16.dp))
+                    Button(onClick = onRetry, colors = ButtonDefaults.buttonColors(containerColor = accent)) { Text("Повторить", color = Ink) }
+                }
+            }
+            else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(11.dp)) {
+                items(results.size) { index ->
+                    val result = results[index]
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xFF151210))
+                        .border(1.dp, Border, RoundedCornerShape(18.dp)).clickable { onOpenResult(result.url) }.padding(15.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(25.dp).clip(CircleShape).background(Color(0xFF30251C)), contentAlignment = Alignment.Center) {
+                                Text(result.displayUrl.take(1).uppercase(), color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text(result.displayUrl, color = Muted, fontSize = 11.sp, maxLines = 1)
+                        }
+                        Spacer(Modifier.height(7.dp))
+                        Text(result.title, color = Peach, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        if (result.snippet.isNotBlank()) {
+                            Spacer(Modifier.height(5.dp))
+                            Text(result.snippet, color = Paper.copy(alpha = .82f), fontSize = 13.sp, lineHeight = 19.sp, maxLines = 4)
+                        }
+                        Spacer(Modifier.height(7.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Открыть страницу", color = accent, fontSize = 11.sp)
+                            Spacer(Modifier.width(4.dp))
+                            Icon(Icons.Default.ArrowOutward, contentDescription = null, tint = accent, modifier = Modifier.size(13.dp))
+                        }
+                    }
+                }
+            }
         }
     }
 }
