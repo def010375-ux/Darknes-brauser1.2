@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.*
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -156,6 +157,7 @@ private fun DarknesApp(session: GeckoSession, onLoad: (String) -> Unit) {
                 onLoad(link)
                 loaded = true
             }
+            Column(Modifier.fillMaxSize()) {
             AnimatedVisibility(
                 visible = panel.isNotEmpty(),
                 enter = if (animations) fadeIn(tween(220)) + slideInVertically(animationSpec = spring(dampingRatio = .82f, stiffness = 340f)) { it / 3 } + scaleIn(initialScale = .97f) else EnterTransition.None,
@@ -187,10 +189,11 @@ private fun DarknesApp(session: GeckoSession, onLoad: (String) -> Unit) {
                 }
             }
             AnimatedVisibility(toast.isNotEmpty(), enter = fadeIn() + slideInVertically { -it }, exit = fadeOut(),
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 12.dp)) {
+                modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 12.dp)) {
                 Surface(color = Glass, shape = CircleShape, border = BorderStroke(1.dp, Border), shadowElevation = 14.dp) {
                     Text(toast, color = Paper, modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp), fontSize = 13.sp)
                 }
+            }
             }
         }
 
@@ -230,7 +233,7 @@ private fun HomeScreen(accent: Color, blur: Float, animations: Boolean, onShortc
             drawCircle(accent.copy(alpha=.75f), 38.dp.toPx(), Offset(cx, cy), style = Stroke(2.dp.toPx()))
         }
         Spacer(Modifier.height(4.dp))
-        Text("Darknes Tor", fontSize = 39.sp, fontWeight = FontWeight.Bold, brush = Brush.linearGradient(listOf(Paper, Peach)))
+        Text("Darknes Tor", style = TextStyle(brush = Brush.linearGradient(listOf(Paper, Peach)), fontSize = 39.sp, fontWeight = FontWeight.Bold))
         Text("Поиск без входа и слежки", color = Muted, fontSize = 14.sp)
         Spacer(Modifier.height(28.dp))
         val sites = listOf("Y" to "YouTube", "G" to "Google", "Я" to "Яндекс", "Gh" to "GitHub", "W" to "Wikipedia", "T" to "Telegram", "R" to "Reddit", "Tw" to "Twitch")
@@ -292,15 +295,15 @@ private fun HomeScreen(accent: Color, blur: Float, animations: Boolean, onShortc
     SettingSwitch("Менеджер паролей", pass, setPass)
     SettingSwitch("Ночной режим страниц", night, setNight)
     Spacer(Modifier.height(18.dp))
-    Button(onClick=install, modifier=Modifier.fillMaxWidth().height(52.dp), colors=ButtonDefaults.buttonColors(containerColor=Orange, contentColor=Ink), shape=RoundedCornerShape(18.dp)) { Text("Установить из файла", fontWeight=Bold) }
+    Button(onClick=install, modifier=Modifier.fillMaxWidth().height(52.dp), colors=ButtonDefaults.buttonColors(containerColor=Orange, contentColor=Ink), shape=RoundedCornerShape(18.dp)) { Text("Установить из файла", fontWeight=FontWeight.Bold) }
 }
 @Composable private fun AccountPanel(onLogin:()->Unit) {
     PanelTitle("Аккаунт", "Darknes ID")
-    Text("Вы без входа", color=Paper, fontSize=20.sp, fontWeight=Bold)
+    Text("Вы без входа", color=Paper, fontSize=20.sp, fontWeight=FontWeight.Bold)
     Spacer(Modifier.height(10.dp))
     Text("Браузер работает без аккаунта. Вход в Darknes понадобится для синхронизации вкладок и закладок.", color=Muted, fontSize=14.sp, lineHeight=21.sp)
     Spacer(Modifier.height(24.dp))
-    Button(onClick=onLogin, modifier=Modifier.fillMaxWidth().height(52.dp), colors=ButtonDefaults.buttonColors(containerColor=Orange, contentColor=Ink), shape=RoundedCornerShape(18.dp)) { Text("Войти в Darknes", fontWeight=Bold) }
+    Button(onClick=onLogin, modifier=Modifier.fillMaxWidth().height(52.dp), colors=ButtonDefaults.buttonColors(containerColor=Orange, contentColor=Ink), shape=RoundedCornerShape(18.dp)) { Text("Войти в Darknes", fontWeight=FontWeight.Bold) }
 }
 @Composable private fun ChatPanel(model:String, setModel:(String)->Unit, input:String, setInput:(String)->Unit, sent:String, setSent:(String)->Unit) {
     PanelTitle("ИИ-чат", "Выбери помощника")
@@ -308,7 +311,7 @@ private fun HomeScreen(accent: Color, blur: Float, animations: Boolean, onShortc
         listOf("Darknes AI","Claude","GPT","Gemini").forEach { FilterChip(selected=model==it,onClick={setModel(it)},label={Text(it)},colors=FilterChipDefaults.filterChipColors(selectedContainerColor=Orange,selectedLabelColor=Ink)) }
     }
     Spacer(Modifier.height(16.dp))
-    Column(Modifier.weight(1f,false).fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.heightIn(min=120.dp,max=300.dp).fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement=Arrangement.spacedBy(12.dp)) {
         if(sent.isNotEmpty()) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.End) { Text(sent, color=Ink, modifier=Modifier.clip(RoundedCornerShape(18.dp)).background(Orange).padding(13.dp)) }
         }
@@ -336,7 +339,7 @@ private fun HomeScreen(accent: Color, blur: Float, animations: Boolean, onShortc
             Column(Modifier.aspectRatio(.75f).clip(RoundedCornerShape(20.dp)).background(Brush.linearGradient(if(incognito) listOf(Color(0xFF503A87),Color(0xFF211A35)) else listOf(Color(0xFF9C4B12),Color(0xFF342014)))).border(2.dp,if(it==0) if(incognito)Violet else Orange else Border,RoundedCornerShape(20.dp)).padding(12.dp),verticalArrangement=Arrangement.Bottom) {
                 Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) { Text("×",color=Paper,modifier=Modifier.clickable { closeTab() }) }
                 Spacer(Modifier.weight(1f))
-                Text(if(incognito)"Инкогнито" else "Новая вкладка",color=Paper,fontWeight=Bold)
+                Text(if(incognito)"Инкогнито" else "Новая вкладка",color=Paper,fontWeight=FontWeight.Bold)
                 Text("Стартовая страница",color=Paper.copy(alpha=.65f),fontSize=11.sp)
             }
         }
