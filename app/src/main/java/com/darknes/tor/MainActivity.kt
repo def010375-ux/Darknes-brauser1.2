@@ -145,8 +145,8 @@ private fun DarknesApp(runtime: GeckoRuntime) {
             }
         })
         session.setContentDelegate(object : GeckoSession.ContentDelegate {
-            override fun onTitleChange(session: GeckoSession, title: String) {
-                tabTitles[activeTab] = title.ifBlank { "Без названия" }
+            override fun onTitleChange(session: GeckoSession, title: String?) {
+                tabTitles[activeTab] = title?.takeIf { it.isNotBlank() } ?: "Без названия"
             }
         })
         onDispose {
