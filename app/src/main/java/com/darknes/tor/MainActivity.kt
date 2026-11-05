@@ -264,6 +264,16 @@ private suspend fun fetchSearchResults(query: String, engine: String): List<Sear
     fetchFallbackResults(query)
 
 
+private suspend fun fetchReaderContent(pageUrl: String): String = withContext(Dispatchers.IO) {
+    val connection = java.net.URL("https://r.jina.ai/$pageUrl").openConnection() as java.net.HttpURLConnection
+    connection.connectTimeout = 12000
+    connection.readTimeout = 25000
+    connection.setRequestProperty("User-Agent", "Darknes-Tor-Reader/1.4")
+    connection.setRequestProperty("Accept", "text/plain")
+    try { connection.inputStream.bufferedReader().use { it.readText().take(40000) } }
+    finally { connection.disconnect() }
+}
+
 private suspend fun fetchFallbackResults(query: String): List<SearchResult> = withContext(Dispatchers.IO) {
     val url = "https://html.duckduckgo.com/html/?q=" + URLEncoder.encode(query, "UTF-8")
     val doc = Jsoup.connect(url)
@@ -601,6 +611,11 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var searchSource by remember { mutableStateOf(engine) }
     var tabCount by remember { mutableIntStateOf(1) }
     var toast by remember { mutableStateOf("") }
+    var readerContent by remember { mutableStateOf("") }
+    var readerSource by remember { mutableStateOf("") }
+    var readerLoading by remember { mutableStateOf(false) }
+    var readerError by remember { mutableStateOf("") }
+    var accentChoice by remember { mutableStateOf(settingsPrefs.getString("accent", "orange") ?: "orange") }
     var testerTapCount by remember { mutableIntStateOf(0) }
     var testerLastTap by remember { mutableLongStateOf(0L) }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -627,8 +642,9 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 .apply()
         }
     }
-    LaunchedEffect(blur, animations, trackers, darkSites, adBlock, nightPages) {
+    LaunchedEffect(blur, animations, trackers, darkSites, adBlock, nightPages, accentChoice) {
         settingsPrefs.edit()
+            .putString("accent", accentChoice)
             .putFloat("blur", blur)
             .putBoolean("animations", animations)
             .putBoolean("trackers", trackers)
@@ -637,7 +653,12 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             .putBoolean("nightPages", nightPages)
             .apply()
     }
-    val accent = if (incognito) Violet else Orange
+    val accent = if (incognito) Violet else when (accentChoice) {
+        "blue" -> Color(0xFF55A8FF)
+        "purple" -> Color(0xFFB28AFF)
+        "green" -> Color(0xFF65D69A)
+        else -> Orange
+    }
     LaunchedEffect(trackers, sessions.size) {
         sessions.forEach { it.settings.setUseTrackingProtection(trackers) }
     }
@@ -689,6 +710,16 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             } finally {
                 searchLoading = false
             }
+        }
+    }
+    fun openReader() {
+        val currentUrl = tabUrls.getOrNull(activeTab).orEmpty()
+        if (!currentUrl.startsWith("https://") && !currentUrl.startsWith("http://")) { toast = "Сначала открой веб-страницу"; return }
+        readerSource = currentUrl; readerContent = ""; readerError = ""; readerLoading = true; panel = "Чтение"
+        scope.launch {
+            try { readerContent = fetchReaderContent(currentUrl); if (readerContent.isBlank()) readerError = "Не удалось извлечь текст этой страницы." }
+            catch (problem: Exception) { readerError = "Не удалось загрузить текст. Проверь подключение и попробуй ещё раз." }
+            finally { readerLoading = false }
         }
     }
     val transition = updateTransition(targetState = panel, label = "panels")
@@ -822,6 +853,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 onSearchTextChange = { query = it },
                 engine = engine,
                 onEngineChange = { engine = it },
+                bookmarks = bookmarks.toList(),
                 onSecretSettings = { panel = "Настройки" },
                 onSearch = {
                     runSearch(query)
@@ -842,7 +874,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             ) {
                 Box(Modifier.fillMaxSize().background(Color(0x99000000)).clickable { panel = "" }, contentAlignment = Alignment.BottomCenter) {
                     Column(
-                        Modifier.fillMaxWidth().fillMaxHeight(if (panel == "Вкладки") .94f else .78f)
+                        Modifier.fillMaxWidth().fillMaxHeight(if (panel == "Вкладки" || panel == "Меню" || panel == "Безопасность" || panel == "Чтение") .92f else .78f)
                             .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
                             .background(Glass).border(1.dp, Border, RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
                             .clickable(enabled = false) {}.padding(20.dp)
@@ -852,6 +884,15 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                 panel = when(action) {
                                     "Новая вкладка" -> { addTab(); loaded = false; "" }
                                     "Инкогнито" -> { incognito = true; privateModeUsed = true; addTab(); loaded = false; "" }
+                                    "Перевести страницу" -> {
+                                        val currentUrl = tabUrls.getOrNull(activeTab).orEmpty()
+                                        if (currentUrl.startsWith("http://") || currentUrl.startsWith("https://")) {
+                                            val translated = "https://translate.google.com/translate?sl=auto&tl=ru&u=" + URLEncoder.encode(currentUrl, "UTF-8")
+                                            query = translated; session.loadUri(translated); loaded = true; showSearchResults = false
+                                        } else toast = "Сначала открой веб-страницу"
+                                        ""
+                                    }
+                                    "Режим чтения" -> { openReader(); "" }
                                     "Добавить закладку" -> {
                                         val currentUrl = tabUrls.getOrNull(activeTab).orEmpty()
                                         if (currentUrl.startsWith("http://") || currentUrl.startsWith("https://")) {
@@ -865,7 +906,12 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                     else -> action
                                 }
                             }
-                            "Настройки" -> SettingsPanel(engine, { engine = it }, trackers, { trackers = it }, darkSites, { darkSites = it }, animations, { animations = it }, blur, { blur = it })
+                            "Настройки" -> SettingsPanel(engine, { engine = it }, trackers, { trackers = it }, darkSites, { darkSites = it }, animations, { animations = it }, blur, { blur = it }, accentChoice, { accentChoice = it })
+                            "Безопасность" -> PrivacyPanel(trackers, { trackers = it }, adBlock, { adBlock = it }, darkSites, { darkSites = it }, nightPages, { nightPages = it }) {
+                                runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))) }
+                                    .onFailure { toast = "Не удалось открыть настройки Android" }
+                            }
+                            "Чтение" -> ReaderPanel(readerSource, readerContent, readerLoading, readerError, onRetry = { openReader() })
                             "Тестер" -> TesterPanel { url ->
                                 runCatching {
                                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
@@ -1004,6 +1050,7 @@ private fun HomeScreen(
     onSearchTextChange: (String) -> Unit,
     engine: String,
     onEngineChange: (String) -> Unit,
+    bookmarks: List<SavedPage>,
     onSecretSettings: () -> Unit,
     onSearch: () -> Unit,
     onShortcut: (String) -> Unit
@@ -1051,6 +1098,17 @@ private fun HomeScreen(
                     Text(letter, color = Orange, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(4.dp))
                     Text(name, color = Paper, fontSize = 10.sp, maxLines = 1)
+                }
+            }
+        }
+        if (bookmarks.isNotEmpty()) {
+            Text("ТВОИ ЗАКЛАДКИ", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, modifier = Modifier.align(Alignment.Start).padding(start = 22.dp, top = 18.dp, bottom = 8.dp))
+            LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = Modifier.fillMaxWidth().heightIn(max = 190.dp).padding(horizontal = 12.dp), userScrollEnabled = false) {
+                items(bookmarks.take(6)) { page ->
+                    Column(Modifier.padding(5.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF211B17)).border(1.dp, Border, RoundedCornerShape(16.dp)).clickable { onShortcut(page.url) }.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Bookmark, contentDescription = null, tint = accent, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.height(5.dp)); Text(page.title, color = Paper, fontSize = 10.sp, maxLines = 1)
+                    }
                 }
             }
         }
@@ -1147,7 +1205,10 @@ private fun HomeSearchBar(
         Icons.Default.Extension to "Расширения",
         Icons.Default.AutoAwesome to "ИИ-чат",
         Icons.Default.Settings to "Настройки",
-        Icons.Default.Person to "Аккаунт"
+        Icons.Default.Person to "Аккаунт",
+        Icons.Default.Shield to "Безопасность",
+        Icons.Default.Translate to "Перевести страницу",
+        Icons.Default.MenuBook to "Режим чтения"
     )
     LazyVerticalGrid(columns = GridCells.Fixed(3), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         items(items) { (icon, name) ->
@@ -1361,7 +1422,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     Text("Выбор версии открывает загрузку APK. Установка подтверждается Android. Для обновления поверх текущей версии подпись APK должна совпадать.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
 }
 
-@Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit) {
+@Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit, accentChoice:String, setAccentChoice:(String)->Unit) {
     PanelTitle("Настройки", "Настрой Darknes Tor под себя")
     Text("Поисковая система · DuckDuckGo", color = Muted, fontSize = 13.sp)
     Text("Единственная поисковая система браузера — DuckDuckGo.", color = Peach, fontSize = 13.sp, modifier = Modifier.padding(vertical = 10.dp))
@@ -1370,7 +1431,45 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     SettingSwitch("Анимации", anim, setAnim)
     Text("Размытие фона · ${blur.toInt()} px", color = Paper, modifier = Modifier.padding(top=12.dp))
     Slider(value=blur, onValueChange=setBlur, valueRange=0f..24f, colors=SliderDefaults.colors(thumbColor=Orange, activeTrackColor=Orange))
+    Text("Цвет акцента", color = Paper, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+        listOf("orange" to "Оранжевый", "blue" to "Синий", "purple" to "Фиолетовый", "green" to "Зелёный").forEach { (key, label) ->
+            FilterChip(selected = accentChoice == key, onClick = { setAccentChoice(key) }, label = { Text(label, fontSize = 10.sp) }, colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Orange.copy(alpha = .22f), selectedLabelColor = Peach, labelColor = Muted))
+        }
+    }
+    Text("Дополнительные параметры защиты находятся в Центре безопасности.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 10.dp))
 }
+@Composable private fun PrivacyPanel(trackers:Boolean, setTrackers:(Boolean)->Unit, ad:Boolean, setAd:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, night:Boolean, setNight:(Boolean)->Unit, openAndroidSettings:()->Unit) {
+    PanelTitle("Центр безопасности", "Контроль защиты и разрешений сайтов")
+    Surface(Modifier.fillMaxWidth(), color = Color(0xFF211D1A), shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, Border)) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Shield, contentDescription = null, tint = Orange, modifier = Modifier.size(25.dp)); Spacer(Modifier.width(9.dp))
+            Column { Text("Защита GeckoView", color = Paper, fontWeight = FontWeight.SemiBold); Text("Enhanced Tracking Protection", color = Muted, fontSize = 10.sp) }
+        }
+    }
+    SettingSwitch("Блокировать известные трекеры", trackers, setTrackers)
+    SettingSwitch("Усиленная защита от отслеживания", ad, setAd)
+    SettingSwitch("Тёмная схема сайтов", dark, setDark)
+    SettingSwitch("Ночной режим страниц", night, setNight)
+    Spacer(Modifier.height(10.dp))
+    Text("Камера, микрофон, геолокация и уведомления управляются разрешениями Android и запросами самих сайтов.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+    Spacer(Modifier.height(12.dp))
+    Button(onClick = openAndroidSettings, modifier = Modifier.fillMaxWidth().height(50.dp), colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Ink), shape = RoundedCornerShape(16.dp)) { Text("Разрешения приложения Android", fontWeight = FontWeight.Bold) }
+}
+
+@Composable private fun ReaderPanel(source:String, content:String, loading:Boolean, error:String, onRetry:()->Unit) {
+    PanelTitle("Режим чтения", "Текст страницы без лишнего оформления")
+    Text(source, color = Muted, fontSize = 10.sp, maxLines = 2)
+    Spacer(Modifier.height(10.dp))
+    when {
+        loading -> Row(verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(color = Orange, modifier = Modifier.size(20.dp), strokeWidth = 2.dp); Spacer(Modifier.width(10.dp)); Text("Подготавливаем страницу…", color = Muted, fontSize = 12.sp) }
+        error.isNotBlank() -> Column { Text(error, color = Peach, fontSize = 13.sp); TextButton(onClick = onRetry) { Text("Повторить", color = Orange) } }
+        else -> Text(content, color = Paper, fontSize = 14.sp, lineHeight = 22.sp, modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()))
+    }
+    Spacer(Modifier.height(8.dp))
+    Text("Текст извлекается через внешний сервис чтения страниц. Не отправляй туда страницы с личными данными.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+}
+
 @Composable private fun ExtensionsPanel(ad:Boolean, setAd:(Boolean)->Unit, night:Boolean, setNight:(Boolean)->Unit, install:()->Unit) {
     PanelTitle("Расширения", "Встроенные инструменты браузера")
     SettingSwitch("Усиленная защита от рекламы и трекеров", ad, setAd)
