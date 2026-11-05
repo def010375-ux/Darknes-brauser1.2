@@ -230,11 +230,28 @@ private fun DarknesApp(runtime: GeckoRuntime) {
             key(session) {
                 AndroidView(factory = { ctx -> GeckoView(ctx).apply { setSession(session) } }, modifier = Modifier.fillMaxSize())
             }
-            if (!loaded) HomeScreen(accent, blur, animations, onSecretSettings = { panel = "Настройки" }) { link ->
-                query = link
-                onLoad(link)
-                loaded = true
-            }
+            if (!loaded) HomeScreen(
+                accent = accent,
+                blur = blur,
+                animations = animations,
+                searchText = query,
+                onSearchTextChange = { query = it },
+                engine = engine,
+                onEngineChange = { engine = it },
+                onSecretSettings = { panel = "Настройки" },
+                onSearch = {
+                    if (query.isNotBlank()) {
+                        onLoad(query)
+                        loaded = true
+                        keyboard?.hide()
+                    }
+                },
+                onShortcut = { link ->
+                    query = link
+                    onLoad(link)
+                    loaded = true
+                }
+            )
             Column(Modifier.fillMaxSize()) {
             AnimatedVisibility(
                 visible = panel.isNotEmpty(),
@@ -294,7 +311,18 @@ private fun DarknesApp(runtime: GeckoRuntime) {
 }
 
 @Composable
-private fun HomeScreen(accent: Color, blur: Float, animations: Boolean, onSecretSettings: () -> Unit, onShortcut: (String) -> Unit) {
+private fun HomeScreen(
+    accent: Color,
+    blur: Float,
+    animations: Boolean,
+    searchText: String,
+    onSearchTextChange: (String) -> Unit,
+    engine: String,
+    onEngineChange: (String) -> Unit,
+    onSecretSettings: () -> Unit,
+    onSearch: () -> Unit,
+    onShortcut: (String) -> Unit
+) {
     var titleTapCount by remember { mutableIntStateOf(0) }
     var lastTitleTapAt by remember { mutableLongStateOf(0L) }
     val infinite = rememberInfiniteTransition(label = "orbit")
@@ -327,7 +355,16 @@ private fun HomeScreen(accent: Color, blur: Float, animations: Boolean, onSecret
             style = TextStyle(brush = Brush.linearGradient(listOf(Paper, Peach)), fontSize = 39.sp, fontWeight = FontWeight.Bold)
         )
         Text("Поиск без входа и слежки", color = Muted, fontSize = 14.sp)
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(22.dp))
+        HomeSearchBar(
+            value = searchText,
+            onValueChange = onSearchTextChange,
+            engine = engine,
+            onEngineChange = onEngineChange,
+            accent = accent,
+            onSearch = onSearch
+        )
+        Spacer(Modifier.height(24.dp))
         val sites = listOf("Y" to "YouTube", "G" to "Google", "Я" to "Яндекс", "Gh" to "GitHub", "W" to "Wikipedia", "T" to "Telegram", "R" to "Reddit", "Tw" to "Twitch")
         LazyVerticalGrid(columns = GridCells.Fixed(4), modifier = Modifier.fillMaxWidth().height(190.dp).padding(horizontal = 12.dp), userScrollEnabled = false) {
             items(sites) { (letter, name) ->
@@ -339,6 +376,89 @@ private fun HomeScreen(accent: Color, blur: Float, animations: Boolean, onSecret
             }
         }
         Spacer(Modifier.height(18.dp))
+    }
+}
+
+@Composable
+private fun HomeSearchBar(
+    value: String,
+    onValueChange: (String) -> Unit,
+    engine: String,
+    onEngineChange: (String) -> Unit,
+    accent: Color,
+    onSearch: () -> Unit
+) {
+    val keyboard = LocalSoftwareKeyboardController.current
+    var engineMenuOpen by remember { mutableStateOf(false) }
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(Color(0xFF171311))
+            .border(1.dp, accent.copy(alpha = .42f), RoundedCornerShape(24.dp))
+            .padding(horizontal = 15.dp, vertical = 12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Search, contentDescription = "Поиск", tint = accent, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(10.dp))
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                textStyle = TextStyle(color = Paper, fontSize = 15.sp),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = {
+                    onSearch()
+                    keyboard?.hide()
+                }),
+                decorationBox = { inner ->
+                    Box {
+                        if (value.isEmpty()) Text("Найти в интернете", color = Muted, fontSize = 15.sp)
+                        inner()
+                    }
+                }
+            )
+            if (value.isNotEmpty()) {
+                IconButton(onClick = { onValueChange("") }, modifier = Modifier.size(30.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "Очистить", tint = Muted)
+                }
+            }
+            Spacer(Modifier.width(4.dp))
+            Box(
+                Modifier.size(38.dp).clip(CircleShape).background(accent).clickable {
+                    onSearch()
+                    keyboard?.hide()
+                },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.ArrowForward, contentDescription = "Искать", tint = Ink)
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Box {
+            Row(
+                Modifier.clip(RoundedCornerShape(50)).background(Color(0xFF29211B))
+                    .clickable { engineMenuOpen = true }.padding(horizontal = 11.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Искать через", color = Muted, fontSize = 11.sp)
+                Spacer(Modifier.width(6.dp))
+                Text(engine, color = Peach, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.width(4.dp))
+                Icon(Icons.Default.ExpandMore, contentDescription = "Выбрать поиск", tint = Peach, modifier = Modifier.size(16.dp))
+            }
+            DropdownMenu(expanded = engineMenuOpen, onDismissRequest = { engineMenuOpen = false }) {
+                listOf("Яндекс", "Google").forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option) },
+                        onClick = {
+                            onEngineChange(option)
+                            engineMenuOpen = false
+                        }
+                    )
+                }
+            }
+        }
     }
 }
 
