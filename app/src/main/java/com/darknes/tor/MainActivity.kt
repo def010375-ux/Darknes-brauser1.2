@@ -142,6 +142,7 @@ private fun DarknesApp(runtime: GeckoRuntime) {
         )
     }
     LaunchedEffect(adBlock) {
+        runtime.settings.contentBlocking.setCookieBehavior(ContentBlocking.CookieBehavior.ACCEPT_NON_TRACKERS)
         runtime.settings.contentBlocking.setEnhancedTrackingProtectionLevel(
             if (adBlock) ContentBlocking.EtpLevel.STRICT else ContentBlocking.EtpLevel.DEFAULT
         )
