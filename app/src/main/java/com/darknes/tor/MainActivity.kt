@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
         runtime = GeckoRuntime.create(this)
         session = GeckoSession().also { it.open(runtime) }
         setContent { MaterialTheme(colorScheme = darkColorScheme(background = Ink, surface = Glass, primary = Orange)) {
-            DarknesApp(session) { session.loadUri(resolveAddress(it, "Яндекс")) }
+            DarknesApp(runtime)
         } }
     }
     override fun onDestroy() { if (::session.isInitialized) session.close(); super.onDestroy() }
@@ -72,7 +72,32 @@ private fun resolveAddress(raw: String, engine: String): String {
 }
 
 @Composable
-private fun DarknesApp(session: GeckoSession, onLoad: (String) -> Unit) {
+private fun DarknesApp(runtime: GeckoRuntime) {
+    val sessions = remember { mutableStateListOf(GeckoSession().also { it.open(runtime) }) }
+    var activeTab by remember { mutableIntStateOf(0) }
+    val session = sessions[activeTab.coerceIn(0, sessions.lastIndex)]
+    var canGoBack by remember { mutableStateOf(false) }
+    var canGoForward by remember { mutableStateOf(false) }
+    fun addTab() {
+        sessions.add(GeckoSession().also { it.open(runtime) })
+        activeTab = sessions.lastIndex
+    }
+    fun closeTab(index: Int) {
+        if (sessions.size > 1) {
+            sessions[index].close()
+            sessions.removeAt(index)
+            activeTab = when {
+                index < activeTab -> activeTab - 1
+                index == activeTab -> (index - 1).coerceAtLeast(0)
+                else -> activeTab
+            }
+        } else {
+            sessions[0].purgeHistory()
+            sessions[0].loadUri("about:blank")
+            canGoBack = false
+            canGoForward = false
+        }
+    }
     var query by remember { mutableStateOf("") }
     var islandOpen by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf("") }
@@ -95,6 +120,17 @@ private fun DarknesApp(session: GeckoSession, onLoad: (String) -> Unit) {
     val accent = if (incognito) Violet else Orange
     val scope = rememberCoroutineScope()
     val transition = updateTransition(targetState = panel, label = "panels")
+    DisposableEffect(session) {
+        session.setNavigationDelegate(object : GeckoSession.NavigationDelegate {
+            override fun onCanGoBack(session: GeckoSession, value: Boolean) { canGoBack = value }
+            override fun onCanGoForward(session: GeckoSession, value: Boolean) { canGoForward = value }
+            override fun onLocationChange(session: GeckoSession, url: String?, perms: List<GeckoSession.PermissionDelegate.ContentPermission>, hasUserGesture: Boolean) {
+                loaded = !url.isNullOrBlank() && url != "about:blank"
+                if (!url.isNullOrBlank()) query = url
+            }
+        })
+        onDispose { session.setNavigationDelegate(null) }
+    }
     BackHandler(enabled = panel.isNotEmpty() || islandOpen || incognito) {
         when {
             panel.isNotEmpty() -> panel = ""
@@ -151,7 +187,9 @@ private fun DarknesApp(session: GeckoSession, onLoad: (String) -> Unit) {
         }
 
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            AndroidView(factory = { ctx -> GeckoView(ctx).apply { setSession(session) } }, modifier = Modifier.fillMaxSize())
+            key(session) {
+                AndroidView(factory = { ctx -> GeckoView(ctx).apply { setSession(session) } }, modifier = Modifier.fillMaxSize())
+            }
             if (!loaded) HomeScreen(accent, blur, animations) { link ->
                 query = link
                 onLoad(link)
@@ -174,8 +212,8 @@ private fun DarknesApp(session: GeckoSession, onLoad: (String) -> Unit) {
                         when (panel) {
                             "Меню" -> MenuPanel(accent) { action ->
                                 panel = when(action) {
-                                    "Новая вкладка" -> { tabCount++; loaded = false; "" }
-                                    "Инкогнито" -> { incognito = true; loaded = false; "" }
+                                    "Новая вкладка" -> { addTab(); loaded = false; "" }
+                                    "Инкогнито" -> { incognito = true; addTab(); loaded = false; "" }
                                     else -> action
                                 }
                             }
@@ -183,7 +221,7 @@ private fun DarknesApp(session: GeckoSession, onLoad: (String) -> Unit) {
                             "Расширения" -> ExtensionsPanel(adBlock, { adBlock = it }, passwords, { passwords = it }, nightPages, { nightPages = it }) { toast = "Установка расширений появится позже" }
                             "Аккаунт" -> AccountPanel { toast = "Вход в Darknes появится позже" }
                             "ИИ-чат" -> ChatPanel(model, { model = it }, chatInput, { chatInput = it }, sent, { sent = it })
-                            "Вкладки" -> TabsPanel(tabCount, incognito, { incognito = it }, { tabCount = (tabCount - 1).coerceAtLeast(1) }, { panel = ""; loaded = false })
+                            "Вкладки" -> TabsPanel(sessions.size, activeTab, incognito, { incognito = it }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = false; panel = "" })
                         }
                     }
                 }
@@ -204,11 +242,11 @@ private fun DarknesApp(session: GeckoSession, onLoad: (String) -> Unit) {
                 .border(1.dp, Border, RoundedCornerShape(26.dp)).padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically
         ) {
-            NavCircle("‹", accent) { session.goBack() }
-            NavCircle("›", accent) { session.goForward() }
+            NavCircle("‹", accent, enabled = canGoBack) { if (canGoBack) session.goBack() }
+            NavCircle("›", accent, enabled = canGoForward) { if (canGoForward) session.goForward() }
             NavCircle("✧", accent) { panel = "ИИ-чат" }
             Box(Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(Color(0xFF30251C)).clickable { panel = "Вкладки" }, contentAlignment = Alignment.Center) {
-                Text("$tabCount", color = Paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text("${sessions.size}", color = Paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             }
             NavCircle("•••", accent) { panel = "Меню" }
         }
@@ -250,9 +288,9 @@ private fun HomeScreen(accent: Color, blur: Float, animations: Boolean, onShortc
     }
 }
 
-@Composable private fun NavCircle(label: String, accent: Color, action: () -> Unit) {
-    Box(Modifier.size(42.dp).clip(CircleShape).clickable { action() }, contentAlignment = Alignment.Center) {
-        Text(label, color = Paper, fontSize = if (label.length > 1) 14.sp else 25.sp, fontWeight = FontWeight.Medium)
+@Composable private fun NavCircle(label: String, accent: Color, enabled: Boolean = true, action: () -> Unit) {
+    Box(Modifier.size(42.dp).clip(CircleShape).clickable(enabled = enabled) { action() }, contentAlignment = Alignment.Center) {
+        Text(label, color = if (enabled) Paper else Muted.copy(alpha = .35f), fontSize = if (label.length > 1) 14.sp else 25.sp, fontWeight = FontWeight.Medium)
     }
 }
 @Composable private fun PanelTitle(title: String, subtitle: String = "") {
@@ -322,25 +360,25 @@ private fun HomeScreen(accent: Color, blur: Float, animations: Boolean, onShortc
         Box(Modifier.size(42.dp).background(Orange,CircleShape).clickable { if(input.isNotBlank()) { setSent(input); setInput("") } },contentAlignment=Alignment.Center) { Text("➤",color=Ink) }
     }
 }
-@Composable private fun TabsPanel(count:Int, incognito:Boolean, setIncognito:(Boolean)->Unit, closeTab:()->Unit, done:()->Unit) {
+@Composable private fun TabsPanel(count:Int, activeIndex:Int, incognito:Boolean, setIncognito:(Boolean)->Unit, addTab:()->Unit, closeTab:(Int)->Unit, selectTab:(Int)->Unit) {
     Row(verticalAlignment=Alignment.CenterVertically) {
         PanelTitle("Вкладки")
         Spacer(Modifier.weight(1f))
-        TextButton(onClick=done) { Text("Готово", color=Orange) }
+        TextButton(onClick=addTab) { Text("＋ Новая", color=Orange) }
+        TextButton(onClick={}) { Text("Готово", color=Orange) }
     }
     Row(verticalAlignment=Alignment.CenterVertically) {
-        TextButton(onClick={}) { Text("＋", color=Orange, fontSize=22.sp) }
         FilterChip(selected=!incognito,onClick={setIncognito(false)},label={Text("Обычные")})
         Spacer(Modifier.width(6.dp))
         FilterChip(selected=incognito,onClick={setIncognito(true)},label={Text("Инкогнито")})
     }
     LazyVerticalGrid(columns=GridCells.Fixed(2),verticalArrangement=Arrangement.spacedBy(12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-        items(count) {
-            Column(Modifier.aspectRatio(.75f).clip(RoundedCornerShape(20.dp)).background(Brush.linearGradient(if(incognito) listOf(Color(0xFF503A87),Color(0xFF211A35)) else listOf(Color(0xFF9C4B12),Color(0xFF342014)))).border(2.dp,if(it==0) if(incognito)Violet else Orange else Border,RoundedCornerShape(20.dp)).padding(12.dp),verticalArrangement=Arrangement.Bottom) {
-                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) { Text("×",color=Paper,modifier=Modifier.clickable { closeTab() }) }
+        items(count) { index ->
+            Column(Modifier.aspectRatio(.75f).clip(RoundedCornerShape(20.dp)).background(Brush.linearGradient(if(incognito) listOf(Color(0xFF503A87),Color(0xFF211A35)) else listOf(Color(0xFF9C4B12),Color(0xFF342014)))).border(2.dp,if(index==activeIndex) if(incognito)Violet else Orange else Border,RoundedCornerShape(20.dp)).clickable { selectTab(index) }.padding(12.dp),verticalArrangement=Arrangement.Bottom) {
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) { Text("×",color=Paper,modifier=Modifier.clickable { closeTab(index) }.padding(4.dp)) }
                 Spacer(Modifier.weight(1f))
-                Text(if(incognito)"Инкогнито" else "Новая вкладка",color=Paper,fontWeight=FontWeight.Bold)
-                Text("Стартовая страница",color=Paper.copy(alpha=.65f),fontSize=11.sp)
+                Text(if(index==activeIndex) "Активная вкладка" else "Вкладка ${index+1}",color=Paper,fontWeight=FontWeight.Bold)
+                Text(if(incognito)"Инкогнито" else "Стартовая страница",color=Paper.copy(alpha=.65f),fontSize=11.sp)
             }
         }
     }
