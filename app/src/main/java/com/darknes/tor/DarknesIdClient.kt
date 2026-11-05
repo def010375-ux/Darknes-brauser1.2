@@ -160,6 +160,7 @@ internal fun DarknesIdPanel(onAuthenticated: () -> Unit = {}) {
     var token by remember { mutableStateOf<String?>(null) }
     var user by remember { mutableStateOf<DarknesIdUser?>(null) }
     var loading by remember { mutableStateOf(false) }
+    var checkingSavedSession by remember { mutableStateOf(true) }
     var message by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
@@ -176,7 +177,10 @@ internal fun DarknesIdPanel(onAuthenticated: () -> Unit = {}) {
                 message = e.message ?: "Сеанс завершён. Войдите снова."
             } finally {
                 loading = false
+                checkingSavedSession = false
             }
+        } else {
+            checkingSavedSession = false
         }
     }
 
@@ -185,7 +189,10 @@ internal fun DarknesIdPanel(onAuthenticated: () -> Unit = {}) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("Darknes ID", color = IdPaper, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-        if (user != null && token != null) {
+        if (checkingSavedSession) {
+            Text("Восстанавливаем защищённую сессию…", color = IdMuted, fontSize = 13.sp)
+            CircularProgressIndicator(color = IdOrange, modifier = Modifier.size(25.dp))
+        } else if (user != null && token != null) {
             Text("Вы вошли в аккаунт", color = IdOrange, fontSize = 14.sp)
             Column(
                 Modifier.fillMaxWidth().background(Color(0xFF171311), RoundedCornerShape(18.dp))
