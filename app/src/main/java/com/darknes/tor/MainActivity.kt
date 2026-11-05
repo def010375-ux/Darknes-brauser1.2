@@ -1,6 +1,7 @@
 package com.darknes.tor
 
 import android.os.Bundle
+import android.content.Intent
 import android.os.SystemClock
 import android.net.Uri
 import android.widget.Toast
@@ -34,6 +35,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -44,6 +46,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
+import org.json.JSONArray
 import java.net.URLEncoder
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoRuntimeSettings
@@ -122,6 +125,40 @@ class MainActivity : ComponentActivity() {
 }
 
 private data class SearchResult(val title: String, val url: String, val snippet: String, val displayUrl: String)
+private data class PublishedVersion(val name: String, val tag: String, val notes: String, val apkUrl: String?)
+
+private suspend fun fetchPublishedVersions(): List<PublishedVersion> = withContext(Dispatchers.IO) {
+    val connection = java.net.URL("https://api.github.com/repos/def010375-ux/Darknes-brauser1.2/releases")
+        .openConnection() as java.net.HttpURLConnection
+    connection.connectTimeout = 10000
+    connection.readTimeout = 15000
+    connection.setRequestProperty("Accept", "application/vnd.github+json")
+    connection.setRequestProperty("User-Agent", "Darknes-Tor-Android")
+    try {
+        val response = connection.inputStream.bufferedReader().use { it.readText() }
+        val releases = JSONArray(response)
+        (0 until releases.length()).mapNotNull { index ->
+            val release = releases.optJSONObject(index) ?: return@mapNotNull null
+            val assets = release.optJSONArray("assets") ?: JSONArray()
+            var apkUrl: String? = null
+            for (assetIndex in 0 until assets.length()) {
+                val asset = assets.optJSONObject(assetIndex) ?: continue
+                if (asset.optString("name").endsWith(".apk", ignoreCase = true)) {
+                    apkUrl = asset.optString("browser_download_url").takeIf { it.startsWith("https://") }
+                    if (apkUrl != null) break
+                }
+            }
+            PublishedVersion(
+                name = release.optString("name").ifBlank { release.optString("tag_name") },
+                tag = release.optString("tag_name"),
+                notes = release.optString("body").take(500),
+                apkUrl = apkUrl
+            )
+        }
+    } finally {
+        connection.disconnect()
+    }
+}
 
 private suspend fun fetchSearchResults(query: String, engine: String): List<SearchResult> =
     fetchFallbackResults(query)
@@ -447,7 +484,10 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit)
     var searchSource by remember { mutableStateOf(engine) }
     var tabCount by remember { mutableIntStateOf(1) }
     var toast by remember { mutableStateOf("") }
+    var testerTapCount by remember { mutableIntStateOf(0) }
+    var testerLastTap by remember { mutableLongStateOf(0L) }
     val keyboard = LocalSoftwareKeyboardController.current
+    val context = LocalContext.current
     val accent = if (incognito) Violet else Orange
     LaunchedEffect(trackers, sessions.size) {
         sessions.forEach { it.settings.setUseTrackingProtection(trackers) }
@@ -561,7 +601,24 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit)
                     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(7.dp).background(accent, CircleShape))
                         Spacer(Modifier.width(8.dp))
-                        Text(if (incognito) "Инкогнито" else "Darknes Tor", color = Paper, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Text(
+                            if (incognito) "Инкогнито · Darknes Tor" else "Darknes Tor",
+                            color = Paper, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                            modifier = Modifier.clickable {
+                                if (incognito) {
+                                    val now = SystemClock.elapsedRealtime()
+                                    testerTapCount = if (now - testerLastTap <= 1400L) testerTapCount + 1 else 1
+                                    testerLastTap = now
+                                    if (testerTapCount >= 3) {
+                                        panel = "Тестер"
+                                        islandOpen = false
+                                        testerTapCount = 0
+                                    }
+                                } else {
+                                    islandOpen = true
+                                }
+                            }
+                        )
                     }
                 } else {
                     Row(Modifier.fillMaxSize().padding(start = 16.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -645,6 +702,11 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit)
                                 }
                             }
                             "Настройки" -> SettingsPanel(engine, { engine = it }, trackers, { trackers = it }, darkSites, { darkSites = it }, animations, { animations = it }, blur, { blur = it })
+                            "Тестер" -> TesterPanel { url ->
+                                runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                }.onFailure { toast = "Не удалось открыть загрузку APK" }
+                            }
                             "Расширения" -> ExtensionsPanel(adBlock, { adBlock = it }, nightPages, { nightPages = it }) { toast = "Установка расширений появится позже" }
                             "Аккаунт" -> DarknesIdPanel()
                             "ИИ-чат" -> ChatPanel(model, { model = it }, chatInput, { chatInput = it }, sent, { sent = it })
