@@ -64,6 +64,8 @@ private val Muted = Color(0xFF8B8580)
 private val Glass = Color(0xD91A1715)
 private val Border = Color(0x35FFF4E8)
 
+private data class DownloadRecord(val id: Long, val name: String, val status: String, val savedUri: String? = null)
+
 class MainActivity : ComponentActivity() {
     private lateinit var runtime: GeckoRuntime
     private lateinit var session: GeckoSession
