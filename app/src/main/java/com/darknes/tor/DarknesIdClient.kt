@@ -103,8 +103,8 @@ private object DarknesIdApi {
     suspend fun profile(token: String): DarknesIdUser = withContext(Dispatchers.IO) {
         val connection = (URL("$baseUrl/v1/auth/me").openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
-            connectTimeout = 15000
-            readTimeout = 15000
+            connectTimeout = 90000
+            readTimeout = 90000
             setRequestProperty("Authorization", "Bearer $token")
             setRequestProperty("Accept", "application/json")
         }
@@ -124,8 +124,8 @@ private object DarknesIdApi {
     private suspend fun request(path: String, payload: JSONObject): DarknesIdSession = withContext(Dispatchers.IO) {
         val connection = (URL("$baseUrl$path").openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
-            connectTimeout = 15000
-            readTimeout = 15000
+            connectTimeout = 90000
+            readTimeout = 90000
             doOutput = true
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
             setRequestProperty("Accept", "application/json")
