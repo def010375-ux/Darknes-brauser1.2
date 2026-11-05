@@ -224,7 +224,13 @@ private fun DarknesLaunchGate(onAuthenticated: () -> Unit) {
 }
 
 @Composable
-private fun BlackHoleScene(iconBurst: Float, modifier: Modifier = Modifier) {
+private fun BlackHoleScene(
+    iconBurst: Float,
+    modifier: Modifier = Modifier,
+    accent: Color = Orange,
+    showOrbitIcons: Boolean = true,
+    showParticles: Boolean = true
+) {
     val arrival = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         arrival.animateTo(1f, tween(1150, easing = FastOutSlowInEasing))
@@ -258,7 +264,7 @@ private fun BlackHoleScene(iconBurst: Float, modifier: Modifier = Modifier) {
 
             drawOval(
                 brush = Brush.radialGradient(
-                    listOf(Color(0x66FF7A18), Color(0x22FF4B0B), Color.Transparent),
+                    listOf(accent.copy(alpha = 0.40f), accent.copy(alpha = 0.13f), Color.Transparent),
                     center = Offset(cx, cy),
                     radius = unit * 0.48f
                 ),
@@ -272,8 +278,8 @@ private fun BlackHoleScene(iconBurst: Float, modifier: Modifier = Modifier) {
                     drawOval(
                         brush = Brush.sweepGradient(
                             listOf(
-                                Color(0x00FF5A12), Color(0xFFFFD18A), Color(0xFFFF6A12),
-                                Color(0xFFFFF0D0), Color(0xFFFF7A1A), Color(0x00FF5A12)
+                                Color.Transparent, accent.copy(alpha = 0.9f), accent,
+                                Color(0xFFFFF0D0), accent.copy(alpha = 0.85f), Color.Transparent
                             ),
                             center = Offset(cx, cy)
                         ),
@@ -283,7 +289,7 @@ private fun BlackHoleScene(iconBurst: Float, modifier: Modifier = Modifier) {
                     )
                     drawOval(
                         brush = Brush.linearGradient(
-                            listOf(Color(0x00FF8A1F), Color(0xFFFFE0A8), Color(0xFFFF5A0A), Color(0x00FF8A1F)),
+                            listOf(Color.Transparent, Color(0xFFFFE0A8), accent, Color.Transparent),
                             start = Offset(cx - rx, cy - ry),
                             end = Offset(cx + rx, cy + ry)
                         ),
@@ -291,7 +297,7 @@ private fun BlackHoleScene(iconBurst: Float, modifier: Modifier = Modifier) {
                         size = androidx.compose.ui.geometry.Size(rx * 1.66f, ry * 1.34f),
                         style = Stroke(width = unit * 0.035f)
                     )
-                    for (i in 0 until 46) {
+                    if (showParticles) for (i in 0 until 46) {
                         val lane = (i % 9) / 9f
                         val angle = (i * 0.71f + rotation * Math.PI.toFloat() / 180f * (1.15f + lane))
                         val radius = (0.22f + ((i * 37) % 100) / 145f) * (1f - particleFlow * 0.12f)
@@ -299,7 +305,7 @@ private fun BlackHoleScene(iconBurst: Float, modifier: Modifier = Modifier) {
                         val py = cy + kotlin.math.sin(angle.toDouble()).toFloat() * ry * radius
                         val particleSize = unit * (0.0035f + (i % 4) * 0.0012f)
                         drawCircle(
-                            color = if (i % 4 == 0) Color(0xFFFFE2B2) else Color(0xFFFF8425),
+                            color = if (i % 4 == 0) Color(0xFFFFE2B2) else accent,
                             radius = particleSize,
                             center = Offset(px, py),
                             alpha = 0.5f + (i % 5) * 0.1f
@@ -319,21 +325,21 @@ private fun BlackHoleScene(iconBurst: Float, modifier: Modifier = Modifier) {
                 size = androidx.compose.ui.geometry.Size(unit * 0.34f, unit * 0.21f)
             )
             drawOval(
-                color = Color(0xCCFFC27A),
+                color = accent.copy(alpha = 0.8f),
                 topLeft = Offset(cx - unit * 0.174f, cy - unit * 0.108f),
                 size = androidx.compose.ui.geometry.Size(unit * 0.348f, unit * 0.216f),
                 style = Stroke(width = unit * 0.006f)
             )
 
             // Infalling sparks spiral toward the event horizon.
-            for (i in 0 until 30) {
+            if (showParticles) for (i in 0 until 30) {
                 val t = (i / 30f + particleFlow) % 1f
                 val angle = i * 2.4f + t * 8.5f
                 val radius = unit * (0.43f - t * 0.29f)
                 val px = cx + kotlin.math.cos(angle.toDouble()).toFloat() * radius
                 val py = cy + kotlin.math.sin(angle.toDouble()).toFloat() * radius * 0.34f
                 drawCircle(
-                    color = Color(0xFFFFB45C),
+                    color = accent.copy(alpha = 0.95f),
                     radius = unit * (0.003f + (1f - t) * 0.003f),
                     center = Offset(px, py),
                     alpha = 0.8f - t * 0.45f
@@ -343,7 +349,7 @@ private fun BlackHoleScene(iconBurst: Float, modifier: Modifier = Modifier) {
 
         val bubble = Modifier.size(39.dp).clip(CircleShape)
             .background(Color(0xE62A1B12))
-            .border(1.dp, Color(0x88FF9A43), CircleShape)
+            .border(1.dp, accent.copy(alpha = 0.55f), CircleShape)
         @Composable fun BurstIcon(
             icon: ImageVector,
             description: String,
@@ -365,11 +371,13 @@ private fun BlackHoleScene(iconBurst: Float, modifier: Modifier = Modifier) {
                 Icon(icon, contentDescription = description, tint = Peach, modifier = Modifier.size(19.dp))
             }
         }
-        BurstIcon(Icons.Default.Search, "Поиск", (-112).dp, (-54).dp)
-        BurstIcon(Icons.Default.Shield, "Защита", 100.dp, (-75).dp)
-        BurstIcon(Icons.Default.AutoAwesome, "ИИ", (-72).dp, 78.dp)
-        BurstIcon(Icons.Default.Tab, "Вкладки", 112.dp, 38.dp)
-        BurstIcon(Icons.Default.Extension, "Расширения", 12.dp, 105.dp)
+        if (showOrbitIcons) {
+            BurstIcon(Icons.Default.Search, "Поиск", (-112).dp, (-54).dp)
+            BurstIcon(Icons.Default.Shield, "Защита", 100.dp, (-75).dp)
+            BurstIcon(Icons.Default.AutoAwesome, "ИИ", (-72).dp, 78.dp)
+            BurstIcon(Icons.Default.Tab, "Вкладки", 112.dp, 38.dp)
+            BurstIcon(Icons.Default.Extension, "Расширения", 12.dp, 105.dp)
+        }
     }
 }
 
@@ -763,8 +771,11 @@ private fun HomeScreen(
     Column(Modifier.fillMaxSize().background(Ink).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(18.dp))
         BlackHoleScene(
-            iconBurst = 1f,
-            modifier = Modifier.width(270.dp).height(205.dp).blur(blur.dp)
+            iconBurst = 0f,
+            modifier = Modifier.width(270.dp).height(205.dp).blur(blur.dp),
+            accent = accent,
+            showOrbitIcons = false,
+            showParticles = false
         )
         Spacer(Modifier.height(4.dp))
         Text(
