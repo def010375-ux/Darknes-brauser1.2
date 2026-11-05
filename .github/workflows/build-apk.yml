@@ -11,6 +11,11 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      DARKNES_KEYSTORE_BASE64: ${{ secrets.DARKNES_KEYSTORE_BASE64 }}
+      DARKNES_KEYSTORE_PASSWORD: ${{ secrets.DARKNES_KEYSTORE_PASSWORD }}
+      DARKNES_KEY_ALIAS: ${{ secrets.DARKNES_KEY_ALIAS }}
+      DARKNES_KEY_PASSWORD: ${{ secrets.DARKNES_KEY_PASSWORD }}
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -53,14 +58,12 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Prepare persistent release signing key
-        if: ${{ secrets.DARKNES_KEYSTORE_BASE64 != '' }}
-        env:
-          DARKNES_KEYSTORE_BASE64: ${{ secrets.DARKNES_KEYSTORE_BASE64 }}
+        if: ${{ env.DARKNES_KEYSTORE_BASE64 != '' }}
         run: |
           echo "$DARKNES_KEYSTORE_BASE64" | base64 --decode > "$GITHUB_WORKSPACE/darknes-release.jks"
 
       - name: Build signed update APK
-        if: ${{ secrets.DARKNES_KEYSTORE_BASE64 != '' && secrets.DARKNES_KEYSTORE_PASSWORD != '' && secrets.DARKNES_KEY_ALIAS != '' && secrets.DARKNES_KEY_PASSWORD != '' }}
+        if: ${{ env.DARKNES_KEYSTORE_BASE64 != '' && env.DARKNES_KEYSTORE_PASSWORD != '' && env.DARKNES_KEY_ALIAS != '' && env.DARKNES_KEY_PASSWORD != '' }}
         env:
           DARKNES_KEYSTORE_PATH: ${{ github.workspace }}/darknes-release.jks
           DARKNES_KEYSTORE_PASSWORD: ${{ secrets.DARKNES_KEYSTORE_PASSWORD }}
@@ -77,7 +80,7 @@ jobs:
           retention-days: 14
 
       - name: Upload signed update APK
-        if: ${{ secrets.DARKNES_KEYSTORE_BASE64 != '' && secrets.DARKNES_KEYSTORE_PASSWORD != '' && secrets.DARKNES_KEY_ALIAS != '' && secrets.DARKNES_KEY_PASSWORD != '' }}
+        if: ${{ env.DARKNES_KEYSTORE_BASE64 != '' && env.DARKNES_KEYSTORE_PASSWORD != '' && env.DARKNES_KEY_ALIAS != '' && env.DARKNES_KEY_PASSWORD != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: Darknes-Tor-update-APK
