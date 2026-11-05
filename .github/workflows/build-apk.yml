@@ -30,7 +30,13 @@ jobs:
         uses: android-actions/setup-android@v4
 
       - name: Install Android SDK components
-        run: sdkmanager 'platforms;android-37' 'build-tools;36.0.0'
+        run: |
+          sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
+          # Android SDK publishes API 37.0 in android-37.0, while AGP looks for android-37.
+          if [ -d "$ANDROID_HOME/platforms/android-37.0" ] && [ ! -e "$ANDROID_HOME/platforms/android-37" ]; then
+            ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"
+          fi
+          test -f "$ANDROID_HOME/platforms/android-37/android.jar"
 
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
