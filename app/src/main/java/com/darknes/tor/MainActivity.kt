@@ -1363,7 +1363,7 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
                             if (item.status == "Скачивается") {
                                 if (item.totalBytes > 0L) {
                                     val fraction = (item.downloadedBytes.toFloat() / item.totalBytes.toFloat()).coerceIn(0f, 1f)
-                                    LinearProgressIndicator(progress = fraction, modifier = Modifier.fillMaxWidth().padding(top = 7.dp), color = Orange)
+                                    LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth().padding(top = 7.dp), color = Orange)
                                     Text("${(fraction * 100).toInt()}% · ${item.downloadedBytes / 1024} KB / ${item.totalBytes / 1024} KB", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
                                 } else {
                                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 7.dp), color = Orange)
