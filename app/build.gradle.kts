@@ -37,6 +37,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
 
     implementation("org.mozilla.geckoview:geckoview:159.0.20261022150525")
+    implementation("org.jsoup:jsoup:1.20.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling:1.12.1")
 }
