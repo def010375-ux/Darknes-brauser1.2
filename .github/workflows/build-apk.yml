@@ -38,6 +38,17 @@ jobs:
           fi
           test -f "$ANDROID_HOME/platforms/android-37/android.jar"
 
+      - name: Generate Darknes launcher icons
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y librsvg2-bin
+          mkdir -p app/src/main/res/mipmap-mdpi app/src/main/res/mipmap-hdpi app/src/main/res/mipmap-xhdpi app/src/main/res/mipmap-xxhdpi app/src/main/res/mipmap-xxxhdpi
+          rsvg-convert -w 48 -h 48 app/src/main/assets/darknes_icon.svg -o app/src/main/res/mipmap-mdpi/ic_launcher.png
+          rsvg-convert -w 72 -h 72 app/src/main/assets/darknes_icon.svg -o app/src/main/res/mipmap-hdpi/ic_launcher.png
+          rsvg-convert -w 96 -h 96 app/src/main/assets/darknes_icon.svg -o app/src/main/res/mipmap-xhdpi/ic_launcher.png
+          rsvg-convert -w 144 -h 144 app/src/main/assets/darknes_icon.svg -o app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+          rsvg-convert -w 192 -h 192 app/src/main/assets/darknes_icon.svg -o app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
 
