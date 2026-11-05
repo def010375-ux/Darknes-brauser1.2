@@ -2,9 +2,13 @@ package com.darknes.tor
 
 import android.os.Bundle
 import android.os.SystemClock
+import android.net.Uri
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -46,6 +50,7 @@ import org.mozilla.geckoview.GeckoRuntimeSettings
 import org.mozilla.geckoview.ContentBlocking
 import org.mozilla.geckoview.GeckoSession
 import org.mozilla.geckoview.GeckoView
+import org.mozilla.geckoview.WebResponse
 
 private val Ink = Color(0xFF050404)
 private val Paper = Color(0xFFF6F1EC)
@@ -59,61 +64,67 @@ private val Border = Color(0x35FFF4E8)
 class MainActivity : ComponentActivity() {
     private lateinit var runtime: GeckoRuntime
     private lateinit var session: GeckoSession
+    private lateinit var saveDownloadLauncher: ActivityResultLauncher<String>
+    private var pendingDownload: WebResponse? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        saveDownloadLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { destination ->
+            val response = pendingDownload
+            pendingDownload = null
+            if (destination == null || response == null) {
+                response?.body?.close()
+                Toast.makeText(this, "Скачивание отменено", Toast.LENGTH_SHORT).show()
+            } else {
+                Thread {
+                    try {
+                        val body = response.body ?: throw IllegalStateException("Нет данных файла")
+                        val output = contentResolver.openOutputStream(destination)
+                            ?: throw IllegalStateException("Не удалось открыть место сохранения")
+                        body.use { input -> output.use { target -> input.copyTo(target) } }
+                        runOnUiThread { Toast.makeText(this, "Файл сохранён", Toast.LENGTH_LONG).show() }
+                    } catch (error: Exception) {
+                        response.body?.close()
+                        runOnUiThread { Toast.makeText(this, "Не удалось скачать файл: ${error.message}", Toast.LENGTH_LONG).show() }
+                    }
+                }.start()
+            }
+        }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
         runtime = GeckoRuntime.create(this)
         session = GeckoSession().also { it.open(runtime) }
         setContent { MaterialTheme(colorScheme = darkColorScheme(background = Ink, surface = Glass, primary = Orange)) {
-            DarknesApp(runtime)
+            DarknesApp(runtime, ::requestDownload)
         } }
     }
-    override fun onDestroy() { if (::session.isInitialized) session.close(); super.onDestroy() }
+
+    private fun requestDownload(response: WebResponse) {
+        if (pendingDownload != null) {
+            response.body?.close()
+            Toast.makeText(this, "Сначала заверши предыдущее скачивание", Toast.LENGTH_SHORT).show()
+            return
+        }
+        pendingDownload = response
+        val rawName = Uri.parse(response.uri).lastPathSegment?.substringBefore("?").orEmpty()
+        val filename = rawName.takeIf { it.isNotBlank() && it != "/" }
+            ?.replace(Regex("[\\\\/:*?\"<>|]"), "_") ?: "download"
+        saveDownloadLauncher.launch(filename)
+    }
+
+    override fun onDestroy() {
+        pendingDownload?.body?.close()
+        pendingDownload = null
+        if (::session.isInitialized) session.close()
+        super.onDestroy()
+    }
 }
 
 private data class SearchResult(val title: String, val url: String, val snippet: String, val displayUrl: String)
 
-private suspend fun fetchSearchResults(query: String, engine: String): List<SearchResult> = withContext(Dispatchers.IO) {
-    val encoded = URLEncoder.encode(query, "UTF-8")
-    val searchUrl = if (engine == "Google") "https://www.google.com/search?q=$encoded&num=20" else "https://yandex.ru/search/?text=$encoded"
-    val doc = Jsoup.connect(searchUrl)
-        .userAgent("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36")
-        .timeout(18000).followRedirects(true).get()
-    val found = linkedMapOf<String, SearchResult>()
-    fun add(titleRaw: String, hrefRaw: String, snippetRaw: String) {
-        val title = titleRaw.trim()
-        var url = hrefRaw.trim()
-        if (url.startsWith("/url?q=")) url = url.substringAfter("/url?q=").substringBefore("&")
-        if (url.startsWith("//")) url = "https:$url"
-        if (title.length < 3 || !(url.startsWith("https://") || url.startsWith("http://"))) return
-        val host = runCatching { java.net.URI(url).host.orEmpty().lowercase() }.getOrDefault("")
-        if (host.isBlank() || host.contains("google.") || host.contains("yandex.") || host.contains("ya.ru")) return
-        found.putIfAbsent(url, SearchResult(title, url, snippetRaw.trim(), host.removePrefix("www.")))
-    }
-    if (engine == "Google") {
-        doc.select("a:has(h3)").forEach { a ->
-            val title = a.selectFirst("h3")?.text().orEmpty()
-            val snippet = a.parent()?.parent()?.selectFirst(".VwiC3b, .yXK7lf, .s3v9rd")?.text().orEmpty()
-            add(title, a.attr("href"), snippet)
-        }
-    } else {
-        doc.select(".serp-item, li.serp-item").forEach { item ->
-            val a = item.selectFirst("a.OrganicTitle-Link, h2 a[href], a[href]")
-            val title = item.selectFirst("h2, .OrganicTitle, .OrganicTitle-Link")?.text().orEmpty().ifBlank { a?.text().orEmpty() }
-            val snippet = item.selectFirst(".OrganicTextContentSpan, .TextContainer, .OrganicText")?.text().orEmpty()
-            if (a != null) add(title, a.attr("href"), snippet)
-        }
-    }
-    if (found.isEmpty()) {
-        doc.select("a[href]").forEach { a ->
-            val text = a.text().trim()
-            if (text.length >= 18 && a.selectFirst("h3") == null) add(text, a.absUrl("href"), "")
-        }
-    }
-    found.values.take(20).toList()
-}
+private suspend fun fetchSearchResults(query: String, engine: String): List<SearchResult> =
+    fetchFallbackResults(query)
 
 
 private suspend fun fetchFallbackResults(query: String): List<SearchResult> = withContext(Dispatchers.IO) {
@@ -146,7 +157,7 @@ private fun resolveAddress(raw: String, engine: String): String {
     if (s.startsWith("https://") || s.startsWith("http://")) return s
     if (s.contains(".") && !s.contains(" ")) return "https://$s"
     val q = java.net.URLEncoder.encode(s, "UTF-8")
-    return if (engine == "Google") "https://www.google.com/search?q=$q" else "https://yandex.ru/search/?text=$q"
+    return "https://duckduckgo.com/?q=$q"
 }
 
 
@@ -213,7 +224,7 @@ private fun DarknesLaunchGate(onAuthenticated: () -> Unit) {
 }
 
 @Composable
-private fun BlackHoleScene(iconBurst: Float) {
+private fun BlackHoleScene(iconBurst: Float, modifier: Modifier = Modifier) {
     val arrival = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         arrival.animateTo(1f, tween(1150, easing = FastOutSlowInEasing))
@@ -231,7 +242,7 @@ private fun BlackHoleScene(iconBurst: Float) {
         animationSpec = infiniteRepeatable(tween(1750, easing = LinearEasing)),
         label = "particle-flow"
     )
-    Box(Modifier.fillMaxWidth().height(250.dp), contentAlignment = Alignment.Center) {
+    Box(modifier.fillMaxWidth().height(250.dp), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize().graphicsLayer {
             val progress = arrival.value
             alpha = progress
@@ -363,7 +374,7 @@ private fun BlackHoleScene(iconBurst: Float) {
 }
 
 @Composable
-private fun DarknesApp(runtime: GeckoRuntime) {
+private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit) {
     var launchAuthenticated by remember { mutableStateOf(false) }
     if (!launchAuthenticated) {
         DarknesLaunchGate(onAuthenticated = { launchAuthenticated = true })
@@ -408,7 +419,7 @@ private fun DarknesApp(runtime: GeckoRuntime) {
     var islandOpen by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf("") }
     var incognito by remember { mutableStateOf(false) }
-    var engine by remember { mutableStateOf("Яндекс") }
+    var engine by remember { mutableStateOf("DuckDuckGo") }
     val onLoad: (String) -> Unit = { session.loadUri(resolveAddress(it, engine)) }
     var blur by remember { mutableFloatStateOf(8f) }
     var animations by remember { mutableStateOf(true) }
@@ -485,6 +496,11 @@ private fun DarknesApp(runtime: GeckoRuntime) {
     }
     val transition = updateTransition(targetState = panel, label = "panels")
     DisposableEffect(session) {
+        session.setContentDelegate(object : GeckoSession.ContentDelegate {
+            override fun onExternalResponse(session: GeckoSession, response: WebResponse) {
+                onDownload(response)
+            }
+        })
         session.setNavigationDelegate(object : GeckoSession.NavigationDelegate {
             override fun onCanGoBack(session: GeckoSession, value: Boolean) { canGoBack = value }
             override fun onCanGoForward(session: GeckoSession, value: Boolean) { canGoForward = value }
@@ -744,21 +760,12 @@ private fun HomeScreen(
 ) {
     var titleTapCount by remember { mutableIntStateOf(0) }
     var lastTitleTapAt by remember { mutableLongStateOf(0L) }
-    val infinite = rememberInfiniteTransition(label = "orbit")
-    val angle by infinite.animateFloat(0f, 360f, infiniteRepeatable(tween(40000, easing = LinearEasing), RepeatMode.Restart), label = "orbitAngle")
     Column(Modifier.fillMaxSize().background(Ink).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(18.dp))
-        Canvas(Modifier.size(width = 270.dp, height = 205.dp).blur(blur.dp)) {
-            val cx = size.width / 2f
-            val cy = size.height / 2f
-            drawCircle(accent.copy(alpha = .26f), radius = 65.dp.toPx(), center = Offset(cx, cy))
-            rotate(angle, Offset(cx, cy)) {
-                drawOval(Brush.sweepGradient(listOf(accent.copy(alpha=.1f), Peach, accent, Color(0xFFFFD88C), accent)), topLeft = Offset(cx-112.dp.toPx(), cy-36.dp.toPx()), size = androidx.compose.ui.geometry.Size(224.dp.toPx(), 72.dp.toPx()), style = Stroke(width = 13.dp.toPx()))
-                drawOval(Brush.sweepGradient(listOf(Color.Transparent, accent, Peach, accent)), topLeft = Offset(cx-112.dp.toPx(), cy-36.dp.toPx()), size = androidx.compose.ui.geometry.Size(224.dp.toPx(), 72.dp.toPx()), style = Stroke(width = 3.dp.toPx()))
-            }
-            drawCircle(Color.Black, 36.dp.toPx(), Offset(cx, cy))
-            drawCircle(accent.copy(alpha=.75f), 38.dp.toPx(), Offset(cx, cy), style = Stroke(2.dp.toPx()))
-        }
+        BlackHoleScene(
+            iconBurst = 1f,
+            modifier = Modifier.width(270.dp).height(205.dp).blur(blur.dp)
+        )
         Spacer(Modifier.height(4.dp))
         Text(
             "Darknes Tor",
@@ -784,10 +791,10 @@ private fun HomeScreen(
             onSearch = onSearch
         )
         Spacer(Modifier.height(24.dp))
-        val sites = listOf("Y" to "YouTube", "G" to "Google", "Я" to "Яндекс", "Gh" to "GitHub", "W" to "Wikipedia", "T" to "Telegram", "R" to "Reddit", "Tw" to "Twitch")
+        val sites = listOf("Y" to "YouTube", "D" to "DuckDuckGo", "Gh" to "GitHub", "W" to "Wikipedia", "T" to "Telegram", "R" to "Reddit", "Tw" to "Twitch")
         LazyVerticalGrid(columns = GridCells.Fixed(4), modifier = Modifier.fillMaxWidth().height(190.dp).padding(horizontal = 12.dp), userScrollEnabled = false) {
             items(sites) { (letter, name) ->
-                Column(Modifier.padding(5.dp).clip(RoundedCornerShape(18.dp)).background(Brush.linearGradient(listOf(Color(0xFF29211B), Color(0xFF141110)))).border(1.dp, Border, RoundedCornerShape(18.dp)).clickable { onShortcut(when(name) { "YouTube" -> "https://youtube.com"; "Google" -> "https://google.com"; "Яндекс" -> "https://ya.ru"; "GitHub" -> "https://github.com"; "Wikipedia" -> "https://wikipedia.org"; "Telegram" -> "https://telegram.org"; "Reddit" -> "https://reddit.com"; else -> "https://twitch.tv" }) }.padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(Modifier.padding(5.dp).clip(RoundedCornerShape(18.dp)).background(Brush.linearGradient(listOf(Color(0xFF29211B), Color(0xFF141110)))).border(1.dp, Border, RoundedCornerShape(18.dp)).clickable { onShortcut(when(name) { "YouTube" -> "https://youtube.com"; "DuckDuckGo" -> "https://duckduckgo.com"; "GitHub" -> "https://github.com"; "Wikipedia" -> "https://wikipedia.org"; "Telegram" -> "https://telegram.org"; "Reddit" -> "https://reddit.com"; else -> "https://twitch.tv" }) }.padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(letter, color = Orange, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(4.dp))
                     Text(name, color = Paper, fontSize = 10.sp, maxLines = 1)
@@ -808,7 +815,6 @@ private fun HomeSearchBar(
     onSearch: () -> Unit
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
-    var engineMenuOpen by remember { mutableStateOf(false) }
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 20.dp)
             .clip(RoundedCornerShape(24.dp))
@@ -854,29 +860,14 @@ private fun HomeSearchBar(
             }
         }
         Spacer(Modifier.height(10.dp))
-        Box {
-            Row(
-                Modifier.clip(RoundedCornerShape(50)).background(Color(0xFF29211B))
-                    .clickable { engineMenuOpen = true }.padding(horizontal = 11.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Искать через", color = Muted, fontSize = 11.sp)
-                Spacer(Modifier.width(6.dp))
-                Text(engine, color = Peach, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.width(4.dp))
-                Icon(Icons.Default.ExpandMore, contentDescription = "Выбрать поиск", tint = Peach, modifier = Modifier.size(16.dp))
-            }
-            DropdownMenu(expanded = engineMenuOpen, onDismissRequest = { engineMenuOpen = false }) {
-                listOf("Яндекс", "Google").forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(option) },
-                        onClick = {
-                            onEngineChange(option)
-                            engineMenuOpen = false
-                        }
-                    )
-                }
-            }
+        Row(
+            Modifier.clip(RoundedCornerShape(50)).background(Color(0xFF29211B))
+                .padding(horizontal = 11.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Поиск через", color = Muted, fontSize = 11.sp)
+            Spacer(Modifier.width(6.dp))
+            Text("DuckDuckGo", color = Peach, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -919,8 +910,8 @@ private fun HomeSearchBar(
 }
 @Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit) {
     PanelTitle("Настройки", "Настрой Darknes Tor под себя")
-    Text("Поисковая система", color = Muted, fontSize = 13.sp)
-    Row(Modifier.padding(vertical = 10.dp)) { listOf("Яндекс","Google").forEach { name -> FilterChip(selected = engine==name, onClick={setEngine(name)}, label={Text(name)}, colors=FilterChipDefaults.filterChipColors(selectedContainerColor=Orange, selectedLabelColor=Ink)) } }
+    Text("Поисковая система · DuckDuckGo", color = Muted, fontSize = 13.sp)
+    Text("Единственная поисковая система браузера — DuckDuckGo.", color = Peach, fontSize = 13.sp, modifier = Modifier.padding(vertical = 10.dp))
     SettingSwitch("Блокировать трекеры", trackers, setTrackers)
     SettingSwitch("Тёмный режим сайтов", dark, setDark)
     SettingSwitch("Анимации", anim, setAnim)
