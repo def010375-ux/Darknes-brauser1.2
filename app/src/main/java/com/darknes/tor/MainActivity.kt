@@ -149,8 +149,211 @@ private fun resolveAddress(raw: String, engine: String): String {
     return if (engine == "Google") "https://www.google.com/search?q=$q" else "https://yandex.ru/search/?text=$q"
 }
 
+
+@Composable
+private fun DarknesLaunchGate(onAuthenticated: () -> Unit) {
+    val infinite = rememberInfiniteTransition(label = "darknes-launch")
+    val iconBurst by infinite.animateFloat(
+        initialValue = 0.72f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1450, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "icon-burst"
+    )
+    var showLogin by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(650)
+        showLogin = true
+    }
+
+    Column(
+        Modifier.fillMaxSize().background(
+            Brush.verticalGradient(listOf(Color(0xFF100A07), Ink, Color(0xFF080605)))
+        ).statusBarsPadding().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(Modifier.height(8.dp))
+        Text("WELCOME TO", color = Muted, fontSize = 10.sp, letterSpacing = 4.sp, fontWeight = FontWeight.SemiBold)
+        Text(
+            "DARKNES",
+            color = Paper,
+            fontSize = 30.sp,
+            letterSpacing = 5.sp,
+            fontWeight = FontWeight.Black,
+            modifier = Modifier.padding(top = 3.dp)
+        )
+        Text("ВХОД В ТВОЮ ВСЕЛЕННУЮ", color = Peach, fontSize = 9.sp, letterSpacing = 2.2.sp)
+        Box(
+            Modifier.fillMaxWidth().weight(0.9f).padding(top = 4.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            BlackHoleScene(iconBurst = iconBurst)
+        }
+        AnimatedVisibility(
+            visible = showLogin,
+            enter = fadeIn(tween(500)) + slideInVertically(tween(500)) { it / 5 }
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().weight(1.1f, fill = false).heightIn(min = 270.dp, max = 390.dp),
+                color = Color(0xE6161210),
+                shape = RoundedCornerShape(28.dp),
+                border = BorderStroke(1.dp, Color(0x55FF9A43)),
+                shadowElevation = 22.dp
+            ) {
+                Column(Modifier.padding(18.dp)) {
+                    DarknesIdPanel(onAuthenticated = onAuthenticated)
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("DARKNES ID  ·  ЕДИНЫЙ АККАУНТ", color = Muted, fontSize = 9.sp, letterSpacing = 1.5.sp)
+        Spacer(Modifier.height(5.dp))
+    }
+}
+
+@Composable
+private fun BlackHoleScene(iconBurst: Float) {
+    val infinite = rememberInfiniteTransition(label = "black-hole")
+    val rotation by infinite.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(1050, easing = LinearEasing)),
+        label = "disk-rotation"
+    )
+    val particleFlow by infinite.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1750, easing = LinearEasing)),
+        label = "particle-flow"
+    )
+    Box(Modifier.fillMaxWidth().height(250.dp), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val cx = size.width / 2f
+            val cy = size.height / 2f
+            val unit = minOf(size.width, size.height)
+            val rx = unit * 0.43f
+            val ry = unit * 0.19f
+
+            drawOval(
+                brush = Brush.radialGradient(
+                    listOf(Color(0x66FF7A18), Color(0x22FF4B0B), Color.Transparent),
+                    center = Offset(cx, cy),
+                    radius = unit * 0.48f
+                ),
+                topLeft = Offset(cx - rx * 1.22f, cy - ry * 2.15f),
+                size = androidx.compose.ui.geometry.Size(rx * 2.44f, ry * 4.3f)
+            )
+
+            // A tilted, perspective-compressed accretion disk, seen from the side.
+            rotate(-13f, pivot = Offset(cx, cy)) {
+                rotate(rotation, pivot = Offset(cx, cy)) {
+                    drawOval(
+                        brush = Brush.sweepGradient(
+                            listOf(
+                                Color(0x00FF5A12), Color(0xFFFFD18A), Color(0xFFFF6A12),
+                                Color(0xFFFFF0D0), Color(0xFFFF7A1A), Color(0x00FF5A12)
+                            ),
+                            center = Offset(cx, cy)
+                        ),
+                        topLeft = Offset(cx - rx, cy - ry),
+                        size = androidx.compose.ui.geometry.Size(rx * 2f, ry * 2f),
+                        style = Stroke(width = unit * 0.105f)
+                    )
+                    drawOval(
+                        brush = Brush.linearGradient(
+                            listOf(Color(0x00FF8A1F), Color(0xFFFFE0A8), Color(0xFFFF5A0A), Color(0x00FF8A1F)),
+                            start = Offset(cx - rx, cy - ry),
+                            end = Offset(cx + rx, cy + ry)
+                        ),
+                        topLeft = Offset(cx - rx * 0.83f, cy - ry * 0.67f),
+                        size = androidx.compose.ui.geometry.Size(rx * 1.66f, ry * 1.34f),
+                        style = Stroke(width = unit * 0.035f)
+                    )
+                    for (i in 0 until 46) {
+                        val lane = (i % 9) / 9f
+                        val angle = (i * 0.71f + rotation * Math.PI.toFloat() / 180f * (1.15f + lane))
+                        val radius = (0.22f + ((i * 37) % 100) / 145f) * (1f - particleFlow * 0.12f)
+                        val px = cx + kotlin.math.cos(angle) * rx * radius
+                        val py = cy + kotlin.math.sin(angle) * ry * radius
+                        val particleSize = unit * (0.0035f + (i % 4) * 0.0012f)
+                        drawCircle(
+                            color = if (i % 4 == 0) Color(0xFFFFE2B2) else Color(0xFFFF8425),
+                            radius = particleSize,
+                            center = Offset(px, py),
+                            alpha = 0.5f + (i % 5) * 0.1f
+                        )
+                    }
+                }
+            }
+
+            // Dark event horizon and the bright gravitational-lensing rim.
+            drawOval(
+                brush = Brush.radialGradient(
+                    listOf(Color.Black, Color(0xFF020202), Color(0xFF120904)),
+                    center = Offset(cx, cy),
+                    radius = unit * 0.18f
+                ),
+                topLeft = Offset(cx - unit * 0.17f, cy - unit * 0.105f),
+                size = androidx.compose.ui.geometry.Size(unit * 0.34f, unit * 0.21f)
+            )
+            drawOval(
+                color = Color(0xCCFFC27A),
+                topLeft = Offset(cx - unit * 0.174f, cy - unit * 0.108f),
+                size = androidx.compose.ui.geometry.Size(unit * 0.348f, unit * 0.216f),
+                style = Stroke(width = unit * 0.006f)
+            )
+
+            // Infalling sparks spiral toward the event horizon.
+            for (i in 0 until 30) {
+                val t = (i / 30f + particleFlow) % 1f
+                val angle = i * 2.4f + t * 8.5f
+                val radius = unit * (0.43f - t * 0.29f)
+                val px = cx + kotlin.math.cos(angle) * radius
+                val py = cy + kotlin.math.sin(angle) * radius * 0.34f
+                drawCircle(
+                    color = Color(0xFFFFB45C),
+                    radius = unit * (0.003f + (1f - t) * 0.003f),
+                    center = Offset(px, py),
+                    alpha = 0.8f - t * 0.45f
+                )
+            }
+        }
+
+        val bubble = Modifier.size(39.dp).clip(CircleShape)
+            .background(Color(0xE62A1B12))
+            .border(1.dp, Color(0x88FF9A43), CircleShape)
+        @Composable fun BurstIcon(icon: ImageVector, description: String, modifier: Modifier) {
+            Box(
+                modifier.then(
+                    Modifier.graphicsLayer {
+                        val spread = 0.72f + iconBurst * 0.28f
+                        scaleX = spread
+                        scaleY = spread
+                        alpha = 0.65f + iconBurst * 0.35f
+                    }
+                ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = description, tint = Peach, modifier = Modifier.size(19.dp))
+            }
+        }
+        BurstIcon(Icons.Default.Search, "Поиск", bubble.align(Alignment.CenterStart).offset(x = 22.dp, y = (-55).dp))
+        BurstIcon(Icons.Default.Shield, "Защита", bubble.align(Alignment.TopEnd).offset(x = (-28).dp, y = 45.dp))
+        BurstIcon(Icons.Default.AutoAwesome, "ИИ", bubble.align(Alignment.BottomStart).offset(x = 54.dp, y = (-28).dp))
+        BurstIcon(Icons.Default.Tab, "Вкладки", bubble.align(Alignment.CenterEnd).offset(x = (-22).dp, y = 45.dp))
+        BurstIcon(Icons.Default.Extension, "Расширения", bubble.align(Alignment.BottomEnd).offset(x = (-62).dp, y = (-20).dp))
+    }
+}
+
 @Composable
 private fun DarknesApp(runtime: GeckoRuntime) {
+    var launchAuthenticated by remember { mutableStateOf(false) }
+    if (!launchAuthenticated) {
+        DarknesLaunchGate(onAuthenticated = { launchAuthenticated = true })
+        return
+    }
     val sessions = remember { mutableStateListOf(GeckoSession().also { it.open(runtime) }) }
     val tabTitles = remember { mutableStateListOf("Новая вкладка") }
     val tabUrls = remember { mutableStateListOf("") }
