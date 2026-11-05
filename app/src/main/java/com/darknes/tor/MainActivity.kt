@@ -538,18 +538,20 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             canGoForward = false
         }
     }
+    val context = LocalContext.current
+    val settingsPrefs = remember(context) { context.getSharedPreferences("darknes_settings", android.content.Context.MODE_PRIVATE) }
     var query by remember { mutableStateOf("") }
     var islandOpen by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf("") }
     var incognito by remember { mutableStateOf(false) }
     var engine by remember { mutableStateOf("DuckDuckGo") }
     val onLoad: (String) -> Unit = { session.loadUri(resolveAddress(it, engine)) }
-    var blur by remember { mutableFloatStateOf(8f) }
-    var animations by remember { mutableStateOf(true) }
-    var trackers by remember { mutableStateOf(true) }
-    var darkSites by remember { mutableStateOf(true) }
-    var adBlock by remember { mutableStateOf(true) }
-    var nightPages by remember { mutableStateOf(true) }
+    var blur by remember { mutableFloatStateOf(settingsPrefs.getFloat("blur", 8f).coerceIn(0f, 24f)) }
+    var animations by remember { mutableStateOf(settingsPrefs.getBoolean("animations", true)) }
+    var trackers by remember { mutableStateOf(settingsPrefs.getBoolean("trackers", true)) }
+    var darkSites by remember { mutableStateOf(settingsPrefs.getBoolean("darkSites", true)) }
+    var adBlock by remember { mutableStateOf(settingsPrefs.getBoolean("adBlock", true)) }
+    var nightPages by remember { mutableStateOf(settingsPrefs.getBoolean("nightPages", true)) }
     var model by remember { mutableStateOf("Darknes AI") }
     var chatInput by remember { mutableStateOf("") }
     var sent by remember { mutableStateOf("") }
@@ -565,7 +567,6 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var testerTapCount by remember { mutableIntStateOf(0) }
     var testerLastTap by remember { mutableLongStateOf(0L) }
     val keyboard = LocalSoftwareKeyboardController.current
-    val context = LocalContext.current
     val savedPrefs = remember(context) { context.getSharedPreferences("darknes_browser_data", android.content.Context.MODE_PRIVATE) }
     val history = remember(savedPrefs) {
         mutableStateListOf<SavedPage>().apply { addAll(readSavedPages(savedPrefs.getString("history", null))) }
@@ -578,6 +579,16 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     }
     LaunchedEffect(bookmarks.toList()) {
         savedPrefs.edit().putString("bookmarks", encodeSavedPages(bookmarks.toList())).apply()
+    }
+    LaunchedEffect(blur, animations, trackers, darkSites, adBlock, nightPages) {
+        settingsPrefs.edit()
+            .putFloat("blur", blur)
+            .putBoolean("animations", animations)
+            .putBoolean("trackers", trackers)
+            .putBoolean("darkSites", darkSites)
+            .putBoolean("adBlock", adBlock)
+            .putBoolean("nightPages", nightPages)
+            .apply()
     }
     val accent = if (incognito) Violet else Orange
     LaunchedEffect(trackers, sessions.size) {
