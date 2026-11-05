@@ -2,358 +2,342 @@ package com.darknes.tor
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Tab
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.*
+import androidx.compose.ui.draw.*
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.*
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
+import kotlinx.coroutines.launch
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoSession
 import org.mozilla.geckoview.GeckoView
 
-private val Night = Color(0xFF090B10)
-private val Panel = Color(0xFF151922)
-private val PanelRaised = Color(0xFF1D2430)
-private val Accent = Color(0xFFB8C7FF)
-private val AccentBright = Color(0xFF8FA8FF)
-private val Muted = Color(0xFF9299A8)
+private val Ink = Color(0xFF050404)
+private val Paper = Color(0xFFF6F1EC)
+private val Orange = Color(0xFFFF8A1F)
+private val Peach = Color(0xFFFFC27A)
+private val Violet = Color(0xFF9D7BFF)
+private val Muted = Color(0xFF8B8580)
+private val Glass = Color(0xD91A1715)
+private val Border = Color(0x35FFF4E8)
 
 class MainActivity : ComponentActivity() {
     private lateinit var runtime: GeckoRuntime
     private lateinit var session: GeckoSession
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = android.graphics.Color.rgb(9, 11, 16)
-        window.navigationBarColor = android.graphics.Color.rgb(9, 11, 16)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = android.graphics.Color.TRANSPARENT
         runtime = GeckoRuntime.create(this)
-        session = GeckoSession()
-        session.open(runtime)
-
-        setContent {
-            MaterialTheme(
-                colorScheme = darkColorScheme(
-                    background = Night,
-                    surface = Panel,
-                    primary = Accent,
-                    onPrimary = Night,
-                    onSurface = Color.White
-                )
-            ) {
-                DarknesBrowser(
-                    session = session,
-                    onLoad = { address -> session.loadUri(normalizeAddress(address)) }
-                )
-            }
-        }
+        session = GeckoSession().also { it.open(runtime) }
+        setContent { MaterialTheme(colorScheme = darkColorScheme(background = Ink, surface = Glass, primary = Orange)) {
+            DarknesApp(session) { session.loadUri(resolveAddress(it, "Яндекс")) }
+        } }
     }
-
-    override fun onDestroy() {
-        if (::session.isInitialized) session.close()
-        super.onDestroy()
-    }
+    override fun onDestroy() { if (::session.isInitialized) session.close(); super.onDestroy() }
 }
 
-private fun normalizeAddress(input: String): String {
-    val value = input.trim()
-    if (value.startsWith("https://") || value.startsWith("http://")) return value
-    return if (value.contains(".") && !value.contains(" ")) {
-        "https://$value"
-    } else {
-        "https://www.google.com/search?q=" +
-            java.net.URLEncoder.encode(value, "UTF-8")
+private fun resolveAddress(raw: String, engine: String): String {
+    val s = raw.trim()
+    if (s.startsWith("https://") || s.startsWith("http://")) return s
+    if (s.contains(".") && !s.contains(" ")) return "https://$s"
+    val q = java.net.URLEncoder.encode(s, "UTF-8")
+    return if (engine == "Google") "https://www.google.com/search?q=$q" else "https://yandex.ru/search/?text=$q"
+}
+
+@Composable
+private fun DarknesApp(session: GeckoSession, onLoad: (String) -> Unit) {
+    var query by remember { mutableStateOf("") }
+    var islandOpen by remember { mutableStateOf(false) }
+    var panel by remember { mutableStateOf("") }
+    var incognito by remember { mutableStateOf(false) }
+    var engine by remember { mutableStateOf("Яндекс") }
+    var blur by remember { mutableFloatStateOf(8f) }
+    var animations by remember { mutableStateOf(true) }
+    var trackers by remember { mutableStateOf(true) }
+    var darkSites by remember { mutableStateOf(true) }
+    var adBlock by remember { mutableStateOf(true) }
+    var passwords by remember { mutableStateOf(false) }
+    var nightPages by remember { mutableStateOf(true) }
+    var model by remember { mutableStateOf("Darknes AI") }
+    var chatInput by remember { mutableStateOf("") }
+    var sent by remember { mutableStateOf("") }
+    var loaded by remember { mutableStateOf(false) }
+    var tabCount by remember { mutableIntStateOf(1) }
+    var toast by remember { mutableStateOf("") }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val accent = if (incognito) Violet else Orange
+    val scope = rememberCoroutineScope()
+    val transition = updateTransition(targetState = panel, label = "panels")
+    BackHandler(enabled = panel.isNotEmpty() || islandOpen || incognito) {
+        when {
+            panel.isNotEmpty() -> panel = ""
+            islandOpen -> islandOpen = false
+            incognito -> incognito = false
+        }
+    }
+    LaunchedEffect(toast) {
+        if (toast.isNotEmpty()) { kotlinx.coroutines.delay(2100); toast = "" }
+    }
+
+    Column(Modifier.fillMaxSize().background(Ink).statusBarsPadding()) {
+        // Dynamic Island-style address capsule
+        Box(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp), contentAlignment = Alignment.TopCenter) {
+            Surface(
+                color = Glass,
+                shape = RoundedCornerShape(if (islandOpen) 28.dp else 30.dp),
+                border = BorderStroke(1.dp, Border),
+                shadowElevation = 18.dp,
+                modifier = Modifier
+                    .widthIn(min = if (islandOpen) 280.dp else 178.dp, max = if (islandOpen) 520.dp else 178.dp)
+                    .fillMaxWidth(if (islandOpen) 0.94f else 0.48f)
+                    .height(if (islandOpen) 58.dp else 38.dp)
+                    .clickable { if (!islandOpen) islandOpen = true }
+                    .animateContentSize(if (animations) spring(dampingRatio = 0.72f, stiffness = 380f) else snap())
+            ) {
+                if (!islandOpen) {
+                    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(7.dp).background(accent, CircleShape))
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (incognito) "Инкогнито" else "Darknes Tor", color = Paper, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    }
+                } else {
+                    Row(Modifier.fillMaxSize().padding(start = 16.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (incognito) "◉" else "⌕", color = accent, fontSize = 20.sp)
+                        Spacer(Modifier.width(10.dp))
+                        BasicTextField(
+                            value = query, onValueChange = { query = it }, modifier = Modifier.weight(1f),
+                            singleLine = true, textStyle = TextStyle(color = Paper, fontSize = 14.sp),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                            keyboardActions = KeyboardActions(onGo = {
+                                if (query.isNotBlank()) { onLoad(resolveAddress(query, engine)); loaded = true }
+                                keyboard?.hide(); islandOpen = false
+                            }),
+                            decorationBox = { inner -> Box { if (query.isEmpty()) Text("Поиск или адрес", color = Muted, fontSize = 14.sp); inner() } }
+                        )
+                        Box(Modifier.size(42.dp).background(accent, CircleShape).clickable {
+                            if (query.isNotBlank()) { onLoad(resolveAddress(query, engine)); loaded = true }
+                            keyboard?.hide(); islandOpen = false
+                        }, contentAlignment = Alignment.Center) { Text("➜", color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold) }
+                    }
+                }
+            }
+        }
+
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            AndroidView(factory = { ctx -> GeckoView(ctx).apply { setSession(session) } }, modifier = Modifier.fillMaxSize())
+            if (!loaded) HomeScreen(accent, blur, animations) { link ->
+                query = link
+                onLoad(link)
+                loaded = true
+            }
+            AnimatedVisibility(
+                visible = panel.isNotEmpty(),
+                enter = if (animations) fadeIn(tween(220)) + slideInVertically(animationSpec = spring(dampingRatio = .82f, stiffness = 340f)) { it / 3 } + scaleIn(initialScale = .97f) else EnterTransition.None,
+                exit = if (animations) fadeOut(tween(150)) + slideOutVertically { it / 4 } else ExitTransition.None,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Box(Modifier.fillMaxSize().background(Color(0x99000000)).clickable { panel = "" }, contentAlignment = Alignment.BottomCenter) {
+                    Column(
+                        Modifier.fillMaxWidth().fillMaxHeight(if (panel == "Вкладки") .94f else .78f)
+                            .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
+                            .background(Glass).border(1.dp, Border, RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
+                            .clickable(enabled = false) {}.padding(20.dp)
+                    ) {
+                        when (panel) {
+                            "Меню" -> MenuPanel(accent) { action ->
+                                panel = when(action) {
+                                    "Новая вкладка" -> { tabCount++; loaded = false; "" }
+                                    "Инкогнито" -> { incognito = true; loaded = false; "" }
+                                    else -> action
+                                }
+                            }
+                            "Настройки" -> SettingsPanel(engine, { engine = it }, trackers, { trackers = it }, darkSites, { darkSites = it }, animations, { animations = it }, blur, { blur = it })
+                            "Расширения" -> ExtensionsPanel(adBlock, { adBlock = it }, passwords, { passwords = it }, nightPages, { nightPages = it }) { toast = "Установка расширений появится позже" }
+                            "Аккаунт" -> AccountPanel { toast = "Вход в Darknes появится позже" }
+                            "ИИ-чат" -> ChatPanel(model, { model = it }, chatInput, { chatInput = it }, sent, { sent = it })
+                            "Вкладки" -> TabsPanel(tabCount, incognito, { incognito = it }, { tabCount = (tabCount - 1).coerceAtLeast(1) }, { panel = ""; loaded = false })
+                        }
+                    }
+                }
+            }
+            AnimatedVisibility(toast.isNotEmpty(), enter = fadeIn() + slideInVertically { -it }, exit = fadeOut(),
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 12.dp)) {
+                Surface(color = Glass, shape = CircleShape, border = BorderStroke(1.dp, Border), shadowElevation = 14.dp) {
+                    Text(toast, color = Paper, modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp), fontSize = 13.sp)
+                }
+            }
+        }
+
+        // Floating bottom glass navigation, above Android gesture/navigation area
+        Row(
+            Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 10.dp)
+                .height(62.dp).clip(RoundedCornerShape(26.dp)).background(Glass)
+                .border(1.dp, Border, RoundedCornerShape(26.dp)).padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically
+        ) {
+            NavCircle("‹", accent) { session.goBack() }
+            NavCircle("›", accent) { session.goForward() }
+            NavCircle("✧", accent) { panel = "ИИ-чат" }
+            Box(Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(Color(0xFF30251C)).clickable { panel = "Вкладки" }, contentAlignment = Alignment.Center) {
+                Text("$tabCount", color = Paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
+            NavCircle("•••", accent) { panel = "Меню" }
+        }
     }
 }
 
 @Composable
-private fun DarknesBrowser(
-    session: GeckoSession,
-    onLoad: (String) -> Unit
-) {
-    var address by remember { mutableStateOf("") }
-    var showAi by remember { mutableStateOf(false) }
-    var showMenu by remember { mutableStateOf(false) }
-    var tabCount by remember { mutableIntStateOf(1) }
-    val keyboard = LocalSoftwareKeyboardController.current
-
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(Night)
-    ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(start = 20.dp, end = 12.dp, top = 12.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                Modifier
-                    .size(34.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Brush.linearGradient(listOf(AccentBright, Color(0xFF667DEB)))),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("D", color = Night, fontSize = 21.sp)
+private fun HomeScreen(accent: Color, blur: Float, animations: Boolean, onShortcut: (String) -> Unit) {
+    val infinite = rememberInfiniteTransition(label = "orbit")
+    val angle by infinite.animateFloat(0f, 360f, infiniteRepeatable(tween(40000, easing = LinearEasing), RepeatMode.Restart), label = "orbitAngle")
+    Column(Modifier.fillMaxSize().background(Ink).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
+        Spacer(Modifier.height(18.dp))
+        Canvas(Modifier.size(width = 270.dp, height = 205.dp).blur(blur.dp)) {
+            val cx = size.width / 2f
+            val cy = size.height / 2f
+            drawCircle(accent.copy(alpha = .26f), radius = 65.dp.toPx(), center = Offset(cx, cy))
+            rotate(angle, Offset(cx, cy)) {
+                drawOval(Brush.sweepGradient(listOf(accent.copy(alpha=.1f), Peach, accent, Color(0xFFFFD88C), accent)), topLeft = Offset(cx-112.dp.toPx(), cy-36.dp.toPx()), size = androidx.compose.ui.geometry.Size(224.dp.toPx(), 72.dp.toPx()), style = Stroke(width = 13.dp.toPx()))
+                drawOval(Brush.sweepGradient(listOf(Color.Transparent, accent, Peach, accent)), topLeft = Offset(cx-112.dp.toPx(), cy-36.dp.toPx()), size = androidx.compose.ui.geometry.Size(224.dp.toPx(), 72.dp.toPx()), style = Stroke(width = 3.dp.toPx()))
             }
-            Spacer(Modifier.width(10.dp))
-            Column {
-                Text("DARKNES", color = Color.White, fontSize = 16.sp, letterSpacing = 2.sp)
-                Text("BROWSER", color = Muted, fontSize = 9.sp, letterSpacing = 2.5.sp)
-            }
-            Spacer(Modifier.weight(1f))
-            Surface(
-                color = Panel,
-                shape = CircleShape,
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .clickable { showAi = !showAi }
-            ) {
-                Row(
-                    Modifier.padding(horizontal = 13.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.AutoAwesome, null, tint = Accent, modifier = Modifier.size(17.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("AI", color = Accent, fontSize = 12.sp)
-                }
-            }
-            Spacer(Modifier.width(7.dp))
-            Box {
-                IconButton(onClick = { showMenu = true }) {
-                    Icon(Icons.Default.MoreHoriz, "Меню", tint = Color.White)
-                }
-                DropdownMenu(
-                    expanded = showMenu,
-                    onDismissRequest = { showMenu = false },
-                    modifier = Modifier.background(PanelRaised)
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Обновить страницу", color = Color.White) },
-                        leadingIcon = { Icon(Icons.Default.Refresh, null, tint = Accent) },
-                        onClick = {
-                            showMenu = false
-                            session.reload()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Новая вкладка", color = Color.White) },
-                        leadingIcon = { Icon(Icons.Default.Tab, null, tint = Accent) },
-                        onClick = {
-                            showMenu = false
-                            tabCount += 1
-                        }
-                    )
-                }
-            }
+            drawCircle(Color.Black, 36.dp.toPx(), Offset(cx, cy))
+            drawCircle(accent.copy(alpha=.75f), 38.dp.toPx(), Offset(cx, cy), style = Stroke(2.dp.toPx()))
         }
-
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp)
-                .clip(RoundedCornerShape(22.dp))
-                .background(PanelRaised)
-                .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Default.Search, contentDescription = null, tint = Accent, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(10.dp))
-            BasicTextField(
-                value = address,
-                onValueChange = { address = it },
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(vertical = 10.dp),
-                singleLine = true,
-                textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                keyboardActions = KeyboardActions(
-                    onGo = {
-                        if (address.isNotBlank()) onLoad(address)
-                        keyboard?.hide()
-                    }
-                ),
-                decorationBox = { inner ->
-                    Box {
-                        if (address.isEmpty()) {
-                            Text("Поиск или адрес сайта", color = Muted, fontSize = 14.sp)
-                        }
-                        inner()
-                    }
-                }
-            )
-            if (address.isNotEmpty()) {
-                IconButton(onClick = { address = "" }, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.Default.Close, "Очистить", tint = Muted, modifier = Modifier.size(17.dp))
-                }
-            }
-            TextButton(
-                onClick = {
-                    if (address.isNotBlank()) onLoad(address)
-                    keyboard?.hide()
-                },
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-            ) {
-                Text("GO", color = Accent, fontSize = 12.sp)
-            }
-        }
-
-        AnimatedVisibility(
-            visible = showAi,
-            enter = fadeIn() + slideInVertically(initialOffsetY = { -it / 2 }),
-            exit = fadeOut() + slideOutVertically(targetOffsetY = { -it / 2 })
-        ) {
-            Surface(
-                color = Panel,
-                shape = RoundedCornerShape(22.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 10.dp)
-                    .animateContentSize()
-            ) {
-                Column(Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.AutoAwesome, null, tint = Accent)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Darknes AI", color = Color.White, fontSize = 17.sp)
-                        Spacer(Modifier.weight(1f))
-                        IconButton(onClick = { showAi = false }, modifier = Modifier.size(30.dp)) {
-                            Icon(Icons.Default.Close, "Закрыть", tint = Muted)
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Умный помощник Darknes",
-                        color = Color.White,
-                        fontSize = 14.sp
-                    )
+        Spacer(Modifier.height(4.dp))
+        Text("Darknes Tor", fontSize = 39.sp, fontWeight = FontWeight.Bold, brush = Brush.linearGradient(listOf(Paper, Peach)))
+        Text("Поиск без входа и слежки", color = Muted, fontSize = 14.sp)
+        Spacer(Modifier.height(28.dp))
+        val sites = listOf("Y" to "YouTube", "G" to "Google", "Я" to "Яндекс", "Gh" to "GitHub", "W" to "Wikipedia", "T" to "Telegram", "R" to "Reddit", "Tw" to "Twitch")
+        LazyVerticalGrid(columns = GridCells.Fixed(4), modifier = Modifier.fillMaxWidth().height(190.dp).padding(horizontal = 12.dp), userScrollEnabled = false) {
+            items(sites) { (letter, name) ->
+                Column(Modifier.padding(5.dp).clip(RoundedCornerShape(18.dp)).background(Brush.linearGradient(listOf(Color(0xFF29211B), Color(0xFF141110)))).border(1.dp, Border, RoundedCornerShape(18.dp)).clickable { onShortcut(when(name) { "YouTube" -> "https://youtube.com"; "Google" -> "https://google.com"; "Яндекс" -> "https://ya.ru"; "GitHub" -> "https://github.com"; "Wikipedia" -> "https://wikipedia.org"; "Telegram" -> "https://telegram.org"; "Reddit" -> "https://reddit.com"; else -> "https://twitch.tv" }) }.padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(letter, color = Orange, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Панель интерфейса готова. Для отправки запросов и получения ответов потребуется подключить сервер Darknes AI.",
-                        color = Muted,
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp
-                    )
+                    Text(name, color = Paper, fontSize = 10.sp, maxLines = 1)
                 }
             }
         }
+        Spacer(Modifier.height(18.dp))
+    }
+}
 
-        Box(
-            Modifier
-                .weight(1f)
-                .fillMaxWidth()
-        ) {
-            AndroidView(
-                factory = { context -> GeckoView(context).apply { setSession(session) } },
-                modifier = Modifier.fillMaxSize()
-            )
-            if (tabCount == 1 && address.isBlank()) {
-                Column(
-                    Modifier
-                        .align(Alignment.Center)
-                        .padding(28.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                        Modifier
-                            .size(66.dp)
-                            .clip(RoundedCornerShape(23.dp))
-                            .background(Brush.linearGradient(listOf(AccentBright, Color(0xFF596FD5)))),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("D", color = Night, fontSize = 39.sp)
-                    }
-                    Spacer(Modifier.height(18.dp))
-                    Text("Добро пожаловать", color = Color.White, fontSize = 23.sp)
-                    Spacer(Modifier.height(6.dp))
-                    Text("Всё нужное для твоего интернета", color = Muted, fontSize = 13.sp)
-                    Spacer(Modifier.height(22.dp))
-                    Surface(
-                        color = Panel,
-                        shape = CircleShape,
-                        modifier = Modifier.clickable {
-                            address = "https://www.google.com"
-                            onLoad(address)
-                        }
-                    ) {
-                        Row(
-                            Modifier.padding(horizontal = 18.dp, vertical = 11.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Search, null, tint = Accent, modifier = Modifier.size(17.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Начать поиск", color = Color.White, fontSize = 13.sp)
-                        }
-                    }
-                }
+@Composable private fun NavCircle(label: String, accent: Color, action: () -> Unit) {
+    Box(Modifier.size(42.dp).clip(CircleShape).clickable { action() }, contentAlignment = Alignment.Center) {
+        Text(label, color = Paper, fontSize = if (label.length > 1) 14.sp else 25.sp, fontWeight = FontWeight.Medium)
+    }
+}
+@Composable private fun PanelTitle(title: String, subtitle: String = "") {
+    Text(title, color = Paper, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+    if (subtitle.isNotEmpty()) { Spacer(Modifier.height(4.dp)); Text(subtitle, color = Muted, fontSize = 13.sp) }
+    Spacer(Modifier.height(20.dp))
+}
+@Composable private fun MenuPanel(accent: Color, onAction: (String) -> Unit) {
+    PanelTitle("Меню")
+    val items = listOf("＋" to "Новая вкладка", "◉" to "Инкогнито", "▦" to "Расширения", "✧" to "ИИ-чат", "⚙" to "Настройки", "◎" to "Аккаунт")
+    LazyVerticalGrid(columns = GridCells.Fixed(3), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        items(items) { (symbol, name) ->
+            Column(Modifier.aspectRatio(1f).clip(RoundedCornerShape(20.dp)).background(Color(0xFF25201C)).border(1.dp, Border, RoundedCornerShape(20.dp)).clickable { onAction(name) }.padding(10.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(symbol, color = accent, fontSize = 26.sp)
+                Spacer(Modifier.height(8.dp))
+                Text(name, color = Paper, fontSize = 11.sp)
             }
         }
-
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .background(Panel)
-                .navigationBarsPadding()
-                .padding(horizontal = 12.dp, vertical = 5.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = { session.goBack() }) {
-                Icon(Icons.Default.ArrowBack, "Назад", tint = Color.White)
-            }
-            IconButton(onClick = { session.goForward() }) {
-                Icon(Icons.Default.ArrowForward, "Вперёд", tint = Color.White)
-            }
-            IconButton(onClick = { onLoad("https://www.google.com") }) {
-                Icon(Icons.Default.Home, "Домой", tint = Color.White)
-            }
-            Surface(
-                color = PanelRaised,
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.clickable { showMenu = true }
-            ) {
-                Row(
-                    Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Tab, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(5.dp))
-                    Text("$tabCount", color = Color.White, fontSize = 12.sp)
-                }
+    }
+}
+@Composable private fun SettingSwitch(title: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, color = Paper, modifier = Modifier.weight(1f), fontSize = 15.sp)
+        Switch(checked, onChange, colors = SwitchDefaults.colors(checkedThumbColor = Ink, checkedTrackColor = Orange))
+    }
+}
+@Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit) {
+    PanelTitle("Настройки", "Настрой Darknes Tor под себя")
+    Text("Поисковая система", color = Muted, fontSize = 13.sp)
+    Row(Modifier.padding(vertical = 10.dp)) { listOf("Яндекс","Google").forEach { name -> FilterChip(selected = engine==name, onClick={setEngine(name)}, label={Text(name)}, colors=FilterChipDefaults.filterChipColors(selectedContainerColor=Orange, selectedLabelColor=Ink)) } }
+    SettingSwitch("Блокировать трекеры", trackers, setTrackers)
+    SettingSwitch("Тёмный режим сайтов", dark, setDark)
+    SettingSwitch("Анимации", anim, setAnim)
+    Text("Размытие фона · ${blur.toInt()} px", color = Paper, modifier = Modifier.padding(top=12.dp))
+    Slider(value=blur, onValueChange=setBlur, valueRange=0f..24f, colors=SliderDefaults.colors(thumbColor=Orange, activeTrackColor=Orange))
+}
+@Composable private fun ExtensionsPanel(ad:Boolean, setAd:(Boolean)->Unit, pass:Boolean, setPass:(Boolean)->Unit, night:Boolean, setNight:(Boolean)->Unit, install:()->Unit) {
+    PanelTitle("Расширения", "Дополнительные возможности")
+    SettingSwitch("Блокировщик рекламы", ad, setAd)
+    SettingSwitch("Менеджер паролей", pass, setPass)
+    SettingSwitch("Ночной режим страниц", night, setNight)
+    Spacer(Modifier.height(18.dp))
+    Button(onClick=install, modifier=Modifier.fillMaxWidth().height(52.dp), colors=ButtonDefaults.buttonColors(containerColor=Orange, contentColor=Ink), shape=RoundedCornerShape(18.dp)) { Text("Установить из файла", fontWeight=Bold) }
+}
+@Composable private fun AccountPanel(onLogin:()->Unit) {
+    PanelTitle("Аккаунт", "Darknes ID")
+    Text("Вы без входа", color=Paper, fontSize=20.sp, fontWeight=Bold)
+    Spacer(Modifier.height(10.dp))
+    Text("Браузер работает без аккаунта. Вход в Darknes понадобится для синхронизации вкладок и закладок.", color=Muted, fontSize=14.sp, lineHeight=21.sp)
+    Spacer(Modifier.height(24.dp))
+    Button(onClick=onLogin, modifier=Modifier.fillMaxWidth().height(52.dp), colors=ButtonDefaults.buttonColors(containerColor=Orange, contentColor=Ink), shape=RoundedCornerShape(18.dp)) { Text("Войти в Darknes", fontWeight=Bold) }
+}
+@Composable private fun ChatPanel(model:String, setModel:(String)->Unit, input:String, setInput:(String)->Unit, sent:String, setSent:(String)->Unit) {
+    PanelTitle("ИИ-чат", "Выбери помощника")
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+        listOf("Darknes AI","Claude","GPT","Gemini").forEach { FilterChip(selected=model==it,onClick={setModel(it)},label={Text(it)},colors=FilterChipDefaults.filterChipColors(selectedContainerColor=Orange,selectedLabelColor=Ink)) }
+    }
+    Spacer(Modifier.height(16.dp))
+    Column(Modifier.weight(1f,false).fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        if(sent.isNotEmpty()) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.End) { Text(sent, color=Ink, modifier=Modifier.clip(RoundedCornerShape(18.dp)).background(Orange).padding(13.dp)) }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.Start) { Text("Это макет чата. Ответы подключатся к выбранной модели в приложении.", color=Paper, modifier=Modifier.fillMaxWidth(.88f).clip(RoundedCornerShape(18.dp)).background(Color(0xFF292522)).padding(13.dp), lineHeight=20.sp) }
+    }
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Color(0xFF292522)).padding(8.dp), verticalAlignment=Alignment.CenterVertically) {
+        BasicTextField(input,setInput,Modifier.weight(1f).padding(10.dp),textStyle=TextStyle(color=Paper,fontSize=14.sp),decorationBox={inner->Box{if(input.isEmpty()) Text("Спросить · $model",color=Muted);inner()}})
+        Box(Modifier.size(42.dp).background(Orange,CircleShape).clickable { if(input.isNotBlank()) { setSent(input); setInput("") } },contentAlignment=Alignment.Center) { Text("➤",color=Ink) }
+    }
+}
+@Composable private fun TabsPanel(count:Int, incognito:Boolean, setIncognito:(Boolean)->Unit, closeTab:()->Unit, done:()->Unit) {
+    Row(verticalAlignment=Alignment.CenterVertically) {
+        PanelTitle("Вкладки")
+        Spacer(Modifier.weight(1f))
+        TextButton(onClick=done) { Text("Готово", color=Orange) }
+    }
+    Row(verticalAlignment=Alignment.CenterVertically) {
+        TextButton(onClick={}) { Text("＋", color=Orange, fontSize=22.sp) }
+        FilterChip(selected=!incognito,onClick={setIncognito(false)},label={Text("Обычные")})
+        Spacer(Modifier.width(6.dp))
+        FilterChip(selected=incognito,onClick={setIncognito(true)},label={Text("Инкогнито")})
+    }
+    LazyVerticalGrid(columns=GridCells.Fixed(2),verticalArrangement=Arrangement.spacedBy(12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+        items(count) {
+            Column(Modifier.aspectRatio(.75f).clip(RoundedCornerShape(20.dp)).background(Brush.linearGradient(if(incognito) listOf(Color(0xFF503A87),Color(0xFF211A35)) else listOf(Color(0xFF9C4B12),Color(0xFF342014)))).border(2.dp,if(it==0) if(incognito)Violet else Orange else Border,RoundedCornerShape(20.dp)).padding(12.dp),verticalArrangement=Arrangement.Bottom) {
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) { Text("×",color=Paper,modifier=Modifier.clickable { closeTab() }) }
+                Spacer(Modifier.weight(1f))
+                Text(if(incognito)"Инкогнито" else "Новая вкладка",color=Paper,fontWeight=Bold)
+                Text("Стартовая страница",color=Paper.copy(alpha=.65f),fontSize=11.sp)
             }
         }
     }
