@@ -594,7 +594,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         }
     }
     val transition = updateTransition(targetState = panel, label = "panels")
-    DisposableEffect(session) {
+    DisposableEffect(session, incognito) {
         session.setContentDelegate(object : GeckoSession.ContentDelegate {
             override fun onExternalResponse(session: GeckoSession, response: WebResponse) {
                 onDownload(response)
