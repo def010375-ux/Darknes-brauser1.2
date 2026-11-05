@@ -64,7 +64,7 @@ private val Muted = Color(0xFF8B8580)
 private val Glass = Color(0xD91A1715)
 private val Border = Color(0x35FFF4E8)
 
-private data class DownloadRecord(val id: Long, val name: String, val status: String, val savedUri: String? = null)
+private data class DownloadRecord(val id: Long, val name: String, val status: String, val savedUri: String? = null, val downloadedBytes: Long = 0L, val totalBytes: Long = 0L)
 
 private fun readDownloadRecords(raw: String?): List<DownloadRecord> = runCatching {
     val array = JSONArray(raw ?: "[]")
@@ -75,14 +75,15 @@ private fun readDownloadRecords(raw: String?): List<DownloadRecord> = runCatchin
         if (id <= 0L || name.isBlank()) return@mapNotNull null
         val storedStatus = item.optString("status", "Сохранено")
         val status = if (storedStatus == "Скачивается" || storedStatus == "Ожидает сохранения") "Прервано" else storedStatus
-        DownloadRecord(id, name, status, item.optString("savedUri").takeIf { it.isNotBlank() && it != "null" })
+        DownloadRecord(id, name, status, item.optString("savedUri").takeIf { it.isNotBlank() && it != "null" }, item.optLong("downloadedBytes", 0L).coerceAtLeast(0L), item.optLong("totalBytes", 0L).coerceAtLeast(0L))
     }.sortedByDescending { it.id }.take(100)
 }.getOrDefault(emptyList())
 
 private fun encodeDownloadRecords(records: List<DownloadRecord>): String = JSONArray().apply {
     records.take(100).forEach { item ->
         put(org.json.JSONObject().put("id", item.id).put("name", item.name)
-            .put("status", item.status).put("savedUri", item.savedUri ?: ""))
+            .put("status", item.status).put("savedUri", item.savedUri ?: "")
+            .put("downloadedBytes", item.downloadedBytes).put("totalBytes", item.totalBytes))
     }
 }.toString()
 
@@ -146,12 +147,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun updateDownload(id: Long?, status: String, uri: String? = null) {
+    private fun updateDownload(id: Long?, status: String, uri: String? = null, downloadedBytes: Long? = null, totalBytes: Long? = null) {
         if (id == null) return
         runOnUiThread {
             val index = downloadRecords.indexOfFirst { it.id == id }
             if (index >= 0) {
-                downloadRecords[index] = downloadRecords[index].copy(status = status, savedUri = uri ?: downloadRecords[index].savedUri)
+                val current = downloadRecords[index]
+                downloadRecords[index] = current.copy(status = status, savedUri = uri ?: current.savedUri, downloadedBytes = downloadedBytes ?: current.downloadedBytes, totalBytes = totalBytes ?: current.totalBytes)
                 persistDownloads()
             }
         }
@@ -178,8 +180,24 @@ class MainActivity : ComponentActivity() {
                         val body = response.body ?: throw IllegalStateException("Нет данных файла")
                         val output = contentResolver.openOutputStream(destination)
                             ?: throw IllegalStateException("Не удалось открыть место сохранения")
-                        body.use { input -> output.use { target -> input.copyTo(target) } }
-                        updateDownload(recordId, "Сохранено", destination.toString())
+                        val totalBytes = response.headers.entries.firstOrNull { it.key.equals("content-length", ignoreCase = true) }?.value?.toLongOrNull() ?: 0L
+                        var copiedBytes = 0L
+                        var lastReportedBytes = 0L
+                        body.use { input -> output.use { target ->
+                            val buffer = ByteArray(64 * 1024)
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                target.write(buffer, 0, count)
+                                copiedBytes += count
+                                if (copiedBytes - lastReportedBytes >= 256 * 1024 || (totalBytes > 0L && copiedBytes >= totalBytes)) {
+                                    updateDownload(recordId, "Скачивается", downloadedBytes = copiedBytes, totalBytes = totalBytes)
+                                    lastReportedBytes = copiedBytes
+                                }
+                            }
+                            target.flush()
+                        } }
+                        updateDownload(recordId, "Сохранено", destination.toString(), copiedBytes, totalBytes)
                         runOnUiThread { Toast.makeText(this, "Файл сохранён", Toast.LENGTH_LONG).show() }
                     } catch (error: Exception) {
                         response.body?.close()
@@ -919,7 +937,13 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                             }
                             "Расширения" -> ExtensionsPanel(adBlock, { adBlock = it }, nightPages, { nightPages = it }) { toast = "Установка расширений появится позже" }
                             "Аккаунт" -> DarknesIdPanel()
-                            "ИИ-чат" -> ChatPanel(model, { model = it }, chatInput, { chatInput = it }, sent, { sent = it })
+                            "ИИ-чат" -> ChatPanel {
+                                panel = ""
+                                query = "https://duck.ai"
+                                session.loadUri("https://duck.ai")
+                                loaded = true
+                                showSearchResults = false
+                            }
                             "Загрузки" -> DownloadsPanel(downloads, onRemoveDownload) { item ->
                                 val saved = item.savedUri ?: return@DownloadsPanel
                                 runCatching {
@@ -1336,6 +1360,16 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
                         Column(Modifier.weight(1f)) {
                             Text(item.name, color = Paper, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 2)
                             Text(item.status, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+                            if (item.status == "Скачивается") {
+                                if (item.totalBytes > 0L) {
+                                    val fraction = (item.downloadedBytes.toFloat() / item.totalBytes.toFloat()).coerceIn(0f, 1f)
+                                    LinearProgressIndicator(progress = fraction, modifier = Modifier.fillMaxWidth().padding(top = 7.dp), color = Orange)
+                                    Text("${(fraction * 100).toInt()}% · ${item.downloadedBytes / 1024} KB / ${item.totalBytes / 1024} KB", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
+                                } else {
+                                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 7.dp), color = Orange)
+                                    Text("${item.downloadedBytes / 1024} KB", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
+                                }
+                            }
                         }
                         if (item.savedUri != null) {
                             TextButton(onClick = { onOpen(item) }) { Text("Открыть", color = Orange, fontSize = 12.sp) }
@@ -1486,23 +1520,25 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     Spacer(Modifier.height(24.dp))
     Button(onClick=onLogin, modifier=Modifier.fillMaxWidth().height(52.dp), colors=ButtonDefaults.buttonColors(containerColor=Orange, contentColor=Ink), shape=RoundedCornerShape(18.dp)) { Text("Войти в Darknes", fontWeight=FontWeight.Bold) }
 }
-@Composable private fun ChatPanel(model:String, setModel:(String)->Unit, input:String, setInput:(String)->Unit, sent:String, setSent:(String)->Unit) {
-    PanelTitle("ИИ-чат", "Выбери помощника")
-    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-        listOf("Darknes AI","Claude","GPT","Gemini").forEach { FilterChip(selected=model==it,onClick={setModel(it)},label={Text(it)},colors=FilterChipDefaults.filterChipColors(selectedContainerColor=Orange,selectedLabelColor=Ink)) }
-    }
-    Spacer(Modifier.height(16.dp))
-    Column(Modifier.heightIn(min=120.dp,max=300.dp).fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        if(sent.isNotEmpty()) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.End) { Text(sent, color=Ink, modifier=Modifier.clip(RoundedCornerShape(18.dp)).background(Orange).padding(13.dp)) }
+@Composable private fun ChatPanel(onOpenAi:()->Unit) {
+    PanelTitle("Darknes AI", "Приватный ИИ-помощник")
+    Surface(Modifier.fillMaxWidth(), color = Color(0xFF211D1A), shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, Border)) {
+        Column(Modifier.padding(16.dp)) {
+            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Orange, modifier = Modifier.size(34.dp))
+            Spacer(Modifier.height(10.dp))
+            Text("Общайся с ИИ, задавай вопросы, проси объяснить или кратко пересказать текст.", color = Paper, fontSize = 14.sp, lineHeight = 20.sp)
+            Spacer(Modifier.height(8.dp))
+            Text("Чат открывается через Duck.ai. Это внешний сервис DuckDuckGo; для использования нужен интернет. Его модели и обработка запросов регулируются политикой DuckDuckGo.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = onOpenAi, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Ink), shape = RoundedCornerShape(17.dp)) {
+                Icon(Icons.Default.Chat, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Открыть ИИ-чат", fontWeight = FontWeight.Bold)
+            }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.Start) { Text("Это макет чата. Ответы подключатся к выбранной модели в приложении.", color=Paper, modifier=Modifier.fillMaxWidth(.88f).clip(RoundedCornerShape(18.dp)).background(Color(0xFF292522)).padding(13.dp), lineHeight=20.sp) }
-    }
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Color(0xFF292522)).padding(8.dp), verticalAlignment=Alignment.CenterVertically) {
-        BasicTextField(input,setInput,Modifier.weight(1f).padding(10.dp),textStyle=TextStyle(color=Paper,fontSize=14.sp),decorationBox={inner->Box{if(input.isEmpty()) Text("Спросить · $model",color=Muted);inner()}})
-        Box(Modifier.size(42.dp).background(Orange,CircleShape).clickable { if(input.isNotBlank()) { setSent(input); setInput("") } },contentAlignment=Alignment.Center) { Icon(Icons.Default.Send, contentDescription = "Отправить", tint = Ink, modifier = Modifier.size(19.dp)) }
     }
 }
+
 @Composable
 private fun TabsPanel(
     titles: List<String>,
