@@ -99,13 +99,13 @@ private fun readOfflinePages(raw: String?): List<OfflinePage> = runCatching {
         val content = item.optString("content")
         if (url.isBlank() || content.isBlank()) null
         else OfflinePage(item.optString("title").ifBlank { url }, url, content, item.optLong("time", 0L))
-    }.take(100)
+    }.take(30)
 }.getOrDefault(emptyList())
 
 private fun encodeOfflinePages(pages: List<OfflinePage>): String = JSONArray().apply {
-    pages.take(100).forEach { page ->
+    pages.take(30).forEach { page ->
         put(org.json.JSONObject().put("title", page.title).put("url", page.url)
-            .put("content", page.content.take(40000)).put("time", page.time))
+            .put("content", page.content.take(20000)).put("time", page.time))
     }
 }.toString()
 
@@ -654,13 +654,6 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var readerLoading by remember { mutableStateOf(false) }
     var readerError by remember { mutableStateOf("") }
     var accentChoice by remember { mutableStateOf(settingsPrefs.getString("accent", "orange") ?: "orange") }
-    var desktopMode by remember { mutableStateOf(settingsPrefs.getBoolean("desktopMode", false)) }
-    val offlinePages = remember(savedPrefs) {
-        mutableStateListOf<OfflinePage>().apply {
-            addAll(readOfflinePages(savedPrefs.getString("offline_pages", null)))
-        }
-    }
-    var selectedOfflinePage by remember { mutableStateOf<OfflinePage?>(null) }
     var testerTapCount by remember { mutableIntStateOf(0) }
     var testerLastTap by remember { mutableLongStateOf(0L) }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -671,6 +664,13 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     val bookmarks = remember(savedPrefs) {
         mutableStateListOf<SavedPage>().apply { addAll(readSavedPages(savedPrefs.getString("bookmarks", null))) }
     }
+    var desktopMode by remember { mutableStateOf(settingsPrefs.getBoolean("desktopMode", false)) }
+    val offlinePages = remember(savedPrefs) {
+        mutableStateListOf<OfflinePage>().apply {
+            addAll(readOfflinePages(savedPrefs.getString("offline_pages", null)))
+        }
+    }
+    var selectedOfflinePage by remember { mutableStateOf<OfflinePage?>(null) }
     LaunchedEffect(history.toList()) {
         savedPrefs.edit().putString("history", encodeSavedPages(history.toList())).apply()
     }
@@ -1303,8 +1303,8 @@ private fun HomeSearchBar(
         Icons.Default.Shield to "Безопасность",
         Icons.Default.Translate to "Перевести страницу",
         Icons.Default.MenuBook to "Режим чтения",
-        Icons.Default.DownloadForOffline to "Сохранить офлайн",
-        Icons.Default.OfflinePin to "Офлайн-страницы"
+        Icons.Default.Download to "Сохранить офлайн",
+        Icons.Default.Bookmarks to "Офлайн-страницы"
     )
     LazyVerticalGrid(columns = GridCells.Fixed(3), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         items(items) { (icon, name) ->
