@@ -603,6 +603,11 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     }
     var activeTab by remember { mutableIntStateOf(tabsPrefs.getInt("active", 0).coerceIn(0, restoredTabs.lastIndex)) }
     val session = sessions[activeTab.coerceIn(0, sessions.lastIndex)]
+    val splitSession = remember(runtime) { GeckoSession().also { it.open(runtime) } }
+    var splitScreen by remember { mutableStateOf(false) }
+    DisposableEffect(splitSession) {
+        onDispose { splitSession.close() }
+    }
     var canGoBack by remember { mutableStateOf(false) }
     var canGoForward by remember { mutableStateOf(false) }
     fun addTab() {
@@ -926,8 +931,25 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         }
 
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            key(session) {
-                AndroidView(factory = { ctx -> GeckoView(ctx).apply { setSession(session) } }, modifier = Modifier.fillMaxSize())
+            if (splitScreen) {
+                Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    key(session) {
+                        AndroidView(
+                            factory = { ctx -> GeckoView(ctx).apply { setSession(session) } },
+                            modifier = Modifier.weight(1f).fillMaxHeight()
+                        )
+                    }
+                    key(splitSession) {
+                        AndroidView(
+                            factory = { ctx -> GeckoView(ctx).apply { setSession(splitSession) } },
+                            modifier = Modifier.weight(1f).fillMaxHeight()
+                        )
+                    }
+                }
+            } else {
+                key(session) {
+                    AndroidView(factory = { ctx -> GeckoView(ctx).apply { setSession(session) } }, modifier = Modifier.fillMaxSize())
+                }
             }
             if (showSearchResults) {
                 SearchResultsScreen(
@@ -992,6 +1014,14 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                     "Режим чтения" -> { openReader(); "" }
                                     "Сохранить офлайн" -> { saveCurrentPageOffline(); "" }
                                     "Офлайн-страницы" -> "Офлайн-страницы"
+                                    "Разделить экран" -> {
+                                        splitScreen = !splitScreen
+                                        if (splitScreen) {
+                                            val currentUrl = tabUrls.getOrNull(activeTab).orEmpty()
+                                            splitSession.loadUri(if (currentUrl.startsWith("https://") || currentUrl.startsWith("http://")) currentUrl else "about:blank")
+                                        }
+                                        ""
+                                    }
                                     "Добавить закладку" -> {
                                         val currentUrl = tabUrls.getOrNull(activeTab).orEmpty()
                                         if (currentUrl.startsWith("http://") || currentUrl.startsWith("https://")) {
@@ -1320,6 +1350,7 @@ private fun HomeSearchBar(
         Icons.Default.Shield to "Безопасность",
         Icons.Default.Translate to "Перевести страницу",
         Icons.Default.MenuBook to "Режим чтения",
+        Icons.Default.ViewColumn to "Разделить экран",
         Icons.Default.Download to "Сохранить офлайн",
         Icons.Default.Bookmarks to "Офлайн-страницы"
     )
