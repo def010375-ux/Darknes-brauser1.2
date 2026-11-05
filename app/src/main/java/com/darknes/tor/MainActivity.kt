@@ -733,6 +733,9 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit)
         ) {
             NavCircle(Icons.Default.ArrowBack, accent, enabled = canGoBack) { if (canGoBack) session.goBack() }
             NavCircle(Icons.Default.ArrowForward, accent, enabled = canGoForward) { if (canGoForward) session.goForward() }
+            NavCircle(Icons.Default.Refresh, accent, enabled = tabUrls.getOrNull(activeTab).orEmpty().isNotBlank()) {
+                if (tabUrls.getOrNull(activeTab).orEmpty().isNotBlank()) session.reload()
+            }
             NavCircle(Icons.Default.AutoAwesome, accent) { panel = "ИИ-чат" }
             Box(Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(Color(0xFF30251C)).clickable { panel = "Вкладки" }, contentAlignment = Alignment.Center) {
                 Text("${sessions.size}", color = Paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
@@ -1094,26 +1097,156 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
         Box(Modifier.size(42.dp).background(Orange,CircleShape).clickable { if(input.isNotBlank()) { setSent(input); setInput("") } },contentAlignment=Alignment.Center) { Icon(Icons.Default.Send, contentDescription = "Отправить", tint = Ink, modifier = Modifier.size(19.dp)) }
     }
 }
-@Composable private fun TabsPanel(titles:List<String>, urls:List<String>, activeIndex:Int, incognito:Boolean, setIncognito:(Boolean)->Unit, addTab:()->Unit, closeTab:(Int)->Unit, selectTab:(Int)->Unit, done:()->Unit) {
-    Row(verticalAlignment=Alignment.CenterVertically) {
-        PanelTitle("Вкладки")
-        Spacer(Modifier.weight(1f))
-        TextButton(onClick=addTab) { Icon(Icons.Default.Add, contentDescription = null, tint = Orange, modifier = Modifier.size(17.dp)); Spacer(Modifier.width(4.dp)); Text("Новая", color=Orange) }
-        TextButton(onClick=done) { Text("Готово", color=Orange) }
-    }
-    Row(verticalAlignment=Alignment.CenterVertically) {
-        FilterChip(selected=!incognito,onClick={setIncognito(false)},label={Text("Обычные")})
-        Spacer(Modifier.width(6.dp))
-        FilterChip(selected=incognito,onClick={setIncognito(true)},label={Text("Инкогнито")})
-    }
-    LazyVerticalGrid(columns=GridCells.Fixed(2),verticalArrangement=Arrangement.spacedBy(12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-        items(titles.size) { index ->
-            Column(Modifier.aspectRatio(.75f).clip(RoundedCornerShape(20.dp)).background(Brush.linearGradient(if(incognito) listOf(Color(0xFF503A87),Color(0xFF211A35)) else listOf(Color(0xFF9C4B12),Color(0xFF342014)))).border(2.dp,if(index==activeIndex) if(incognito)Violet else Orange else Border,RoundedCornerShape(20.dp)).clickable { selectTab(index) }.padding(12.dp),verticalArrangement=Arrangement.Bottom) {
-                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) { Icon(Icons.Default.Close, contentDescription = "Закрыть вкладку", tint = Paper, modifier = Modifier.clickable { closeTab(index) }.padding(4.dp).size(18.dp)) }
-                Spacer(Modifier.weight(1f))
-                Text(titles[index].ifBlank { "Вкладка ${index+1}" },color=Paper,fontWeight=FontWeight.Bold,maxLines=2)
-                Text(urls.getOrNull(index).orEmpty().ifBlank { if(incognito) "Инкогнито" else "Стартовая страница" },color=Paper.copy(alpha=.65f),fontSize=10.sp,maxLines=2)
+@Composable
+private fun TabsPanel(
+    titles: List<String>,
+    urls: List<String>,
+    activeIndex: Int,
+    incognito: Boolean,
+    setIncognito: (Boolean) -> Unit,
+    addTab: () -> Unit,
+    closeTab: (Int) -> Unit,
+    selectTab: (Int) -> Unit,
+    done: () -> Unit
+) {
+    val tabAccent = if (incognito) Violet else Orange
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Вкладки", color = Paper, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                Text("${titles.size} открыто", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+            }
+            TextButton(onClick = addTab) {
+                Icon(Icons.Default.Add, contentDescription = null, tint = tabAccent, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Новая", color = tabAccent)
+            }
+            TextButton(onClick = done) { Text("Готово", color = Paper) }
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xFF171311)).padding(5.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            FilterChip(
+                selected = !incognito,
+                onClick = { setIncognito(false) },
+                label = { Text("Обычные") },
+                modifier = Modifier.weight(1f),
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Orange.copy(alpha = .18f),
+                    selectedLabelColor = Peach,
+                    labelColor = Muted
+                )
+            )
+            FilterChip(
+                selected = incognito,
+                onClick = { setIncognito(true) },
+                label = { Text("Инкогнито") },
+                modifier = Modifier.weight(1f),
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Violet.copy(alpha = .2f),
+                    selectedLabelColor = Color(0xFFD9CCFF),
+                    labelColor = Muted
+                )
+            )
+        }
+        Spacer(Modifier.height(14.dp))
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            modifier = Modifier.fillMaxWidth().weight(1f, fill = false),
+            contentPadding = PaddingValues(bottom = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(titles.size) { index ->
+                val isActive = index == activeIndex
+                val pageUrl = urls.getOrNull(index).orEmpty()
+                val host = runCatching { java.net.URI(pageUrl).host.orEmpty().removePrefix("www.") }
+                    .getOrDefault("")
+                val cardShape = RoundedCornerShape(21.dp)
+                val cardColors = if (incognito) {
+                    listOf(Color(0xFF392A60), Color(0xFF191426))
+                } else {
+                    listOf(Color(0xFF382419), Color(0xFF17110E))
+                }
+                Box(
+                    Modifier.fillMaxWidth().aspectRatio(.91f)
+                        .clip(cardShape)
+                        .background(Brush.linearGradient(cardColors))
+                        .border(
+                            if (isActive) 2.dp else 1.dp,
+                            if (isActive) tabAccent else Border,
+                            cardShape
+                        )
+                        .clickable { selectTab(index) }
+                        .animateContentSize()
+                        .padding(13.dp)
+                ) {
+                    Column(Modifier.fillMaxSize()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                Modifier.size(31.dp).clip(RoundedCornerShape(10.dp))
+                                    .background(tabAccent.copy(alpha = .16f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    if (incognito) Icons.Default.VisibilityOff else Icons.Default.Public,
+                                    contentDescription = null,
+                                    tint = tabAccent,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(7.dp))
+                            if (isActive) {
+                                Text(
+                                    "АКТИВНА",
+                                    color = tabAccent,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = .7.sp
+                                )
+                            }
+                        }
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            titles[index].ifBlank { "Вкладка ${index + 1}" },
+                            color = Paper,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            maxLines = 2
+                        )
+                        Spacer(Modifier.height(5.dp))
+                        Text(
+                            host.ifBlank {
+                                if (pageUrl.isBlank()) "Стартовая страница" else pageUrl
+                            },
+                            color = Paper.copy(alpha = .62f),
+                            fontSize = 10.sp,
+                            maxLines = 2
+                        )
+                    }
+                    IconButton(
+                        onClick = { closeTab(index) },
+                        modifier = Modifier.align(Alignment.TopEnd).size(34.dp)
+                            .clip(CircleShape).background(Color(0x55200000))
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Закрыть вкладку",
+                            tint = Paper,
+                            modifier = Modifier.size(17.dp)
+                        )
+                    }
+                }
             }
         }
+        Text(
+            "Нажми на карточку, чтобы переключиться. Закрыть вкладку можно крестиком.",
+            color = Muted,
+            fontSize = 11.sp,
+            lineHeight = 16.sp,
+            modifier = Modifier.padding(top = 8.dp)
+        )
     }
 }
