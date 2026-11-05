@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "com.darknes.tor"
     compileSdk = 37
+    compileSdkMinor = 2
 
     defaultConfig {
         applicationId = "com.darknes.tor"
