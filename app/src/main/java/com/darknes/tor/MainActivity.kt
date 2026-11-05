@@ -1,6 +1,7 @@
 package com.darknes.tor
 
 import android.os.Bundle
+import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -213,7 +214,7 @@ private fun DarknesApp(runtime: GeckoRuntime) {
             key(session) {
                 AndroidView(factory = { ctx -> GeckoView(ctx).apply { setSession(session) } }, modifier = Modifier.fillMaxSize())
             }
-            if (!loaded) HomeScreen(accent, blur, animations) { link ->
+            if (!loaded) HomeScreen(accent, blur, animations, onSecretSettings = { panel = "Настройки" }) { link ->
                 query = link
                 onLoad(link)
                 loaded = true
@@ -277,7 +278,9 @@ private fun DarknesApp(runtime: GeckoRuntime) {
 }
 
 @Composable
-private fun HomeScreen(accent: Color, blur: Float, animations: Boolean, onShortcut: (String) -> Unit) {
+private fun HomeScreen(accent: Color, blur: Float, animations: Boolean, onSecretSettings: () -> Unit, onShortcut: (String) -> Unit) {
+    var titleTapCount by remember { mutableIntStateOf(0) }
+    var lastTitleTapAt by remember { mutableLongStateOf(0L) }
     val infinite = rememberInfiniteTransition(label = "orbit")
     val angle by infinite.animateFloat(0f, 360f, infiniteRepeatable(tween(40000, easing = LinearEasing), RepeatMode.Restart), label = "orbitAngle")
     Column(Modifier.fillMaxSize().background(Ink).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -294,7 +297,19 @@ private fun HomeScreen(accent: Color, blur: Float, animations: Boolean, onShortc
             drawCircle(accent.copy(alpha=.75f), 38.dp.toPx(), Offset(cx, cy), style = Stroke(2.dp.toPx()))
         }
         Spacer(Modifier.height(4.dp))
-        Text("Darknes Tor", style = TextStyle(brush = Brush.linearGradient(listOf(Paper, Peach)), fontSize = 39.sp, fontWeight = FontWeight.Bold))
+        Text(
+            "Darknes Tor",
+            modifier = Modifier.clickable {
+                val now = SystemClock.elapsedRealtime()
+                titleTapCount = if (now - lastTitleTapAt <= 900L) titleTapCount + 1 else 1
+                lastTitleTapAt = now
+                if (titleTapCount >= 3) {
+                    titleTapCount = 0
+                    onSecretSettings()
+                }
+            },
+            style = TextStyle(brush = Brush.linearGradient(listOf(Paper, Peach)), fontSize = 39.sp, fontWeight = FontWeight.Bold)
+        )
         Text("Поиск без входа и слежки", color = Muted, fontSize = 14.sp)
         Spacer(Modifier.height(28.dp))
         val sites = listOf("Y" to "YouTube", "G" to "Google", "Я" to "Яндекс", "Gh" to "GitHub", "W" to "Wikipedia", "T" to "Telegram", "R" to "Reddit", "Tw" to "Twitch")
