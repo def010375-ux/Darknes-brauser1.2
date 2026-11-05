@@ -52,6 +52,7 @@ import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoRuntimeSettings
 import org.mozilla.geckoview.ContentBlocking
 import org.mozilla.geckoview.GeckoSession
+import org.mozilla.geckoview.GeckoSessionSettings
 import org.mozilla.geckoview.GeckoView
 import org.mozilla.geckoview.WebResponse
 
@@ -88,6 +89,25 @@ private fun encodeDownloadRecords(records: List<DownloadRecord>): String = JSONA
 }.toString()
 
 private data class SavedPage(val title: String, val url: String, val time: Long = System.currentTimeMillis())
+private data class OfflinePage(val title: String, val url: String, val content: String, val time: Long = System.currentTimeMillis())
+
+private fun readOfflinePages(raw: String?): List<OfflinePage> = runCatching {
+    val array = JSONArray(raw ?: "[]")
+    (0 until array.length()).mapNotNull { index ->
+        val item = array.optJSONObject(index) ?: return@mapNotNull null
+        val url = item.optString("url")
+        val content = item.optString("content")
+        if (url.isBlank() || content.isBlank()) null
+        else OfflinePage(item.optString("title").ifBlank { url }, url, content, item.optLong("time", 0L))
+    }.take(100)
+}.getOrDefault(emptyList())
+
+private fun encodeOfflinePages(pages: List<OfflinePage>): String = JSONArray().apply {
+    pages.take(100).forEach { page ->
+        put(org.json.JSONObject().put("title", page.title).put("url", page.url)
+            .put("content", page.content.take(40000)).put("time", page.time))
+    }
+}.toString()
 
 private fun readSavedPages(raw: String?): List<SavedPage> = runCatching {
     val array = JSONArray(raw ?: "[]")
@@ -634,6 +654,13 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var readerLoading by remember { mutableStateOf(false) }
     var readerError by remember { mutableStateOf("") }
     var accentChoice by remember { mutableStateOf(settingsPrefs.getString("accent", "orange") ?: "orange") }
+    var desktopMode by remember { mutableStateOf(settingsPrefs.getBoolean("desktopMode", false)) }
+    val offlinePages = remember(savedPrefs) {
+        mutableStateListOf<OfflinePage>().apply {
+            addAll(readOfflinePages(savedPrefs.getString("offline_pages", null)))
+        }
+    }
+    var selectedOfflinePage by remember { mutableStateOf<OfflinePage?>(null) }
     var testerTapCount by remember { mutableIntStateOf(0) }
     var testerLastTap by remember { mutableLongStateOf(0L) }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -650,6 +677,9 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     LaunchedEffect(bookmarks.toList()) {
         savedPrefs.edit().putString("bookmarks", encodeSavedPages(bookmarks.toList())).apply()
     }
+    LaunchedEffect(offlinePages.toList()) {
+        savedPrefs.edit().putString("offline_pages", encodeOfflinePages(offlinePages.toList())).apply()
+    }
     LaunchedEffect(tabTitles.toList(), tabUrls.toList(), activeTab, incognito, privateModeUsed) {
         // Once private browsing has been used in this app session, do not overwrite
         // the last normal-tab snapshot with URLs that may have been opened privately.
@@ -660,8 +690,9 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 .apply()
         }
     }
-    LaunchedEffect(blur, animations, trackers, darkSites, adBlock, nightPages, accentChoice) {
+    LaunchedEffect(blur, animations, trackers, darkSites, adBlock, nightPages, accentChoice, desktopMode) {
         settingsPrefs.edit()
+            .putBoolean("desktopMode", desktopMode)
             .putString("accent", accentChoice)
             .putFloat("blur", blur)
             .putBoolean("animations", animations)
@@ -679,6 +710,15 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     }
     LaunchedEffect(trackers, sessions.size) {
         sessions.forEach { it.settings.setUseTrackingProtection(trackers) }
+    }
+    LaunchedEffect(desktopMode, sessions.size) {
+        sessions.forEach { browserSession ->
+            browserSession.settings.userAgentMode = if (desktopMode) {
+                GeckoSessionSettings.USER_AGENT_MODE_DESKTOP
+            } else {
+                GeckoSessionSettings.USER_AGENT_MODE_MOBILE
+            }
+        }
     }
     LaunchedEffect(darkSites, nightPages) {
         runtime.settings.setPreferredColorScheme(
@@ -727,6 +767,28 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 }
             } finally {
                 searchLoading = false
+            }
+        }
+    }
+    fun saveCurrentPageOffline() {
+        val currentUrl = tabUrls.getOrNull(activeTab).orEmpty()
+        if (!currentUrl.startsWith("https://") && !currentUrl.startsWith("http://")) {
+            toast = "Сначала открой веб-страницу"
+            return
+        }
+        val title = tabTitles.getOrNull(activeTab).orEmpty().ifBlank { currentUrl }
+        toast = "Сохраняем текст страницы офлайн…"
+        scope.launch {
+            try {
+                val content = fetchReaderContent(currentUrl)
+                if (content.isBlank()) throw IllegalStateException("Пустая страница")
+                val existing = offlinePages.indexOfFirst { it.url == currentUrl }
+                if (existing >= 0) offlinePages.removeAt(existing)
+                offlinePages.add(0, OfflinePage(title, currentUrl, content))
+                while (offlinePages.size > 100) offlinePages.removeAt(offlinePages.lastIndex)
+                toast = "Страница сохранена для чтения офлайн"
+            } catch (problem: Exception) {
+                toast = "Не удалось сохранить страницу офлайн"
             }
         }
     }
@@ -911,6 +973,8 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                         ""
                                     }
                                     "Режим чтения" -> { openReader(); "" }
+                                    "Сохранить офлайн" -> { saveCurrentPageOffline(); "" }
+                                    "Офлайн-страницы" -> "Офлайн-страницы"
                                     "Добавить закладку" -> {
                                         val currentUrl = tabUrls.getOrNull(activeTab).orEmpty()
                                         if (currentUrl.startsWith("http://") || currentUrl.startsWith("https://")) {
@@ -924,12 +988,18 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                     else -> action
                                 }
                             }
-                            "Настройки" -> SettingsPanel(engine, { engine = it }, trackers, { trackers = it }, darkSites, { darkSites = it }, animations, { animations = it }, blur, { blur = it }, accentChoice, { accentChoice = it })
+                            "Настройки" -> SettingsPanel(engine, { engine = it }, trackers, { trackers = it }, darkSites, { darkSites = it }, animations, { animations = it }, blur, { blur = it }, accentChoice, { accentChoice = it }, desktopMode, { desktopMode = it })
                             "Безопасность" -> PrivacyPanel(trackers, { trackers = it }, adBlock, { adBlock = it }, darkSites, { darkSites = it }, nightPages, { nightPages = it }) {
                                 runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))) }
                                     .onFailure { toast = "Не удалось открыть настройки Android" }
                             }
                             "Чтение" -> ReaderPanel(readerSource, readerContent, readerLoading, readerError, onRetry = { openReader() })
+                            "Офлайн-страницы" -> OfflinePagesPanel(
+                                offlinePages = offlinePages.toList(),
+                                onOpen = { page -> selectedOfflinePage = page; panel = "Офлайн-просмотр" },
+                                onRemove = { page -> offlinePages.removeAll { it.url == page.url } }
+                            )
+                            "Офлайн-просмотр" -> OfflinePageViewerPanel(selectedOfflinePage, onBack = { panel = "Офлайн-страницы" })
                             "Тестер" -> TesterPanel { url ->
                                 runCatching {
                                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
@@ -1232,7 +1302,9 @@ private fun HomeSearchBar(
         Icons.Default.Person to "Аккаунт",
         Icons.Default.Shield to "Безопасность",
         Icons.Default.Translate to "Перевести страницу",
-        Icons.Default.MenuBook to "Режим чтения"
+        Icons.Default.MenuBook to "Режим чтения",
+        Icons.Default.DownloadForOffline to "Сохранить офлайн",
+        Icons.Default.OfflinePin to "Офлайн-страницы"
     )
     LazyVerticalGrid(columns = GridCells.Fixed(3), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         items(items) { (icon, name) ->
@@ -1456,13 +1528,15 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     Text("Выбор версии открывает загрузку APK. Установка подтверждается Android. Для обновления поверх текущей версии подпись APK должна совпадать.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
 }
 
-@Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit, accentChoice:String, setAccentChoice:(String)->Unit) {
+@Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit, accentChoice:String, setAccentChoice:(String)->Unit, desktopMode:Boolean, setDesktopMode:(Boolean)->Unit) {
     PanelTitle("Настройки", "Настрой Darknes Tor под себя")
     Text("Поисковая система · DuckDuckGo", color = Muted, fontSize = 13.sp)
     Text("Единственная поисковая система браузера — DuckDuckGo.", color = Peach, fontSize = 13.sp, modifier = Modifier.padding(vertical = 10.dp))
     SettingSwitch("Блокировать трекеры", trackers, setTrackers)
     SettingSwitch("Тёмный режим сайтов", dark, setDark)
     SettingSwitch("Анимации", anim, setAnim)
+    SettingSwitch("Версия сайтов для компьютера", desktopMode, setDesktopMode)
+    Text("Режим меняет User-Agent и viewport GeckoView для всех вкладок. Некоторые сайты могут отображаться иначе.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
     Text("Размытие фона · ${blur.toInt()} px", color = Paper, modifier = Modifier.padding(top=12.dp))
     Slider(value=blur, onValueChange=setBlur, valueRange=0f..24f, colors=SliderDefaults.colors(thumbColor=Orange, activeTrackColor=Orange))
     Text("Цвет акцента", color = Paper, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
@@ -1502,6 +1576,69 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     }
     Spacer(Modifier.height(8.dp))
     Text("Текст извлекается через внешний сервис чтения страниц. Не отправляй туда страницы с личными данными.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+}
+
+
+
+@Composable
+private fun OfflinePagesPanel(
+    offlinePages: List<OfflinePage>,
+    onOpen: (OfflinePage) -> Unit,
+    onRemove: (OfflinePage) -> Unit
+) {
+    PanelTitle("Офлайн-страницы", "Сохранённый текст доступен без подключения")
+    if (offlinePages.isEmpty()) {
+        Text("Пока нет сохранённых страниц. Открой сайт → Меню → «Сохранить офлайн».", color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(offlinePages, key = { it.url }) { page ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color(0xFF211D1A),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Border)
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().clickable { onOpen(page) }.padding(13.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(page.title, color = Paper, fontWeight = FontWeight.SemiBold, maxLines = 2)
+                            Text(page.url, color = Muted, fontSize = 10.sp, maxLines = 1)
+                            Text("${page.content.length} символов · только текст", color = Peach, fontSize = 10.sp)
+                        }
+                        IconButton(onClick = { onRemove(page) }) {
+                            Icon(Icons.Default.DeleteOutline, contentDescription = "Удалить", tint = Muted)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Spacer(Modifier.height(10.dp))
+    Text("Сохраняется извлечённый текст, а не полный сайт: изображения, видео и интерактивные элементы офлайн недоступны.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+}
+
+@Composable
+private fun OfflinePageViewerPanel(page: OfflinePage?, onBack: () -> Unit) {
+    PanelTitle(page?.title ?: "Офлайн-просмотр", "Сохранённая копия текста")
+    TextButton(onClick = onBack) { Text("← К списку страниц", color = Orange) }
+    if (page == null) {
+        Text("Страница не найдена.", color = Muted)
+    } else {
+        Text(page.url, color = Muted, fontSize = 10.sp, maxLines = 2)
+        Spacer(Modifier.height(10.dp))
+        Text(
+            page.content,
+            color = Paper,
+            fontSize = 14.sp,
+            lineHeight = 22.sp,
+            modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState())
+        )
+    }
 }
 
 @Composable private fun ExtensionsPanel(ad:Boolean, setAd:(Boolean)->Unit, night:Boolean, setNight:(Boolean)->Unit, install:()->Unit) {
