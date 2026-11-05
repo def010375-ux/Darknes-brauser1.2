@@ -569,6 +569,9 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             override fun onExternalResponse(session: GeckoSession, response: WebResponse) {
                 onDownload(response)
             }
+            override fun onTitleChange(session: GeckoSession, title: String?) {
+                tabTitles[activeTab] = title?.takeIf { it.isNotBlank() } ?: "Без названия"
+            }
         })
         session.setNavigationDelegate(object : GeckoSession.NavigationDelegate {
             override fun onCanGoBack(session: GeckoSession, value: Boolean) { canGoBack = value }
@@ -580,11 +583,6 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                     tabUrls[activeTab] = url
                     if (url == "about:blank") tabTitles[activeTab] = "Новая вкладка"
                 }
-            }
-        })
-        session.setContentDelegate(object : GeckoSession.ContentDelegate {
-            override fun onTitleChange(session: GeckoSession, title: String?) {
-                tabTitles[activeTab] = title?.takeIf { it.isNotBlank() } ?: "Без названия"
             }
         })
         onDispose {
