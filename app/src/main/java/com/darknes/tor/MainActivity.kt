@@ -65,6 +65,27 @@ private val Glass = Color(0xD91A1715)
 private val Border = Color(0x35FFF4E8)
 
 private data class DownloadRecord(val id: Long, val name: String, val status: String, val savedUri: String? = null)
+
+private fun readDownloadRecords(raw: String?): List<DownloadRecord> = runCatching {
+    val array = JSONArray(raw ?: "[]")
+    (0 until array.length()).mapNotNull { index ->
+        val item = array.optJSONObject(index) ?: return@mapNotNull null
+        val id = item.optLong("id", 0L)
+        val name = item.optString("name")
+        if (id <= 0L || name.isBlank()) return@mapNotNull null
+        val storedStatus = item.optString("status", "Сохранено")
+        val status = if (storedStatus == "Скачивается" || storedStatus == "Ожидает сохранения") "Прервано" else storedStatus
+        DownloadRecord(id, name, status, item.optString("savedUri").takeIf { it.isNotBlank() && it != "null" })
+    }.sortedByDescending { it.id }.take(100)
+}.getOrDefault(emptyList())
+
+private fun encodeDownloadRecords(records: List<DownloadRecord>): String = JSONArray().apply {
+    records.take(100).forEach { item ->
+        put(org.json.JSONObject().put("id", item.id).put("name", item.name)
+            .put("status", item.status).put("savedUri", item.savedUri ?: ""))
+    }
+}.toString()
+
 private data class SavedPage(val title: String, val url: String, val time: Long = System.currentTimeMillis())
 
 private fun readSavedPages(raw: String?): List<SavedPage> = runCatching {
@@ -91,16 +112,34 @@ class MainActivity : ComponentActivity() {
     private var pendingDownloadId: Long? = null
     private val downloadRecords = mutableStateListOf<DownloadRecord>()
 
+    private fun persistDownloads() {
+        getSharedPreferences("darknes_downloads", android.content.Context.MODE_PRIVATE)
+            .edit().putString("records", encodeDownloadRecords(downloadRecords.toList())).apply()
+    }
+
+    private fun removeDownload(id: Long) {
+        runOnUiThread {
+            downloadRecords.removeAll { it.id == id }
+            persistDownloads()
+        }
+    }
+
     private fun updateDownload(id: Long?, status: String, uri: String? = null) {
         if (id == null) return
         runOnUiThread {
             val index = downloadRecords.indexOfFirst { it.id == id }
-            if (index >= 0) downloadRecords[index] = downloadRecords[index].copy(status = status, savedUri = uri)
+            if (index >= 0) {
+                downloadRecords[index] = downloadRecords[index].copy(status = status, savedUri = uri ?: downloadRecords[index].savedUri)
+                persistDownloads()
+            }
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        downloadRecords.addAll(readDownloadRecords(
+            getSharedPreferences("darknes_downloads", android.content.Context.MODE_PRIVATE).getString("records", null)
+        ))
         saveDownloadLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { destination ->
             val response = pendingDownload
             val recordId = pendingDownloadId
@@ -134,7 +173,7 @@ class MainActivity : ComponentActivity() {
         runtime = GeckoRuntime.create(this)
         session = GeckoSession().also { it.open(runtime) }
         setContent { MaterialTheme(colorScheme = darkColorScheme(background = Ink, surface = Glass, primary = Orange)) {
-            DarknesApp(runtime, ::requestDownload, downloadRecords.toList())
+            DarknesApp(runtime, ::requestDownload, downloadRecords.toList(), ::removeDownload)
         } }
     }
 
@@ -151,6 +190,7 @@ class MainActivity : ComponentActivity() {
         val recordId = System.currentTimeMillis()
         pendingDownloadId = recordId
         downloadRecords.add(0, DownloadRecord(recordId, filename, "Ожидает сохранения"))
+        persistDownloads()
         saveDownloadLauncher.launch(filename)
     }
 
@@ -457,7 +497,7 @@ private fun BlackHoleScene(
 }
 
 @Composable
-private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit, downloads: List<DownloadRecord>) {
+private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit, downloads: List<DownloadRecord>, onRemoveDownload: (Long) -> Unit) {
     var launchAuthenticated by remember { mutableStateOf(false) }
     if (!launchAuthenticated) {
         DarknesLaunchGate(onAuthenticated = { launchAuthenticated = true })
@@ -776,7 +816,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                             "Расширения" -> ExtensionsPanel(adBlock, { adBlock = it }, nightPages, { nightPages = it }) { toast = "Установка расширений появится позже" }
                             "Аккаунт" -> DarknesIdPanel()
                             "ИИ-чат" -> ChatPanel(model, { model = it }, chatInput, { chatInput = it }, sent, { sent = it })
-                            "Загрузки" -> DownloadsPanel(downloads) { item ->
+                            "Загрузки" -> DownloadsPanel(downloads, onRemoveDownload) { item ->
                                 val saved = item.savedUri ?: return@DownloadsPanel
                                 runCatching {
                                     context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(saved), "*/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
@@ -1145,7 +1185,7 @@ private fun SavedPagesPanel(
     }
 }
 @Composable
-private fun DownloadsPanel(downloads: List<DownloadRecord>, onOpen: (DownloadRecord) -> Unit) {
+private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> Unit, onOpen: (DownloadRecord) -> Unit) {
     PanelTitle("Загрузки", "Менеджер загруженных файлов")
     if (downloads.isEmpty()) {
         Column(
@@ -1181,13 +1221,16 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onOpen: (DownloadRec
                         if (item.savedUri != null) {
                             TextButton(onClick = { onOpen(item) }) { Text("Открыть", color = Orange, fontSize = 12.sp) }
                         }
+                        IconButton(onClick = { onRemove(item.id) }) {
+                            Icon(Icons.Default.DeleteOutline, contentDescription = "Удалить запись", tint = Muted, modifier = Modifier.size(18.dp))
+                        }
                     }
                 }
             }
         }
     }
     Spacer(Modifier.height(12.dp))
-    Text("Файлы сохраняются в выбранную папку устройства. Список пока хранится до закрытия приложения.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+    Text("История загрузок сохраняется на устройстве. Незавершённые загрузки после перезапуска отмечаются как прерванные.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
 }
 
 @Composable
