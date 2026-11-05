@@ -28,6 +28,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -322,7 +323,7 @@ private fun DarknesApp(runtime: GeckoRuntime) {
                     }
                 } else {
                     Row(Modifier.fillMaxSize().padding(start = 16.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(if (incognito) "◉" else "⌕", color = accent, fontSize = 20.sp)
+                        Icon(if (incognito) Icons.Default.VisibilityOff else Icons.Default.Search, contentDescription = if (incognito) "Инкогнито" else "Поиск", tint = accent, modifier = Modifier.size(21.dp))
                         Spacer(Modifier.width(10.dp))
                         BasicTextField(
                             value = query, onValueChange = { query = it }, modifier = Modifier.weight(1f),
@@ -337,7 +338,7 @@ private fun DarknesApp(runtime: GeckoRuntime) {
                         Box(Modifier.size(42.dp).background(accent, CircleShape).clickable {
                             if (query.isNotBlank()) runSearch(query)
                             keyboard?.hide(); islandOpen = false
-                        }, contentAlignment = Alignment.Center) { Text("➜", color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold) }
+                        }, contentAlignment = Alignment.Center) { Icon(Icons.Default.ArrowForward, contentDescription = "Перейти", tint = Ink, modifier = Modifier.size(21.dp)) }
                     }
                 }
             }
@@ -426,13 +427,13 @@ private fun DarknesApp(runtime: GeckoRuntime) {
                 .border(1.dp, Border, RoundedCornerShape(26.dp)).padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically
         ) {
-            NavCircle("‹", accent, enabled = canGoBack) { if (canGoBack) session.goBack() }
-            NavCircle("›", accent, enabled = canGoForward) { if (canGoForward) session.goForward() }
-            NavCircle("✧", accent) { panel = "ИИ-чат" }
+            NavCircle(Icons.Default.ArrowBack, accent, enabled = canGoBack) { if (canGoBack) session.goBack() }
+            NavCircle(Icons.Default.ArrowForward, accent, enabled = canGoForward) { if (canGoForward) session.goForward() }
+            NavCircle(Icons.Default.AutoAwesome, accent) { panel = "ИИ-чат" }
             Box(Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(Color(0xFF30251C)).clickable { panel = "Вкладки" }, contentAlignment = Alignment.Center) {
                 Text("${sessions.size}", color = Paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             }
-            NavCircle("•••", accent) { panel = "Меню" }
+            NavCircle(Icons.Default.MoreHoriz, accent) { panel = "Меню" }
         }
     }
 }
@@ -662,9 +663,9 @@ private fun HomeSearchBar(
     }
 }
 
-@Composable private fun NavCircle(label: String, accent: Color, enabled: Boolean = true, action: () -> Unit) {
+@Composable private fun NavCircle(icon: ImageVector, accent: Color, enabled: Boolean = true, action: () -> Unit) {
     Box(Modifier.size(42.dp).clip(CircleShape).clickable(enabled = enabled) { action() }, contentAlignment = Alignment.Center) {
-        Text(label, color = if (enabled) Paper else Muted.copy(alpha = .35f), fontSize = if (label.length > 1) 14.sp else 25.sp, fontWeight = FontWeight.Medium)
+        Icon(icon, contentDescription = null, tint = if (enabled) Paper else Muted.copy(alpha = .35f), modifier = Modifier.size(22.dp))
     }
 }
 @Composable private fun PanelTitle(title: String, subtitle: String = "") {
@@ -674,11 +675,18 @@ private fun HomeSearchBar(
 }
 @Composable private fun MenuPanel(accent: Color, onAction: (String) -> Unit) {
     PanelTitle("Меню")
-    val items = listOf("＋" to "Новая вкладка", "◉" to "Инкогнито", "▦" to "Расширения", "✧" to "ИИ-чат", "⚙" to "Настройки", "◎" to "Аккаунт")
+    val items = listOf(
+        Icons.Default.Add to "Новая вкладка",
+        Icons.Default.VisibilityOff to "Инкогнито",
+        Icons.Default.Extension to "Расширения",
+        Icons.Default.AutoAwesome to "ИИ-чат",
+        Icons.Default.Settings to "Настройки",
+        Icons.Default.Person to "Аккаунт"
+    )
     LazyVerticalGrid(columns = GridCells.Fixed(3), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        items(items) { (symbol, name) ->
+        items(items) { (icon, name) ->
             Column(Modifier.aspectRatio(1f).clip(RoundedCornerShape(20.dp)).background(Color(0xFF25201C)).border(1.dp, Border, RoundedCornerShape(20.dp)).clickable { onAction(name) }.padding(10.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(symbol, color = accent, fontSize = 26.sp)
+                Icon(icon, contentDescription = name, tint = accent, modifier = Modifier.size(28.dp))
                 Spacer(Modifier.height(8.dp))
                 Text(name, color = Paper, fontSize = 11.sp)
             }
@@ -731,7 +739,7 @@ private fun HomeSearchBar(
     }
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Color(0xFF292522)).padding(8.dp), verticalAlignment=Alignment.CenterVertically) {
         BasicTextField(input,setInput,Modifier.weight(1f).padding(10.dp),textStyle=TextStyle(color=Paper,fontSize=14.sp),decorationBox={inner->Box{if(input.isEmpty()) Text("Спросить · $model",color=Muted);inner()}})
-        Box(Modifier.size(42.dp).background(Orange,CircleShape).clickable { if(input.isNotBlank()) { setSent(input); setInput("") } },contentAlignment=Alignment.Center) { Text("➤",color=Ink) }
+        Box(Modifier.size(42.dp).background(Orange,CircleShape).clickable { if(input.isNotBlank()) { setSent(input); setInput("") } },contentAlignment=Alignment.Center) { Icon(Icons.Default.Send, contentDescription = "Отправить", tint = Ink, modifier = Modifier.size(19.dp)) }
     }
 }
 @Composable private fun TabsPanel(titles:List<String>, urls:List<String>, activeIndex:Int, incognito:Boolean, setIncognito:(Boolean)->Unit, addTab:()->Unit, closeTab:(Int)->Unit, selectTab:(Int)->Unit, done:()->Unit) {
@@ -749,7 +757,7 @@ private fun HomeSearchBar(
     LazyVerticalGrid(columns=GridCells.Fixed(2),verticalArrangement=Arrangement.spacedBy(12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
         items(titles.size) { index ->
             Column(Modifier.aspectRatio(.75f).clip(RoundedCornerShape(20.dp)).background(Brush.linearGradient(if(incognito) listOf(Color(0xFF503A87),Color(0xFF211A35)) else listOf(Color(0xFF9C4B12),Color(0xFF342014)))).border(2.dp,if(index==activeIndex) if(incognito)Violet else Orange else Border,RoundedCornerShape(20.dp)).clickable { selectTab(index) }.padding(12.dp),verticalArrangement=Arrangement.Bottom) {
-                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) { Text("×",color=Paper,modifier=Modifier.clickable { closeTab(index) }.padding(4.dp)) }
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) { Icon(Icons.Default.Close, contentDescription = "Закрыть вкладку", tint = Paper, modifier = Modifier.clickable { closeTab(index) }.padding(4.dp).size(18.dp)) }
                 Spacer(Modifier.weight(1f))
                 Text(titles[index].ifBlank { "Вкладка ${index+1}" },color=Paper,fontWeight=FontWeight.Bold,maxLines=2)
                 Text(urls.getOrNull(index).orEmpty().ifBlank { if(incognito) "Инкогнито" else "Стартовая страница" },color=Paper.copy(alpha=.65f),fontSize=10.sp,maxLines=2)
