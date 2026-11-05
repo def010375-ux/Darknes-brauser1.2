@@ -98,6 +98,28 @@ private fun readSavedPages(raw: String?): List<SavedPage> = runCatching {
     }
 }.getOrDefault(emptyList())
 
+
+private data class BrowserTabSnapshot(val title: String, val url: String)
+
+private fun readBrowserTabs(raw: String?): List<BrowserTabSnapshot> = runCatching {
+    val array = JSONArray(raw ?: "[]")
+    (0 until array.length()).mapNotNull { index ->
+        val item = array.optJSONObject(index) ?: return@mapNotNull null
+        val url = item.optString("url")
+        if (url.isNotBlank() && !url.startsWith("https://") && !url.startsWith("http://")) return@mapNotNull null
+        BrowserTabSnapshot(item.optString("title").ifBlank { "Новая вкладка" }, url)
+    }.take(30).ifEmpty { listOf(BrowserTabSnapshot("Новая вкладка", "")) }
+}.getOrDefault(listOf(BrowserTabSnapshot("Новая вкладка", "")))
+
+private fun encodeBrowserTabs(titles: List<String>, urls: List<String>): String = JSONArray().apply {
+    titles.indices.take(30).forEach { index ->
+        val url = urls.getOrNull(index).orEmpty()
+        if (url.isBlank() || url.startsWith("https://") || url.startsWith("http://")) {
+            put(org.json.JSONObject().put("title", titles.getOrNull(index).orEmpty().ifBlank { "Новая вкладка" }).put("url", url))
+        }
+    }
+}.toString()
+
 private fun encodeSavedPages(pages: List<SavedPage>): String = JSONArray().apply {
     pages.forEach { page ->
         put(org.json.JSONObject().put("title", page.title).put("url", page.url).put("time", page.time))
@@ -503,14 +525,31 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         DarknesLaunchGate(onAuthenticated = { launchAuthenticated = true })
         return
     }
-    val sessions = remember { mutableStateListOf(GeckoSession().also { it.open(runtime) }) }
-    val tabTitles = remember { mutableStateListOf("Новая вкладка") }
-    val tabUrls = remember { mutableStateListOf("") }
-    var activeTab by remember { mutableIntStateOf(0) }
+    val context = LocalContext.current
+    val tabsPrefs = remember(context) { context.getSharedPreferences("darknes_tabs", android.content.Context.MODE_PRIVATE) }
+    val restoredTabs = remember(tabsPrefs) {
+        readBrowserTabs(tabsPrefs.getString("tabs", null))
+    }
+    var incognito by remember { mutableStateOf(false) }
+    var privateModeUsed by remember { mutableStateOf(false) }
+    val sessions = remember {
+        mutableStateListOf<GeckoSession>().apply {
+            restoredTabs.forEach { saved ->
+                add(GeckoSession().also { tabSession ->
+                    tabSession.open(runtime)
+                    if (saved.url.isNotBlank()) tabSession.loadUri(saved.url)
+                })
+            }
+        }
+    }
+    val tabTitles = remember { mutableStateListOf<String>().apply { addAll(restoredTabs.map { it.title }) } }
+    val tabUrls = remember { mutableStateListOf<String>().apply { addAll(restoredTabs.map { it.url }) } }
+    var activeTab by remember { mutableIntStateOf(tabsPrefs.getInt("active", 0).coerceIn(0, restoredTabs.lastIndex)) }
     val session = sessions[activeTab.coerceIn(0, sessions.lastIndex)]
     var canGoBack by remember { mutableStateOf(false) }
     var canGoForward by remember { mutableStateOf(false) }
     fun addTab() {
+        if (incognito) privateModeUsed = true
         sessions.add(GeckoSession().also { it.open(runtime) })
         tabTitles.add("Новая вкладка")
         tabUrls.add("")
@@ -538,12 +577,10 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             canGoForward = false
         }
     }
-    val context = LocalContext.current
     val settingsPrefs = remember(context) { context.getSharedPreferences("darknes_settings", android.content.Context.MODE_PRIVATE) }
     var query by remember { mutableStateOf("") }
     var islandOpen by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf("") }
-    var incognito by remember { mutableStateOf(false) }
     var engine by remember { mutableStateOf("DuckDuckGo") }
     val onLoad: (String) -> Unit = { session.loadUri(resolveAddress(it, engine)) }
     var blur by remember { mutableFloatStateOf(settingsPrefs.getFloat("blur", 8f).coerceIn(0f, 24f)) }
@@ -579,6 +616,16 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     }
     LaunchedEffect(bookmarks.toList()) {
         savedPrefs.edit().putString("bookmarks", encodeSavedPages(bookmarks.toList())).apply()
+    }
+    LaunchedEffect(tabTitles.toList(), tabUrls.toList(), activeTab, incognito, privateModeUsed) {
+        // Once private browsing has been used in this app session, do not overwrite
+        // the last normal-tab snapshot with URLs that may have been opened privately.
+        if (!incognito && !privateModeUsed) {
+            tabsPrefs.edit()
+                .putString("tabs", encodeBrowserTabs(tabTitles.toList(), tabUrls.toList()))
+                .putInt("active", activeTab.coerceIn(0, (tabTitles.size - 1).coerceAtLeast(0)))
+                .apply()
+        }
     }
     LaunchedEffect(blur, animations, trackers, darkSites, adBlock, nightPages) {
         settingsPrefs.edit()
@@ -804,7 +851,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                             "Меню" -> MenuPanel(accent) { action ->
                                 panel = when(action) {
                                     "Новая вкладка" -> { addTab(); loaded = false; "" }
-                                    "Инкогнито" -> { incognito = true; addTab(); loaded = false; "" }
+                                    "Инкогнито" -> { incognito = true; privateModeUsed = true; addTab(); loaded = false; "" }
                                     "Добавить закладку" -> {
                                         val currentUrl = tabUrls.getOrNull(activeTab).orEmpty()
                                         if (currentUrl.startsWith("http://") || currentUrl.startsWith("https://")) {
@@ -840,7 +887,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                 onOpen = { url -> session.loadUri(url); query = url; loaded = true; showSearchResults = false; panel = "" },
                                 onRemove = { page -> history.remove(page) },
                                 onClear = { history.clear() })
-                            "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), activeTab, incognito, { incognito = it }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { panel = "" })
+                            "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), activeTab, incognito, { value -> if (value) privateModeUsed = true; incognito = value }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { panel = "" })
                         }
                     }
                 }
