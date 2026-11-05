@@ -103,6 +103,7 @@ private fun DarknesApp(runtime: GeckoRuntime) {
     var panel by remember { mutableStateOf("") }
     var incognito by remember { mutableStateOf(false) }
     var engine by remember { mutableStateOf("Яндекс") }
+    val onLoad: (String) -> Unit = { session.loadUri(resolveAddress(it, engine)) }
     var blur by remember { mutableFloatStateOf(8f) }
     var animations by remember { mutableStateOf(true) }
     var trackers by remember { mutableStateOf(true) }
@@ -221,7 +222,7 @@ private fun DarknesApp(runtime: GeckoRuntime) {
                             "Расширения" -> ExtensionsPanel(adBlock, { adBlock = it }, passwords, { passwords = it }, nightPages, { nightPages = it }) { toast = "Установка расширений появится позже" }
                             "Аккаунт" -> AccountPanel { toast = "Вход в Darknes появится позже" }
                             "ИИ-чат" -> ChatPanel(model, { model = it }, chatInput, { chatInput = it }, sent, { sent = it })
-                            "Вкладки" -> TabsPanel(sessions.size, activeTab, incognito, { incognito = it }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = false; panel = "" })
+                            "Вкладки" -> TabsPanel(sessions.size, activeTab, incognito, { incognito = it }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = false; panel = "" }, { panel = "" })
                         }
                     }
                 }
@@ -360,12 +361,12 @@ private fun HomeScreen(accent: Color, blur: Float, animations: Boolean, onShortc
         Box(Modifier.size(42.dp).background(Orange,CircleShape).clickable { if(input.isNotBlank()) { setSent(input); setInput("") } },contentAlignment=Alignment.Center) { Text("➤",color=Ink) }
     }
 }
-@Composable private fun TabsPanel(count:Int, activeIndex:Int, incognito:Boolean, setIncognito:(Boolean)->Unit, addTab:()->Unit, closeTab:(Int)->Unit, selectTab:(Int)->Unit) {
+@Composable private fun TabsPanel(count:Int, activeIndex:Int, incognito:Boolean, setIncognito:(Boolean)->Unit, addTab:()->Unit, closeTab:(Int)->Unit, selectTab:(Int)->Unit, done:()->Unit) {
     Row(verticalAlignment=Alignment.CenterVertically) {
         PanelTitle("Вкладки")
         Spacer(Modifier.weight(1f))
         TextButton(onClick=addTab) { Text("＋ Новая", color=Orange) }
-        TextButton(onClick={}) { Text("Готово", color=Orange) }
+        TextButton(onClick=done) { Text("Готово", color=Orange) }
     }
     Row(verticalAlignment=Alignment.CenterVertically) {
         FilterChip(selected=!incognito,onClick={setIncognito(false)},label={Text("Обычные")})
