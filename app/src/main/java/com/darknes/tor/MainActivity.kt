@@ -598,7 +598,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             (0 until array.length()).map { array.optString(it, "Основная") }
         }.getOrDefault(emptyList())
         mutableStateListOf<String>().apply {
-            addAll(restoredTabs.indices.map { stored.getOrNull(it)?.takeIf(String::isNotBlank) ?: "Основная" })
+            addAll(restoredTabs.indices.map { stored.getOrNull(it)?.takeIf { group -> group.isNotBlank() } ?: "Основная" })
         }
     }
     var activeTab by remember { mutableIntStateOf(tabsPrefs.getInt("active", 0).coerceIn(0, restoredTabs.lastIndex)) }
@@ -729,6 +729,11 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 GeckoSessionSettings.USER_AGENT_MODE_DESKTOP
             } else {
                 GeckoSessionSettings.USER_AGENT_MODE_MOBILE
+            }
+            browserSession.settings.viewportMode = if (desktopMode) {
+                GeckoSessionSettings.VIEWPORT_MODE_DESKTOP
+            } else {
+                GeckoSessionSettings.VIEWPORT_MODE_MOBILE
             }
         }
     }
