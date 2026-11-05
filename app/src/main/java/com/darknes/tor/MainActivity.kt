@@ -232,7 +232,13 @@ private fun BlackHoleScene(iconBurst: Float) {
         label = "particle-flow"
     )
     Box(Modifier.fillMaxWidth().height(250.dp), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize().graphicsLayer {\n            val progress = arrival.value\n            alpha = progress\n            scaleX = 0.42f + progress * 0.58f\n            scaleY = 0.42f + progress * 0.58f\n            translationY = -105.dp.toPx() * (1f - progress)\n        }) {
+        Canvas(Modifier.fillMaxSize().graphicsLayer {
+            val progress = arrival.value
+            alpha = progress
+            scaleX = 0.42f + progress * 0.58f
+            scaleY = 0.42f + progress * 0.58f
+            translationY = -105.dp.toPx() * (1f - progress)
+        }) {
             val cx = size.width / 2f
             val cy = size.height / 2f
             val unit = minOf(size.width, size.height)
