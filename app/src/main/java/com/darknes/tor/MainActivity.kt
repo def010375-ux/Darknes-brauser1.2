@@ -152,16 +152,15 @@ private fun resolveAddress(raw: String, engine: String): String {
 
 @Composable
 private fun DarknesLaunchGate(onAuthenticated: () -> Unit) {
-    val infinite = rememberInfiniteTransition(label = "darknes-launch")
-    val iconBurst by infinite.animateFloat(
-        initialValue = 0.72f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1450, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "icon-burst"
-    )
+    val iconBurst = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(850)
+        iconBurst.animateTo(1f, tween(780, easing = FastOutSlowInEasing))
+        while (true) {
+            iconBurst.animateTo(0.88f, tween(720, easing = FastOutSlowInEasing))
+            iconBurst.animateTo(1f, tween(720, easing = FastOutSlowInEasing))
+        }
+    }
     var showLogin by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         kotlinx.coroutines.delay(650)
@@ -189,14 +188,14 @@ private fun DarknesLaunchGate(onAuthenticated: () -> Unit) {
             Modifier.fillMaxWidth().weight(0.9f).padding(top = 4.dp),
             contentAlignment = Alignment.Center
         ) {
-            BlackHoleScene(iconBurst = iconBurst)
+            BlackHoleScene(iconBurst = iconBurst.value)
         }
         AnimatedVisibility(
             visible = showLogin,
             enter = fadeIn(tween(500)) + slideInVertically(tween(500)) { it / 5 }
         ) {
             Surface(
-                modifier = Modifier.fillMaxWidth().weight(1.1f, fill = false).heightIn(min = 270.dp, max = 390.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 270.dp, max = 390.dp),
                 color = Color(0xE6161210),
                 shape = RoundedCornerShape(28.dp),
                 border = BorderStroke(1.dp, Color(0x55FF9A43)),
@@ -215,6 +214,10 @@ private fun DarknesLaunchGate(onAuthenticated: () -> Unit) {
 
 @Composable
 private fun BlackHoleScene(iconBurst: Float) {
+    val arrival = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        arrival.animateTo(1f, tween(1150, easing = FastOutSlowInEasing))
+    }
     val infinite = rememberInfiniteTransition(label = "black-hole")
     val rotation by infinite.animateFloat(
         initialValue = 0f,
@@ -229,7 +232,7 @@ private fun BlackHoleScene(iconBurst: Float) {
         label = "particle-flow"
     )
     Box(Modifier.fillMaxWidth().height(250.dp), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
+        Canvas(Modifier.fillMaxSize().graphicsLayer {\n            val progress = arrival.value\n            alpha = progress\n            scaleX = 0.42f + progress * 0.58f\n            scaleY = 0.42f + progress * 0.58f\n            translationY = -105.dp.toPx() * (1f - progress)\n        }) {
             val cx = size.width / 2f
             val cy = size.height / 2f
             val unit = minOf(size.width, size.height)
@@ -275,8 +278,8 @@ private fun BlackHoleScene(iconBurst: Float) {
                         val lane = (i % 9) / 9f
                         val angle = (i * 0.71f + rotation * Math.PI.toFloat() / 180f * (1.15f + lane))
                         val radius = (0.22f + ((i * 37) % 100) / 145f) * (1f - particleFlow * 0.12f)
-                        val px = cx + kotlin.math.cos(angle) * rx * radius
-                        val py = cy + kotlin.math.sin(angle) * ry * radius
+                        val px = cx + kotlin.math.cos(angle.toDouble()).toFloat() * rx * radius
+                        val py = cy + kotlin.math.sin(angle.toDouble()).toFloat() * ry * radius
                         val particleSize = unit * (0.0035f + (i % 4) * 0.0012f)
                         drawCircle(
                             color = if (i % 4 == 0) Color(0xFFFFE2B2) else Color(0xFFFF8425),
@@ -310,8 +313,8 @@ private fun BlackHoleScene(iconBurst: Float) {
                 val t = (i / 30f + particleFlow) % 1f
                 val angle = i * 2.4f + t * 8.5f
                 val radius = unit * (0.43f - t * 0.29f)
-                val px = cx + kotlin.math.cos(angle) * radius
-                val py = cy + kotlin.math.sin(angle) * radius * 0.34f
+                val px = cx + kotlin.math.cos(angle.toDouble()).toFloat() * radius
+                val py = cy + kotlin.math.sin(angle.toDouble()).toFloat() * radius * 0.34f
                 drawCircle(
                     color = Color(0xFFFFB45C),
                     radius = unit * (0.003f + (1f - t) * 0.003f),
@@ -324,26 +327,32 @@ private fun BlackHoleScene(iconBurst: Float) {
         val bubble = Modifier.size(39.dp).clip(CircleShape)
             .background(Color(0xE62A1B12))
             .border(1.dp, Color(0x88FF9A43), CircleShape)
-        @Composable fun BurstIcon(icon: ImageVector, description: String, modifier: Modifier) {
+        @Composable fun BurstIcon(
+            icon: ImageVector,
+            description: String,
+            travelX: Dp,
+            travelY: Dp
+        ) {
             Box(
-                modifier.then(
-                    Modifier.graphicsLayer {
-                        val spread = 0.72f + iconBurst * 0.28f
+                Modifier.align(Alignment.Center)
+                    .offset(x = travelX * iconBurst, y = travelY * iconBurst)
+                    .then(bubble)
+                    .graphicsLayer {
+                        val spread = 0.18f + iconBurst * 0.82f
                         scaleX = spread
                         scaleY = spread
-                        alpha = 0.65f + iconBurst * 0.35f
-                    }
-                ),
+                        alpha = iconBurst
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(icon, contentDescription = description, tint = Peach, modifier = Modifier.size(19.dp))
             }
         }
-        BurstIcon(Icons.Default.Search, "Поиск", bubble.align(Alignment.CenterStart).offset(x = 22.dp, y = (-55).dp))
-        BurstIcon(Icons.Default.Shield, "Защита", bubble.align(Alignment.TopEnd).offset(x = (-28).dp, y = 45.dp))
-        BurstIcon(Icons.Default.AutoAwesome, "ИИ", bubble.align(Alignment.BottomStart).offset(x = 54.dp, y = (-28).dp))
-        BurstIcon(Icons.Default.Tab, "Вкладки", bubble.align(Alignment.CenterEnd).offset(x = (-22).dp, y = 45.dp))
-        BurstIcon(Icons.Default.Extension, "Расширения", bubble.align(Alignment.BottomEnd).offset(x = (-62).dp, y = (-20).dp))
+        BurstIcon(Icons.Default.Search, "Поиск", (-112).dp, (-54).dp)
+        BurstIcon(Icons.Default.Shield, "Защита", 100.dp, (-75).dp)
+        BurstIcon(Icons.Default.AutoAwesome, "ИИ", (-72).dp, 78.dp)
+        BurstIcon(Icons.Default.Tab, "Вкладки", 112.dp, 38.dp)
+        BurstIcon(Icons.Default.Extension, "Расширения", 12.dp, 105.dp)
     }
 }
 
