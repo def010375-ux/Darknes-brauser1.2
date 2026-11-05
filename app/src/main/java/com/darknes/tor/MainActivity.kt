@@ -1013,6 +1013,52 @@ private fun HomeSearchBar(
     }
 }
 @Composable
+private fun DownloadsPanel(downloads: List<DownloadRecord>, onOpen: (DownloadRecord) -> Unit) {
+    PanelTitle("Загрузки", "Менеджер загруженных файлов")
+    if (downloads.isEmpty()) {
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
+                .background(Color(0xFF171311)).border(1.dp, Border, RoundedCornerShape(20.dp))
+                .padding(22.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(Icons.Default.Download, contentDescription = null, tint = Orange, modifier = Modifier.size(34.dp))
+            Spacer(Modifier.height(10.dp))
+            Text("Пока ничего не скачано", color = Paper, fontWeight = FontWeight.SemiBold)
+            Text("Сохранённые файлы появятся здесь.", color = Muted, fontSize = 12.sp)
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
+        ) {
+            items(downloads, key = { it.id }) { item ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color(0xFF211D1A),
+                    shape = RoundedCornerShape(17.dp),
+                    border = BorderStroke(1.dp, Border)
+                ) {
+                    Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.InsertDriveFile, contentDescription = null, tint = Orange, modifier = Modifier.size(28.dp))
+                        Spacer(Modifier.width(11.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(item.name, color = Paper, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 2)
+                            Text(item.status, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+                        }
+                        if (item.savedUri != null) {
+                            TextButton(onClick = { onOpen(item) }) { Text("Открыть", color = Orange, fontSize = 12.sp) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+    Text("Файлы сохраняются в выбранную папку устройства. Список пока хранится до закрытия приложения.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+}
+
+@Composable
 private fun TesterPanel(onDownload: (String) -> Unit) {
     var versions by remember { mutableStateOf<List<PublishedVersion>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
