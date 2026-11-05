@@ -52,10 +52,35 @@ jobs:
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
 
-      - name: Upload APK artifact
+      - name: Prepare persistent release signing key
+        if: ${{ secrets.DARKNES_KEYSTORE_BASE64 != '' }}
+        env:
+          DARKNES_KEYSTORE_BASE64: ${{ secrets.DARKNES_KEYSTORE_BASE64 }}
+        run: |
+          echo "$DARKNES_KEYSTORE_BASE64" | base64 --decode > "$GITHUB_WORKSPACE/darknes-release.jks"
+
+      - name: Build signed update APK
+        if: ${{ secrets.DARKNES_KEYSTORE_BASE64 != '' && secrets.DARKNES_KEYSTORE_PASSWORD != '' && secrets.DARKNES_KEY_ALIAS != '' && secrets.DARKNES_KEY_PASSWORD != '' }}
+        env:
+          DARKNES_KEYSTORE_PATH: ${{ github.workspace }}/darknes-release.jks
+          DARKNES_KEYSTORE_PASSWORD: ${{ secrets.DARKNES_KEYSTORE_PASSWORD }}
+          DARKNES_KEY_ALIAS: ${{ secrets.DARKNES_KEY_ALIAS }}
+          DARKNES_KEY_PASSWORD: ${{ secrets.DARKNES_KEY_PASSWORD }}
+        run: gradle --no-daemon :app:assembleRelease
+
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: Darknes-Tor-debug-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload signed update APK
+        if: ${{ secrets.DARKNES_KEYSTORE_BASE64 != '' && secrets.DARKNES_KEYSTORE_PASSWORD != '' && secrets.DARKNES_KEY_ALIAS != '' && secrets.DARKNES_KEY_PASSWORD != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Darknes-Tor-update-APK
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 90
