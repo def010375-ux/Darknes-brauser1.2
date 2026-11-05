@@ -65,6 +65,23 @@ private val Glass = Color(0xD91A1715)
 private val Border = Color(0x35FFF4E8)
 
 private data class DownloadRecord(val id: Long, val name: String, val status: String, val savedUri: String? = null)
+private data class SavedPage(val title: String, val url: String, val time: Long = System.currentTimeMillis())
+
+private fun readSavedPages(raw: String?): List<SavedPage> = runCatching {
+    val array = JSONArray(raw ?: "[]")
+    (0 until array.length()).mapNotNull { index ->
+        val item = array.optJSONObject(index) ?: return@mapNotNull null
+        val url = item.optString("url")
+        if (!url.startsWith("http://") && !url.startsWith("https://")) return@mapNotNull null
+        SavedPage(item.optString("title").ifBlank { url }, url, item.optLong("time", 0L))
+    }
+}.getOrDefault(emptyList())
+
+private fun encodeSavedPages(pages: List<SavedPage>): String = JSONArray().apply {
+    pages.forEach { page ->
+        put(org.json.JSONObject().put("title", page.title).put("url", page.url).put("time", page.time))
+    }
+}.toString()
 
 class MainActivity : ComponentActivity() {
     private lateinit var runtime: GeckoRuntime
@@ -509,6 +526,19 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var testerLastTap by remember { mutableLongStateOf(0L) }
     val keyboard = LocalSoftwareKeyboardController.current
     val context = LocalContext.current
+    val savedPrefs = remember(context) { context.getSharedPreferences("darknes_browser_data", android.content.Context.MODE_PRIVATE) }
+    val history = remember(savedPrefs) {
+        mutableStateListOf<SavedPage>().apply { addAll(readSavedPages(savedPrefs.getString("history", null))) }
+    }
+    val bookmarks = remember(savedPrefs) {
+        mutableStateListOf<SavedPage>().apply { addAll(readSavedPages(savedPrefs.getString("bookmarks", null))) }
+    }
+    LaunchedEffect(history.toList()) {
+        savedPrefs.edit().putString("history", encodeSavedPages(history.toList())).apply()
+    }
+    LaunchedEffect(bookmarks.toList()) {
+        savedPrefs.edit().putString("bookmarks", encodeSavedPages(bookmarks.toList())).apply()
+    }
     val accent = if (incognito) Violet else Orange
     LaunchedEffect(trackers, sessions.size) {
         sessions.forEach { it.settings.setUseTrackingProtection(trackers) }
@@ -582,6 +612,13 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                     query = url
                     tabUrls[activeTab] = url
                     if (url == "about:blank") tabTitles[activeTab] = "Новая вкладка"
+                    if (!incognito && (url.startsWith("https://") || url.startsWith("http://"))) {
+                        val pageTitle = tabTitles.getOrNull(activeTab)?.takeIf { it.isNotBlank() && it != "Новая вкладка" } ?: url
+                        val existing = history.indexOfFirst { it.url == url }
+                        if (existing >= 0) history.removeAt(existing)
+                        history.add(0, SavedPage(pageTitle, url))
+                        while (history.size > 500) history.removeAt(history.lastIndex)
+                    }
                 }
             }
         })
@@ -717,6 +754,16 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                 panel = when(action) {
                                     "Новая вкладка" -> { addTab(); loaded = false; "" }
                                     "Инкогнито" -> { incognito = true; addTab(); loaded = false; "" }
+                                    "Добавить закладку" -> {
+                                        val currentUrl = tabUrls.getOrNull(activeTab).orEmpty()
+                                        if (currentUrl.startsWith("http://") || currentUrl.startsWith("https://")) {
+                                            if (bookmarks.none { it.url == currentUrl }) {
+                                                bookmarks.add(0, SavedPage(tabTitles.getOrNull(activeTab).orEmpty().ifBlank { currentUrl }, currentUrl))
+                                                toast = "Добавлено в закладки"
+                                            } else toast = "Уже в закладках"
+                                        } else toast = "Сначала открой страницу"
+                                        ""
+                                    }
                                     else -> action
                                 }
                             }
@@ -735,6 +782,13 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                     context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(saved), "*/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
                                 }.onFailure { toast = "Не удалось открыть файл" }
                             }
+                            "Закладки" -> SavedPagesPanel("Закладки", "Сайты, которые ты сохранил", bookmarks.toList(),
+                                onOpen = { url -> session.loadUri(url); query = url; loaded = true; showSearchResults = false; panel = "" },
+                                onRemove = { page -> bookmarks.remove(page) })
+                            "История" -> SavedPagesPanel("История", "Последние посещённые страницы", history.toList(),
+                                onOpen = { url -> session.loadUri(url); query = url; loaded = true; showSearchResults = false; panel = "" },
+                                onRemove = { page -> history.remove(page) },
+                                onClear = { history.clear() })
                             "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), activeTab, incognito, { incognito = it }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { panel = "" })
                         }
                     }
@@ -987,6 +1041,9 @@ private fun HomeSearchBar(
     PanelTitle("Меню")
     val items = listOf(
         Icons.Default.Add to "Новая вкладка",
+        Icons.Default.Bookmark to "Добавить закладку",
+        Icons.Default.Bookmarks to "Закладки",
+        Icons.Default.History to "История",
         Icons.Default.Download to "Загрузки",
         Icons.Default.VisibilityOff to "Инкогнито",
         Icons.Default.Extension to "Расширения",
@@ -1004,6 +1061,83 @@ private fun HomeSearchBar(
         }
     }
 }
+@Composable
+private fun SavedPagesPanel(
+    title: String,
+    subtitle: String,
+    pages: List<SavedPage>,
+    onOpen: (String) -> Unit,
+    onRemove: (SavedPage) -> Unit,
+    onClear: (() -> Unit)? = null
+) {
+    var filter by remember(title) { mutableStateOf("") }
+    PanelTitle(title, subtitle)
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFF171311))
+            .border(1.dp, Border, RoundedCornerShape(16.dp)).padding(horizontal = 13.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Default.Search, contentDescription = null, tint = Orange)
+        Spacer(Modifier.width(9.dp))
+        BasicTextField(
+            value = filter, onValueChange = { filter = it },
+            modifier = Modifier.weight(1f), singleLine = true,
+            textStyle = TextStyle(color = Paper, fontSize = 14.sp),
+            decorationBox = { inner -> Box { if (filter.isEmpty()) Text("Найти сохранённый сайт", color = Muted, fontSize = 13.sp); inner() } }
+        )
+    }
+    Spacer(Modifier.height(12.dp))
+    val visiblePages = pages.filter { it.title.contains(filter, true) || it.url.contains(filter, true) }
+    if (visiblePages.isEmpty()) {
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xFF171311))
+                .border(1.dp, Border, RoundedCornerShape(18.dp)).padding(22.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(if (title == "История") Icons.Default.History else Icons.Default.BookmarkBorder,
+                contentDescription = null, tint = Orange, modifier = Modifier.size(32.dp))
+            Spacer(Modifier.height(8.dp))
+            Text(if (pages.isEmpty()) "Пока здесь пусто" else "Ничего не найдено", color = Paper, fontWeight = FontWeight.SemiBold)
+            Text(if (title == "История") "Открытые сайты появятся здесь." else "Добавляй страницы через меню браузера.", color = Muted, fontSize = 12.sp)
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().heightIn(max = 440.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(visiblePages, key = { it.url }) { page ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color(0xFF211D1A),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Border)
+                ) {
+                    Row(
+                        Modifier.clickable { onOpen(page.url) }.padding(start = 13.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Public, contentDescription = null, tint = Orange, modifier = Modifier.size(23.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(page.title, color = Paper, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 2)
+                            Text(page.url, color = Muted, fontSize = 10.sp, maxLines = 1)
+                        }
+                        IconButton(onClick = { onRemove(page) }) {
+                            Icon(Icons.Default.Close, contentDescription = "Удалить", tint = Muted, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (onClear != null && pages.isNotEmpty()) {
+        Spacer(Modifier.height(10.dp))
+        TextButton(onClick = onClear) { Text("Очистить историю", color = Orange) }
+    }
+    Spacer(Modifier.height(8.dp))
+    Text("Данные хранятся на этом устройстве. Режим инкогнито не добавляет страницы в историю.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+}
+
 @Composable private fun SettingSwitch(title: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, color = Paper, modifier = Modifier.weight(1f), fontSize = 15.sp)
