@@ -14,8 +14,8 @@ android {
         applicationId = "com.darknes.tor"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.2-alpha"
+        versionCode = 4
+        versionName = "1.3-beta"
     }
 
     signingConfigs {
