@@ -149,7 +149,7 @@ private object DarknesIdApi {
 }
 
 @Composable
-internal fun DarknesIdPanel() {
+internal fun DarknesIdPanel(onAuthenticated: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var isRegister by remember { mutableStateOf(false) }
@@ -169,6 +169,7 @@ internal fun DarknesIdPanel() {
             loading = true
             try {
                 user = DarknesIdApi.profile(saved)
+                onAuthenticated()
             } catch (e: Exception) {
                 DarknesIdTokenStore.clear(context)
                 token = null
@@ -247,6 +248,7 @@ internal fun DarknesIdPanel() {
                                 user = result.user
                                 password = ""
                                 message = ""
+                                onAuthenticated()
                             } catch (e: Exception) {
                                 message = e.message ?: "Не удалось связаться с Darknes ID."
                             } finally {
