@@ -578,7 +578,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         }
     }
     val settingsPrefs = remember(context) { context.getSharedPreferences("darknes_settings", android.content.Context.MODE_PRIVATE) }
-    var query by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf(tabUrls.getOrNull(activeTab).orEmpty()) }
     var islandOpen by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf("") }
     var engine by remember { mutableStateOf("DuckDuckGo") }
@@ -592,7 +592,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var model by remember { mutableStateOf("Darknes AI") }
     var chatInput by remember { mutableStateOf("") }
     var sent by remember { mutableStateOf("") }
-    var loaded by remember { mutableStateOf(false) }
+    var loaded by remember { mutableStateOf(tabUrls.getOrNull(activeTab).orEmpty().isNotBlank()) }
     var showSearchResults by remember { mutableStateOf(false) }
     var searchLoading by remember { mutableStateOf(false) }
     var searchError by remember { mutableStateOf("") }
