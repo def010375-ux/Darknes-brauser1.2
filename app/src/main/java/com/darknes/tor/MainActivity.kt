@@ -440,7 +440,7 @@ private fun BlackHoleScene(
 }
 
 @Composable
-private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit) {
+private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit, downloads: List<DownloadRecord>) {
     var launchAuthenticated by remember { mutableStateOf(false) }
     if (!launchAuthenticated) {
         DarknesLaunchGate(onAuthenticated = { launchAuthenticated = true })
