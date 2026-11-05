@@ -731,6 +731,12 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                             "Расширения" -> ExtensionsPanel(adBlock, { adBlock = it }, nightPages, { nightPages = it }) { toast = "Установка расширений появится позже" }
                             "Аккаунт" -> DarknesIdPanel()
                             "ИИ-чат" -> ChatPanel(model, { model = it }, chatInput, { chatInput = it }, sent, { sent = it })
+                            "Загрузки" -> DownloadsPanel(downloads) { item ->
+                                val saved = item.savedUri ?: return@DownloadsPanel
+                                runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(saved), "*/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                                }.onFailure { toast = "Не удалось открыть файл" }
+                            }
                             "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), activeTab, incognito, { incognito = it }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { panel = "" })
                         }
                     }
@@ -983,6 +989,7 @@ private fun HomeSearchBar(
     PanelTitle("Меню")
     val items = listOf(
         Icons.Default.Add to "Новая вкладка",
+        Icons.Default.Download to "Загрузки",
         Icons.Default.VisibilityOff to "Инкогнито",
         Icons.Default.Extension to "Расширения",
         Icons.Default.AutoAwesome to "ИИ-чат",
