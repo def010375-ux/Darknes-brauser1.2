@@ -35,6 +35,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import kotlinx.coroutines.launch
 import org.mozilla.geckoview.GeckoRuntime
+import org.mozilla.geckoview.GeckoRuntimeSettings
+import org.mozilla.geckoview.ContentBlocking
 import org.mozilla.geckoview.GeckoSession
 import org.mozilla.geckoview.GeckoView
 
@@ -130,6 +132,20 @@ private fun DarknesApp(runtime: GeckoRuntime) {
     var toast by remember { mutableStateOf("") }
     val keyboard = LocalSoftwareKeyboardController.current
     val accent = if (incognito) Violet else Orange
+    LaunchedEffect(trackers, sessions.size) {
+        sessions.forEach { it.settings.setUseTrackingProtection(trackers) }
+    }
+    LaunchedEffect(darkSites, nightPages) {
+        runtime.settings.setPreferredColorScheme(
+            if (darkSites || nightPages) GeckoRuntimeSettings.COLOR_SCHEME_DARK
+            else GeckoRuntimeSettings.COLOR_SCHEME_LIGHT
+        )
+    }
+    LaunchedEffect(adBlock) {
+        runtime.settings.contentBlocking.setEnhancedTrackingProtectionLevel(
+            if (adBlock) ContentBlocking.EtpLevel.STRICT else ContentBlocking.EtpLevel.DEFAULT
+        )
+    }
     val scope = rememberCoroutineScope()
     val transition = updateTransition(targetState = panel, label = "panels")
     DisposableEffect(session) {
@@ -242,7 +258,7 @@ private fun DarknesApp(runtime: GeckoRuntime) {
                                 }
                             }
                             "Настройки" -> SettingsPanel(engine, { engine = it }, trackers, { trackers = it }, darkSites, { darkSites = it }, animations, { animations = it }, blur, { blur = it })
-                            "Расширения" -> ExtensionsPanel(adBlock, { adBlock = it }, passwords, { passwords = it }, nightPages, { nightPages = it }) { toast = "Установка расширений появится позже" }
+                            "Расширения" -> ExtensionsPanel(adBlock, { adBlock = it }, nightPages, { nightPages = it }) { toast = "Установка расширений появится позже" }
                             "Аккаунт" -> AccountPanel { toast = "Вход в Darknes появится позже" }
                             "ИИ-чат" -> ChatPanel(model, { model = it }, chatInput, { chatInput = it }, sent, { sent = it })
                             "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), activeTab, incognito, { incognito = it }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { panel = "" })
@@ -365,11 +381,11 @@ private fun HomeScreen(accent: Color, blur: Float, animations: Boolean, onSecret
     Text("Размытие фона · ${blur.toInt()} px", color = Paper, modifier = Modifier.padding(top=12.dp))
     Slider(value=blur, onValueChange=setBlur, valueRange=0f..24f, colors=SliderDefaults.colors(thumbColor=Orange, activeTrackColor=Orange))
 }
-@Composable private fun ExtensionsPanel(ad:Boolean, setAd:(Boolean)->Unit, pass:Boolean, setPass:(Boolean)->Unit, night:Boolean, setNight:(Boolean)->Unit, install:()->Unit) {
-    PanelTitle("Расширения", "Дополнительные возможности")
-    SettingSwitch("Блокировщик рекламы", ad, setAd)
-    SettingSwitch("Менеджер паролей", pass, setPass)
+@Composable private fun ExtensionsPanel(ad:Boolean, setAd:(Boolean)->Unit, night:Boolean, setNight:(Boolean)->Unit, install:()->Unit) {
+    PanelTitle("Расширения", "Встроенные инструменты браузера")
+    SettingSwitch("Усиленная защита от рекламы и трекеров", ad, setAd)
     SettingSwitch("Ночной режим страниц", night, setNight)
+    Text("Менеджер паролей пока не подключён — переключатель не показываем.", color=Muted, fontSize=12.sp, lineHeight=17.sp, modifier=Modifier.padding(top=8.dp))
     Spacer(Modifier.height(18.dp))
     Button(onClick=install, modifier=Modifier.fillMaxWidth().height(52.dp), colors=ButtonDefaults.buttonColors(containerColor=Orange, contentColor=Ink), shape=RoundedCornerShape(18.dp)) { Text("Установить из файла", fontWeight=FontWeight.Bold) }
 }
