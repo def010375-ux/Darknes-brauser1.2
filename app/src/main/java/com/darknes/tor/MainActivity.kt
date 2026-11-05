@@ -981,6 +981,76 @@ private fun HomeSearchBar(
         Switch(checked, onChange, colors = SwitchDefaults.colors(checkedThumbColor = Ink, checkedTrackColor = Orange))
     }
 }
+@Composable
+private fun TesterPanel(onDownload: (String) -> Unit) {
+    var versions by remember { mutableStateOf<List<PublishedVersion>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        try {
+            versions = fetchPublishedVersions()
+        } catch (problem: Exception) {
+            error = "Не удалось загрузить список релизов. Проверь подключение к интернету."
+        } finally {
+            loading = false
+        }
+    }
+
+    PanelTitle("Darknes Tor Tester", "Публичный выбор версий браузера")
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color(0xFF241B16),
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, Violet.copy(alpha = .65f))
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("1.2 Alpha Release", color = Paper, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                Text("СТАРТОВАЯ", color = Violet, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            }
+            Text("Первая публичная тестовая версия Darknes Tor.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+            Text("Если эта версия уже установлена, повторная установка не требуется.", color = Peach, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+        }
+    }
+    Spacer(Modifier.height(16.dp))
+    Text("ОПУБЛИКОВАННЫЕ ВЕРСИИ", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+    Spacer(Modifier.height(8.dp))
+    when {
+        loading -> Row(verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(color = Violet, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            Spacer(Modifier.width(10.dp))
+            Text("Проверяем доступные релизы…", color = Muted, fontSize = 13.sp)
+        }
+        error.isNotBlank() -> Text(error, color = Peach, fontSize = 13.sp)
+        versions.isEmpty() -> Text("Пока опубликована только стартовая версия 1.2 Alpha Release. Новые версии появятся здесь после публикации APK в GitHub Releases.", color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
+        else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.weight(1f, fill = false)) {
+            items(versions) { version ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color(0xFF211D1A),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Border)
+                ) {
+                    Column(Modifier.padding(13.dp)) {
+                        Text(version.name, color = Paper, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                        if (version.notes.isNotBlank()) Text(version.notes, color = Muted, fontSize = 11.sp, maxLines = 3, modifier = Modifier.padding(top = 5.dp))
+                        Spacer(Modifier.height(8.dp))
+                        if (version.apkUrl != null) {
+                            Text("Скачать APK", color = Violet, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onDownload(version.apkUrl) }.padding(vertical = 5.dp))
+                        } else {
+                            Text("APK для этой версии не приложен", color = Muted, fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+    Text("Выбор версии открывает загрузку APK. Установка подтверждается Android. Для обновления поверх текущей версии подпись APK должна совпадать.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+}
+
 @Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit) {
     PanelTitle("Настройки", "Настрой Darknes Tor под себя")
     Text("Поисковая система · DuckDuckGo", color = Muted, fontSize = 13.sp)
