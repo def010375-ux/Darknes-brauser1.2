@@ -122,7 +122,6 @@ private fun DarknesApp(runtime: GeckoRuntime) {
     var trackers by remember { mutableStateOf(true) }
     var darkSites by remember { mutableStateOf(true) }
     var adBlock by remember { mutableStateOf(true) }
-    var passwords by remember { mutableStateOf(false) }
     var nightPages by remember { mutableStateOf(true) }
     var model by remember { mutableStateOf("Darknes AI") }
     var chatInput by remember { mutableStateOf("") }
@@ -137,7 +136,7 @@ private fun DarknesApp(runtime: GeckoRuntime) {
     }
     LaunchedEffect(darkSites, nightPages) {
         runtime.settings.setPreferredColorScheme(
-            if (darkSites || nightPages) GeckoRuntimeSettings.COLOR_SCHEME_DARK
+            if (darkSites && nightPages) GeckoRuntimeSettings.COLOR_SCHEME_DARK
             else GeckoRuntimeSettings.COLOR_SCHEME_LIGHT
         )
     }
