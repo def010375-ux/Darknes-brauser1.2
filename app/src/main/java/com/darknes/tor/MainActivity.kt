@@ -332,10 +332,10 @@ private fun DarknesBrowser(
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = { session.navigationController.goBack() }) {
+            IconButton(onClick = { session.goBack() }) {
                 Icon(Icons.Default.ArrowBack, "Назад", tint = Color.White)
             }
-            IconButton(onClick = { session.navigationController.goForward() }) {
+            IconButton(onClick = { session.goForward() }) {
                 Icon(Icons.Default.ArrowForward, "Вперёд", tint = Color.White)
             }
             IconButton(onClick = { onLoad("https://www.google.com") }) {
