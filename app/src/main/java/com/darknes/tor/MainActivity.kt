@@ -67,6 +67,7 @@ private val Violet = Color(0xFF8B6CFF)
 private val Muted = Color(0xFF929DB8)
 private val Glass = Color(0xD9161D32)
 private val Border = Color(0x5546CFFF)
+private fun uiLabel(language: String, russian: String, english: String): String = if (language == "en") english else russian
 
 private data class ThemePack(val id: String, val name: String, val accent: String, val incognitoAccent: String, val homeLayout: String, val blur: Float, val language: String)
 
@@ -1111,6 +1112,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 showShortcuts = showHomeShortcuts,
                 showBookmarks = showHomeBookmarks,
                 customSites = customHomeSites.toList(),
+                language = interfaceLanguage,
                 onSecretSettings = { panel = "Настройки" },
                 onSearch = {
                     runSearch(query)
@@ -1351,6 +1353,7 @@ private fun HomeScreen(
     showShortcuts: Boolean,
     showBookmarks: Boolean,
     customSites: List<SavedPage>,
+    language: String,
     onSecretSettings: () -> Unit,
     onSearch: () -> Unit,
     onShortcut: (String) -> Unit
@@ -1394,7 +1397,7 @@ private fun HomeScreen(
             },
             style = TextStyle(brush = Brush.linearGradient(listOf(Paper, Orange, Violet)), fontSize = 39.sp, fontWeight = FontWeight.Bold)
         )
-        Text("Поиск без входа и слежки", color = Muted, fontSize = 14.sp)
+        Text(uiLabel(language, "Поиск без входа и слежки", "Search without sign-in or tracking"), color = Muted, fontSize = 14.sp)
         Spacer(Modifier.height(13.dp))
         Row(
             Modifier.clip(RoundedCornerShape(50.dp))
@@ -1405,11 +1408,11 @@ private fun HomeScreen(
         ) {
             Box(Modifier.size(6.dp).background(Color(0xFF62E6C2), CircleShape))
             Spacer(Modifier.width(7.dp))
-            Text("ЗАЩИТА ВКЛЮЧЕНА", color = Color(0xFF9AF2D9), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Text(uiLabel(language, "ЗАЩИТА ВКЛЮЧЕНА", "PROTECTION ENABLED"), color = Color(0xFF9AF2D9), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             Spacer(Modifier.width(10.dp))
             Text("·", color = Muted, fontSize = 10.sp)
             Spacer(Modifier.width(8.dp))
-            Text("БЕЗ АККАУНТА", color = Paper.copy(alpha = .78f), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = .7.sp)
+            Text(uiLabel(language, "БЕЗ АККАУНТА", "NO ACCOUNT"), color = Paper.copy(alpha = .78f), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = .7.sp)
         }
         Spacer(Modifier.height(20.dp))
         }
@@ -1428,10 +1431,10 @@ private fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
-                Text("ТВОЁ ПРОСТРАНСТВО", color = Paper, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
-                Text("Быстрый доступ к любимым сайтам", color = Muted, fontSize = 10.sp)
+                Text(uiLabel(language, "ТВОЁ ПРОСТРАНСТВО", "YOUR SPACE"), color = Paper, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
+                Text(uiLabel(language, "Быстрый доступ к любимым сайтам", "Quick access to favorite sites"), color = Muted, fontSize = 10.sp)
             }
-            Text("${7 + customSites.size} САЙТОВ", color = accent, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = .8.sp)
+            Text("${7 + customSites.size} ${uiLabel(language, "САЙТОВ", "SITES")}", color = accent, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = .8.sp)
         }
         val sites = listOf(
             Triple("YouTube", Icons.Default.PlayCircleFilled, "https://youtube.com"),
@@ -1471,7 +1474,7 @@ private fun HomeScreen(
             exit = if (animations) fadeOut(tween(140)) + shrinkVertically(tween(180)) else ExitTransition.None
         ) {
             Column {
-            Text("ТВОИ ЗАКЛАДКИ", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp, modifier = Modifier.align(Alignment.Start).padding(start = 24.dp, top = 20.dp, bottom = 8.dp))
+            Text(uiLabel(language, "ТВОИ ЗАКЛАДКИ", "YOUR BOOKMARKS"), color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp, modifier = Modifier.align(Alignment.Start).padding(start = 24.dp, top = 20.dp, bottom = 8.dp))
             LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = Modifier.fillMaxWidth().heightIn(max = 190.dp).padding(horizontal = 12.dp), userScrollEnabled = false) {
                 items(bookmarks.take(6)) { page ->
                     Column(Modifier.padding(5.dp).clip(RoundedCornerShape(16.dp)).background(Brush.linearGradient(listOf(Color(0xFF1A2B49), Color(0xFF10172B)))).border(1.dp, Border, RoundedCornerShape(16.dp)).clickable { onShortcut(page.url) }.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1545,7 +1548,7 @@ private fun HomeSearchBar(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(6.dp).background(Color(0xFF62E6C2), CircleShape))
             Spacer(Modifier.width(7.dp))
-            Text("ПОИСКОВАЯ СИСТЕМА", color = Muted, fontSize = 9.sp, letterSpacing = 1.1.sp)
+            Text(uiLabel(language, "ПОИСКОВАЯ СИСТЕМА", "SEARCH ENGINE"), color = Muted, fontSize = 9.sp, letterSpacing = 1.1.sp)
             Spacer(Modifier.weight(1f))
             Row(
                 Modifier.clip(RoundedCornerShape(50)).background(Color(0xFF25365A)).padding(horizontal = 11.dp, vertical = 6.dp),
@@ -1850,8 +1853,9 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
 @Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit, accentChoice:String, setAccentChoice:(String)->Unit, desktopMode:Boolean, setDesktopMode:(Boolean)->Unit, incognitoAccent:String, setIncognitoAccent:(String)->Unit, homeLayout:String, setHomeLayout:(String)->Unit, language:String, setLanguage:(String)->Unit, wallpaperUri:String, chooseWallpaper:()->Unit, clearWallpaper:()->Unit, importConfig:()->Unit, showBranding:Boolean, setShowBranding:(Boolean)->Unit, showShortcuts:Boolean, setShowShortcuts:(Boolean)->Unit, showBookmarks:Boolean, setShowBookmarks:(Boolean)->Unit, customSites:List<SavedPage>, addCustomSite:(String,String)->Unit, moveCustomSite:(Int,Int)->Unit, removeCustomSite:(SavedPage)->Unit, themePacks:List<ThemePack>, loadingThemePacks:Boolean, refreshThemePacks:()->Unit, applyThemePack:(ThemePack)->Unit, exportConfig:()->Unit) {
     var customSiteName by remember { mutableStateOf("") }
     var customSiteUrl by remember { mutableStateOf("") }
+    val en = language == "en"
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-    PanelTitle("Настройки", "Персонализация и управление Darknes Tor")
+    PanelTitle(uiLabel(language, "Настройки", "Settings"), uiLabel(language, "Персонализация и управление Darknes Tor", "Personalization and Darknes Tor controls"))
     val engines = listOf("DuckDuckGo", "Google", "Bing", "Brave")
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
         .background(Brush.linearGradient(listOf(Color(0xFF1A2B49), Color(0xFF10172B))))
@@ -1888,47 +1892,47 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
         }
     }
     Spacer(Modifier.height(12.dp))
-    Text("ПРИВАТНОСТЬ И ОТОБРАЖЕНИЕ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
-    SettingSwitch("Блокировать трекеры", trackers, setTrackers)
-    SettingSwitch("Тёмная схема сайтов", dark, setDark)
-    SettingSwitch("Анимации интерфейса", anim, setAnim)
-    SettingSwitch("Версия сайтов для компьютера", desktopMode, setDesktopMode)
+    Text(uiLabel(language, "ПРИВАТНОСТЬ И ОТОБРАЖЕНИЕ", "PRIVACY & DISPLAY"), color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    SettingSwitch(uiLabel(language, "Блокировать трекеры", "Block trackers"), trackers, setTrackers)
+    SettingSwitch(uiLabel(language, "Тёмная схема сайтов", "Dark website theme"), dark, setDark)
+    SettingSwitch(uiLabel(language, "Анимации интерфейса", "Interface animations"), anim, setAnim)
+    SettingSwitch(uiLabel(language, "Версия сайтов для компьютера", "Desktop website mode"), desktopMode, setDesktopMode)
     Text("Режим компьютера меняет User-Agent и viewport GeckoView. Отдельные сайты могут отображаться иначе.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
     Spacer(Modifier.height(14.dp))
     Spacer(Modifier.height(15.dp))
-    Text("ОФОРМЛЕНИЕ ОБЫЧНОГО РЕЖИМА", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
-    Text("Акцент обычного режима", color = Paper, fontSize = 12.sp, modifier = Modifier.padding(top = 7.dp, bottom = 6.dp))
+    Text(uiLabel(language, "ОФОРМЛЕНИЕ ОБЫЧНОГО РЕЖИМА", "NORMAL MODE APPEARANCE"), color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    Text(uiLabel(language, "Акцент обычного режима", "Normal mode accent"), color = Paper, fontSize = 12.sp, modifier = Modifier.padding(top = 7.dp, bottom = 6.dp))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         listOf("cyan" to "Неон", "blue" to "Синий", "purple" to "Лиловый", "green" to "Зелёный").forEach { (key, label) -> FilterChip(selected = accentChoice == key, onClick = { setAccentChoice(key) }, label = { Text(label, fontSize = 9.sp) }) }
     }
-    Text("Акцент инкогнито", color = Paper, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp, bottom = 6.dp))
+    Text(uiLabel(language, "Акцент инкогнито", "Incognito accent"), color = Paper, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp, bottom = 6.dp))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         listOf("purple" to "Фиолетовый", "cyan" to "Неон", "blue" to "Синий", "green" to "Зелёный").forEach { (key, label) -> FilterChip(selected = incognitoAccent == key, onClick = { setIncognitoAccent(key) }, label = { Text(label, fontSize = 9.sp) }) }
     }
     Spacer(Modifier.height(14.dp))
-    Text("ФОНОВОЕ ИЗОБРАЖЕНИЕ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
-    Text(if (wallpaperUri.isBlank()) "Своё фото ещё не выбрано" else "Пользовательское фото установлено", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(vertical = 7.dp))
+    Text(uiLabel(language, "ФОНОВОЕ ИЗОБРАЖЕНИЕ", "WALLPAPER IMAGE"), color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    Text(if (wallpaperUri.isBlank()) uiLabel(language, "Своё фото ещё не выбрано", "No custom image selected") else uiLabel(language, "Пользовательское фото установлено", "Custom wallpaper is set"), color = Muted, fontSize = 11.sp, modifier = Modifier.padding(vertical = 7.dp))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(onClick = chooseWallpaper, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Ink), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.Image, null); Spacer(Modifier.width(5.dp)); Text("Выбрать фото", fontSize = 11.sp) }
-        OutlinedButton(onClick = clearWallpaper, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) { Text("Убрать фото", fontSize = 11.sp) }
+        Button(onClick = chooseWallpaper, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Ink), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.Image, null); Spacer(Modifier.width(5.dp)); Text(uiLabel(language, "Выбрать фото", "Choose photo"), fontSize = 11.sp) }
+        OutlinedButton(onClick = clearWallpaper, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) { Text(uiLabel(language, "Убрать фото", "Remove photo"), fontSize = 11.sp) }
     }
-    Text("Размытие фона: ${blur.toInt()} px", color = Paper, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+    Text(uiLabel(language, "Размытие фона: ${blur.toInt()} px", "Wallpaper blur: ${blur.toInt()} px"), color = Paper, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
     Slider(value = blur, onValueChange = setBlur, valueRange = 0f..32f)
     Spacer(Modifier.height(12.dp))
-    Text("ЭЛЕМЕНТЫ СТАРТОВОЙ СТРАНИЦЫ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
-    SettingSwitch("3D-сцена и логотип", showBranding, setShowBranding)
-    SettingSwitch("Быстрые сайты", showShortcuts, setShowShortcuts)
-    SettingSwitch("Показывать закладки", showBookmarks, setShowBookmarks)
-    Text("РАСКЛАДКА СТАРТОВОЙ СТРАНИЦЫ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
+    Text(uiLabel(language, "ЭЛЕМЕНТЫ СТАРТОВОЙ СТРАНИЦЫ", "HOME SCREEN ELEMENTS"), color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    SettingSwitch(uiLabel(language, "3D-сцена и логотип", "3D scene and logo"), showBranding, setShowBranding)
+    SettingSwitch(uiLabel(language, "Быстрые сайты", "Quick sites"), showShortcuts, setShowShortcuts)
+    SettingSwitch(uiLabel(language, "Показывать закладки", "Show bookmarks"), showBookmarks, setShowBookmarks)
+    Text(uiLabel(language, "РАСКЛАДКА СТАРТОВОЙ СТРАНИЦЫ", "HOME SCREEN LAYOUT"), color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) { listOf("grid" to "Сетка", "list" to "Список", "compact" to "Компактная").forEach { (key, label) -> FilterChip(selected = homeLayout == key, onClick = { setHomeLayout(key) }, label = { Text(label, fontSize = 10.sp) }) } }
     Spacer(Modifier.height(12.dp))
-    Text("ЯЗЫК ИНТЕРФЕЙСА", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    Text(uiLabel(language, "ЯЗЫК ИНТЕРФЕЙСА", "INTERFACE LANGUAGE"), color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(selected = language == "ru", onClick = { setLanguage("ru") }, label = { Text("Русский") }); FilterChip(selected = language == "en", onClick = { setLanguage("en") }, label = { Text("English") }) }
-    Text("Язык сохраняется. Полный перевод всех экранов подключается отдельно.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+    Text(uiLabel(language, "Выбор языка сохраняется. Перевод остальных экранов будет расширяться.", "Your language choice is saved. Translation of the remaining screens will be expanded."), color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
     Spacer(Modifier.height(14.dp))
-    Text("КАТАЛОГ ПОЛЬЗОВАТЕЛЬСКИХ GUI", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
-    Text("Загрузи готовые пакеты оформления Darknes из онлайн-каталога. Пакет меняет только разрешённые параметры интерфейса.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
-    OutlinedButton(onClick = refreshThemePacks, enabled = !loadingThemePacks, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.CloudDownload, null); Spacer(Modifier.width(7.dp)); Text(if (loadingThemePacks) "Загрузка каталога…" else "Загрузить каталог тем") }
+    Text(uiLabel(language, "КАТАЛОГ ПОЛЬЗОВАТЕЛЬСКИХ GUI", "CUSTOM GUI CATALOG"), color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    Text(uiLabel(language, "Загрузи готовые пакеты оформления Darknes из онлайн-каталога. Пакет меняет только разрешённые параметры интерфейса.", "Load Darknes appearance packs from the online catalog. Packs only change approved interface settings."), color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+    OutlinedButton(onClick = refreshThemePacks, enabled = !loadingThemePacks, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.CloudDownload, null); Spacer(Modifier.width(7.dp)); Text(if (loadingThemePacks) uiLabel(language, "Загрузка каталога…", "Loading catalog…") else uiLabel(language, "Загрузить каталог тем", "Load theme catalog")) }
     themePacks.forEach { pack ->
         Surface(Modifier.fillMaxWidth().padding(top = 6.dp).clickable { applyThemePack(pack) }, color = Color(0xFF121C32), shape = RoundedCornerShape(13.dp), border = BorderStroke(1.dp, Border)) {
             Row(Modifier.padding(11.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1939,10 +1943,10 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
         }
     }
     Spacer(Modifier.height(10.dp))
-    Text("МОИ БЫСТРЫЕ САЙТЫ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
-    OutlinedTextField(value = customSiteName, onValueChange = { customSiteName = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Название сайта") })
-    OutlinedTextField(value = customSiteUrl, onValueChange = { customSiteUrl = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Адрес сайта") }, placeholder = { Text("example.com") })
-    Button(onClick = { addCustomSite(customSiteName, customSiteUrl); if (customSiteName.isNotBlank() && customSiteUrl.isNotBlank()) { customSiteName = ""; customSiteUrl = "" } }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Ink), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(6.dp)); Text("Добавить на стартовую страницу") }
+    Text(uiLabel(language, "МОИ БЫСТРЫЕ САЙТЫ", "MY QUICK SITES"), color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    OutlinedTextField(value = customSiteName, onValueChange = { customSiteName = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text(uiLabel(language, "Название сайта", "Site name")) })
+    OutlinedTextField(value = customSiteUrl, onValueChange = { customSiteUrl = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text(uiLabel(language, "Адрес сайта", "Website address")) }, placeholder = { Text("example.com") })
+    Button(onClick = { addCustomSite(customSiteName, customSiteUrl); if (customSiteName.isNotBlank() && customSiteUrl.isNotBlank()) { customSiteName = ""; customSiteUrl = "" } }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Ink), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(6.dp)); Text(uiLabel(language, "Добавить на стартовую страницу", "Add to home screen")) }
     customSites.forEachIndexed { index, site ->
         Row(Modifier.fillMaxWidth().padding(top = 5.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF121C32)).padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) { Text(site.title, color = Paper, fontSize = 11.sp, maxLines = 1); Text(site.url, color = Muted, fontSize = 9.sp, maxLines = 1) }
@@ -1952,10 +1956,10 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
         }
     }
     Spacer(Modifier.height(12.dp))
-    Text("ТЕМЫ И КОНФИГУРАЦИИ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    Text(uiLabel(language, "ТЕМЫ И КОНФИГУРАЦИИ", "THEMES & CONFIGURATIONS"), color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
     Text("Импорт JSON-конфигурации Darknes Studio. Применяются только безопасные параметры оформления.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
-    OutlinedButton(onClick = importConfig, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.FileOpen, null); Spacer(Modifier.width(7.dp)); Text("Импортировать конфигурацию") }
-    OutlinedButton(onClick = exportConfig, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.FileDownload, null); Spacer(Modifier.width(7.dp)); Text("Экспортировать мою тему") }
+    OutlinedButton(onClick = importConfig, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.FileOpen, null); Spacer(Modifier.width(7.dp)); Text(uiLabel(language, "Импортировать конфигурацию", "Import configuration")) }
+    OutlinedButton(onClick = exportConfig, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.FileDownload, null); Spacer(Modifier.width(7.dp)); Text(uiLabel(language, "Экспортировать мою тему", "Export my theme")) }
     Text("Поддерживаются accent, incognitoAccent, homeLayout, language, blur и wallpaperUri. Скрипты и исполняемый код не запускаются.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
     Text("Дополнительные параметры защиты находятся в Центре безопасности.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 12.dp))
     Spacer(Modifier.height(22.dp))
