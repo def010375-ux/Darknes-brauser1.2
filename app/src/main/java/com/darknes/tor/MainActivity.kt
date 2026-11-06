@@ -197,7 +197,7 @@ internal object DarknesVaultCrypto {
         val prefs = context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
         val iv = android.util.Base64.decode(prefs.getString(BIO_IV, null), android.util.Base64.NO_WRAP)
         val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        val key = keyStore.getKey(BIO_ALIAS, null) as java.security.SecretKey
+        val key = keyStore.getKey(BIO_ALIAS, null) as javax.crypto.SecretKey
         javax.crypto.Cipher.getInstance("AES/GCM/NoPadding").apply {
             init(javax.crypto.Cipher.DECRYPT_MODE, key, javax.crypto.spec.GCMParameterSpec(128, iv))
         }
@@ -1032,17 +1032,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var panel by remember { mutableStateOf("") }
     var engine by remember { mutableStateOf("DuckDuckGo") }
     val onLoad: (String) -> Unit = { session.loadUri(resolveAddress(it, engine)) }
-    fun requestSafeNavigation(raw: String) {
-        val resolved = resolveAddress(raw, engine)
-        val report = analyzeLinkRisk(resolved)
-        if (report?.isSuspicious == true) {
-            loaded = false
-            pendingRiskUrl = raw
-            pendingRiskReport = report
-        } else {
-            onLoad(raw)
-        }
-    }
+
     var blur by remember { mutableFloatStateOf(settingsPrefs.getFloat("blur", 8f).coerceIn(0f, 24f)) }
     var animations by remember { mutableStateOf(settingsPrefs.getBoolean("animations", true)) }
     var trackers by remember { mutableStateOf(settingsPrefs.getBoolean("trackers", true)) }
@@ -1063,6 +1053,17 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var toast by remember { mutableStateOf("") }
     var pendingRiskUrl by remember { mutableStateOf<String?>(null) }
     var pendingRiskReport by remember { mutableStateOf<LinkRiskReport?>(null) }
+    val requestSafeNavigation: (String) -> Unit = { raw ->
+        val resolved = resolveAddress(raw, engine)
+        val report = analyzeLinkRisk(resolved)
+        if (report?.isSuspicious == true) {
+            loaded = false
+            pendingRiskUrl = raw
+            pendingRiskReport = report
+        } else {
+            onLoad(raw)
+        }
+    }
     var readerContent by remember { mutableStateOf("") }
     var readerSource by remember { mutableStateOf("") }
     var readerLoading by remember { mutableStateOf(false) }
@@ -1545,7 +1546,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                 }.onFailure { toast = "Не удалось открыть настройки уведомлений" }
                             }
                             "Расширения" -> ExtensionsPanel(adBlock, { adBlock = it }, nightPages, { nightPages = it }) { toast = "Установка расширений появится позже" }
-                            "Аккаунт" -> DarknesIdPanel()
+                            "Аккаунт" -> DarknesIdPanel(onAuthenticated = null)
                             "Darknes Vault" -> DarknesVaultPanel()
                             "ИИ-чат" -> ChatPanel {
                                 panel = ""
@@ -2544,7 +2545,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
         }
     }
 
-    val installedVersion = BuildConfig.VERSION_NAME
+    val installedVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: "1.5-beta"
     val latestWithApk = versions.firstOrNull { it.apkUrl != null }
 
     PanelTitle("Центр обновлений", "Проверка опубликованных версий Darknes Tor")
