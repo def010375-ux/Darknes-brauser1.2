@@ -1097,10 +1097,17 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                 onRemove = { page -> offlinePages.removeAll { it.url == page.url } }
                             )
                             "Офлайн-просмотр" -> OfflinePageViewerPanel(selectedOfflinePage, onBack = { panel = "Офлайн-страницы" })
-                            "Тестер" -> TesterPanel { url ->
+                            "Тестер", "Обновления" -> TesterPanel { url ->
                                 runCatching {
                                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                                 }.onFailure { toast = "Не удалось открыть загрузку APK" }
+                            }
+                            "Уведомления" -> NotificationsPanel {
+                                runCatching {
+                                    val intent = Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                    context.startActivity(intent)
+                                }.onFailure { toast = "Не удалось открыть настройки уведомлений" }
                             }
                             "Расширения" -> ExtensionsPanel(adBlock, { adBlock = it }, nightPages, { nightPages = it }) { toast = "Установка расширений появится позже" }
                             "Аккаунт" -> DarknesIdPanel()
@@ -1563,6 +1570,8 @@ private fun MenuPanel(accent: Color, onAction: (String) -> Unit) {
         ),
         "DARKNES" to listOf(
             Icons.Default.Settings to "Настройки",
+            Icons.Default.NotificationsActive to "Уведомления",
+            Icons.Default.SystemUpdateAlt to "Обновления",
             Icons.Default.Person to "Аккаунт",
             Icons.Default.Shield to "Безопасность"
         )
@@ -2004,6 +2013,81 @@ private fun DownloadsPanel(
         color = Muted, fontSize = 10.sp, lineHeight = 15.sp
     )
 }
+@Composable
+private fun NotificationsPanel(onOpenSettings: () -> Unit) {
+    val context = LocalContext.current
+    val notificationsEnabled = remember(context) {
+        runCatching {
+            context.getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled()
+        }.getOrDefault(true)
+    }
+    PanelTitle("Центр уведомлений", "Управление оповещениями Darknes Tor")
+    Surface(
+        Modifier.fillMaxWidth(),
+        color = Color(0xCC10213A),
+        shape = RoundedCornerShape(22.dp),
+        border = BorderStroke(1.dp, Border)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(46.dp).clip(RoundedCornerShape(15.dp))
+                        .background(Brush.linearGradient(listOf(Color(0x5542DFFF), Color(0x559A83FF)))),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = Orange, modifier = Modifier.size(24.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("СИСТЕМНЫЕ УВЕДОМЛЕНИЯ", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Text(if (notificationsEnabled) "Разрешены" else "Отключены", color = if (notificationsEnabled) Color(0xFF65D69A) else Peach,
+                        fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                }
+                Icon(
+                    if (notificationsEnabled) Icons.Default.CheckCircle else Icons.Default.NotificationsOff,
+                    contentDescription = null,
+                    tint = if (notificationsEnabled) Color(0xFF65D69A) else Peach,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            Text(
+                "Разрешение управляется Android. Здесь можно открыть системную страницу уведомлений приложения и изменить его.",
+                color = Muted, fontSize = 11.sp, lineHeight = 16.sp,
+                modifier = Modifier.padding(top = 12.dp)
+            )
+            Button(
+                onClick = onOpenSettings,
+                modifier = Modifier.fillMaxWidth().padding(top = 14.dp).height(47.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Ink),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Icon(Icons.Default.Tune, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Настроить в Android", fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+    Surface(
+        Modifier.fillMaxWidth().padding(top = 12.dp),
+        color = Color(0x99101B2D),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, Border)
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Language, contentDescription = null, tint = Violet)
+                Spacer(Modifier.width(8.dp))
+                Text("Уведомления сайтов", color = Paper, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            }
+            Text(
+                "Запросы сайтов на уведомления обрабатываются отдельно через разрешения сайтов в браузере. Системное разрешение приложения не заменяет их.",
+                color = Muted, fontSize = 11.sp, lineHeight = 16.sp,
+                modifier = Modifier.padding(top = 7.dp)
+            )
+        }
+    }
+}
+
 @Composable
 private fun TesterPanel(onDownload: (String) -> Unit) {
     var versions by remember { mutableStateOf<List<PublishedVersion>>(emptyList()) }
