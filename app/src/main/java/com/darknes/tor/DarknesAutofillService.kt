@@ -29,9 +29,9 @@ class DarknesAutofillService : AutofillService() {
         val domain = (password.domain ?: username?.domain)?.lowercase()?.removePrefix("www.")
         val matching = VaultSessionCache.entries.filter { entry ->
             val savedHost = runCatching { java.net.URI(if (entry.website.contains("://")) entry.website else "https://${entry.website}").host?.lowercase()?.removePrefix("www.") }.getOrNull()
-            savedHost != null && domain != null && (savedHost == domain || savedHost.endsWith(".$domain") || domain.endsWith(".$savedHost"))
+            savedHost != null && domain != null && (savedHost == domain || domain.endsWith(".$savedHost"))
         }
-        val candidates = if (matching.isNotEmpty()) matching else VaultSessionCache.entries
+        val candidates = matching
         val response = FillResponse.Builder()
         candidates.take(20).forEach { entry ->
             val label = if (entry.title.isBlank()) entry.username.ifBlank { "Сохранённый пароль" } else entry.title
