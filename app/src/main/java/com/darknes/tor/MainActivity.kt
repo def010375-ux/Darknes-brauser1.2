@@ -1450,81 +1450,69 @@ private fun HomeSearchBar(
 }
 @Composable
 private fun SavedPagesPanel(
-    title: String,
-    subtitle: String,
-    pages: List<SavedPage>,
-    onOpen: (String) -> Unit,
-    onRemove: (SavedPage) -> Unit,
-    onClear: (() -> Unit)? = null
+    title: String, subtitle: String, pages: List<SavedPage>, onOpen: (String) -> Unit,
+    onRemove: (SavedPage) -> Unit, onClear: (() -> Unit)? = null
 ) {
     var filter by remember(title) { mutableStateOf("") }
+    val accent = Orange
     PanelTitle(title, subtitle)
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFF10172B))
-            .border(1.dp, Border, RoundedCornerShape(16.dp)).padding(horizontal = 13.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(Icons.Default.Search, contentDescription = null, tint = Orange)
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp))
+        .background(Brush.horizontalGradient(listOf(Color(0xFF172641), Color(0xFF11182D))))
+        .border(1.dp, accent.copy(alpha = .35f), RoundedCornerShape(17.dp))
+        .padding(horizontal = 13.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Default.Search, contentDescription = null, tint = accent)
         Spacer(Modifier.width(9.dp))
-        BasicTextField(
-            value = filter, onValueChange = { filter = it },
-            modifier = Modifier.weight(1f), singleLine = true,
-            textStyle = TextStyle(color = Paper, fontSize = 14.sp),
-            decorationBox = { inner -> Box { if (filter.isEmpty()) Text("Найти сохранённый сайт", color = Muted, fontSize = 13.sp); inner() } }
-        )
+        BasicTextField(value = filter, onValueChange = { filter = it }, modifier = Modifier.weight(1f),
+            singleLine = true, textStyle = TextStyle(color = Paper, fontSize = 14.sp),
+            decorationBox = { inner -> Box { if (filter.isEmpty()) Text("Найти сайт или адрес", color = Muted, fontSize = 13.sp); inner() } })
+        if (filter.isNotEmpty()) IconButton(onClick = { filter = "" }, modifier = Modifier.size(28.dp)) {
+            Icon(Icons.Default.Close, contentDescription = "Очистить поиск", tint = Muted, modifier = Modifier.size(17.dp))
+        }
     }
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(10.dp))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("НАЙДЕНО: ${pages.count { it.title.contains(filter, true) || it.url.contains(filter, true) }}", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.weight(1f))
+        if (onClear != null && pages.isNotEmpty()) TextButton(onClick = onClear) { Text("Очистить всё", color = accent, fontSize = 11.sp) }
+    }
     val visiblePages = pages.filter { it.title.contains(filter, true) || it.url.contains(filter, true) }
     if (visiblePages.isEmpty()) {
-        Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xFF10172B))
-                .border(1.dp, Border, RoundedCornerShape(18.dp)).padding(22.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(if (title == "История") Icons.Default.History else Icons.Default.BookmarkBorder,
-                contentDescription = null, tint = Orange, modifier = Modifier.size(32.dp))
-            Spacer(Modifier.height(8.dp))
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF10182D))
+            .border(1.dp, Border, RoundedCornerShape(20.dp)).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(if (title == "История") Icons.Default.History else Icons.Default.BookmarkBorder, contentDescription = null, tint = accent, modifier = Modifier.size(34.dp))
+            Spacer(Modifier.height(9.dp))
             Text(if (pages.isEmpty()) "Пока здесь пусто" else "Ничего не найдено", color = Paper, fontWeight = FontWeight.SemiBold)
-            Text(if (title == "История") "Открытые сайты появятся здесь." else "Добавляй страницы через меню браузера.", color = Muted, fontSize = 12.sp)
+            Text(if (title == "История") "Посещённые сайты появятся здесь." else "Добавляй страницы в закладки через меню.", color = Muted, fontSize = 12.sp)
         }
     } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth().heightIn(max = 440.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 460.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             items(visiblePages, key = { it.url }) { page ->
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xFF141D33),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, Border)
-                ) {
-                    Row(
-                        Modifier.clickable { onOpen(page.url) }.padding(start = 13.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Public, contentDescription = null, tint = Orange, modifier = Modifier.size(23.dp))
+                val host = runCatching { java.net.URI(page.url).host?.removePrefix("www.") ?: page.url }.getOrDefault(page.url)
+                Surface(Modifier.fillMaxWidth(), color = Color.Transparent, shape = RoundedCornerShape(18.dp),
+                    border = BorderStroke(1.dp, Border.copy(alpha = .85f))) {
+                    Row(Modifier.background(Brush.horizontalGradient(listOf(Color(0xFF182944), Color(0xFF10182B))))
+                        .clickable { onOpen(page.url) }.padding(start = 12.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(accent.copy(alpha = .13f))
+                            .border(1.dp, accent.copy(alpha = .25f), RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Public, contentDescription = null, tint = accent, modifier = Modifier.size(20.dp))
+                        }
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(page.title, color = Paper, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 2)
-                            Text(page.url, color = Muted, fontSize = 10.sp, maxLines = 1)
+                            Text(page.title.ifBlank { host }, color = Paper, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 2)
+                            Text(host, color = accent.copy(alpha = .9f), fontSize = 10.sp, maxLines = 1)
+                            Text(java.text.SimpleDateFormat("dd MMM · HH:mm", java.util.Locale.getDefault()).format(java.util.Date(page.time)),
+                                color = Muted, fontSize = 9.sp, modifier = Modifier.padding(top = 3.dp))
                         }
-                        IconButton(onClick = { onRemove(page) }) {
-                            Icon(Icons.Default.Close, contentDescription = "Удалить", tint = Muted, modifier = Modifier.size(18.dp))
-                        }
+                        IconButton(onClick = { onRemove(page) }) { Icon(Icons.Default.Close, contentDescription = "Удалить", tint = Muted, modifier = Modifier.size(18.dp)) }
                     }
                 }
             }
         }
     }
-    if (onClear != null && pages.isNotEmpty()) {
-        Spacer(Modifier.height(10.dp))
-        TextButton(onClick = onClear) { Text("Очистить историю", color = Orange) }
-    }
     Spacer(Modifier.height(8.dp))
-    Text("Данные хранятся на этом устройстве. Режим инкогнито не добавляет страницы в историю.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+    Text("Данные хранятся на этом устройстве. Инкогнито не добавляет страницы в историю.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
 }
-
 @Composable private fun SettingSwitch(title: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     val settingIcon = when {
         title.contains("трекер", ignoreCase = true) || title.contains("защит", ignoreCase = true) -> Icons.Default.Shield
@@ -1551,63 +1539,74 @@ private fun SavedPagesPanel(
 }
 @Composable
 private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> Unit, onOpen: (DownloadRecord) -> Unit) {
+    var filter by remember { mutableStateOf("") }
     PanelTitle("Загрузки", "Менеджер загруженных файлов")
-    if (downloads.isEmpty()) {
-        Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF10172B)).border(1.dp, Border, RoundedCornerShape(20.dp))
-                .padding(22.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(Icons.Default.Download, contentDescription = null, tint = Orange, modifier = Modifier.size(34.dp))
-            Spacer(Modifier.height(10.dp))
-            Text("Пока ничего не скачано", color = Paper, fontWeight = FontWeight.SemiBold)
-            Text("Сохранённые файлы появятся здесь.", color = Muted, fontSize = 12.sp)
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp))
+        .background(Brush.horizontalGradient(listOf(Color(0xFF172641), Color(0xFF11182D))))
+        .border(1.dp, Orange.copy(alpha = .35f), RoundedCornerShape(17.dp)).padding(horizontal = 13.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Default.Search, contentDescription = null, tint = Orange)
+        Spacer(Modifier.width(9.dp))
+        BasicTextField(value = filter, onValueChange = { filter = it }, modifier = Modifier.weight(1f), singleLine = true,
+            textStyle = TextStyle(color = Paper, fontSize = 14.sp),
+            decorationBox = { inner -> Box { if (filter.isEmpty()) Text("Найти загруженный файл", color = Muted, fontSize = 13.sp); inner() } })
+        if (filter.isNotEmpty()) IconButton(onClick = { filter = "" }, modifier = Modifier.size(28.dp)) {
+            Icon(Icons.Default.Close, contentDescription = "Очистить", tint = Muted, modifier = Modifier.size(17.dp))
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+    val visible = downloads.filter { it.name.contains(filter, true) || it.status.contains(filter, true) }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("${visible.size} ФАЙЛОВ", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.weight(1f))
+        Text("${downloads.count { it.status == "Скачивается" }} активных", color = Orange, fontSize = 10.sp)
+    }
+    Spacer(Modifier.height(8.dp))
+    if (visible.isEmpty()) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF10182D))
+            .border(1.dp, Border, RoundedCornerShape(20.dp)).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Default.Download, contentDescription = null, tint = Orange, modifier = Modifier.size(36.dp))
+            Spacer(Modifier.height(9.dp))
+            Text(if (downloads.isEmpty()) "Пока ничего не скачано" else "Файлы не найдены", color = Paper, fontWeight = FontWeight.SemiBold)
+            Text("Загруженные файлы появятся в этом разделе.", color = Muted, fontSize = 12.sp)
         }
     } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp),
-            verticalArrangement = Arrangement.spacedBy(9.dp)
-        ) {
-            items(downloads, key = { it.id }) { item ->
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xFF141D33),
-                    shape = RoundedCornerShape(17.dp),
-                    border = BorderStroke(1.dp, Border)
-                ) {
-                    Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.InsertDriveFile, contentDescription = null, tint = Orange, modifier = Modifier.size(28.dp))
-                        Spacer(Modifier.width(11.dp))
+        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 480.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            items(visible, key = { it.id }) { item ->
+                val completed = item.savedUri != null
+                val shape = RoundedCornerShape(18.dp)
+                Surface(Modifier.fillMaxWidth(), color = Color.Transparent, shape = shape, border = BorderStroke(1.dp, Border)) {
+                    Row(Modifier.background(Brush.horizontalGradient(listOf(Color(0xFF182944), Color(0xFF10182B))))
+                        .padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Orange.copy(alpha = .14f))
+                            .border(1.dp, Orange.copy(alpha = .28f), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
+                            Icon(if (completed) Icons.Default.InsertDriveFile else Icons.Default.Downloading, contentDescription = null, tint = Orange, modifier = Modifier.size(22.dp))
+                        }
+                        Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text(item.name, color = Paper, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 2)
-                            Text(item.status, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+                            Text(item.status, color = if (completed) Color(0xFF62E6C2) else Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
                             if (item.status == "Скачивается") {
                                 if (item.totalBytes > 0L) {
                                     val fraction = (item.downloadedBytes.toFloat() / item.totalBytes.toFloat()).coerceIn(0f, 1f)
-                                    LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth().padding(top = 7.dp), color = Orange)
-                                    Text("${(fraction * 100).toInt()}% · ${item.downloadedBytes / 1024} KB / ${item.totalBytes / 1024} KB", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
+                                    LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth().padding(top = 7.dp), color = Orange, trackColor = Color(0xFF283650))
+                                    Text("${(fraction * 100).toInt()}% · ${item.downloadedBytes / 1024} / ${item.totalBytes / 1024} KB", color = Muted, fontSize = 9.sp, modifier = Modifier.padding(top = 3.dp))
                                 } else {
-                                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 7.dp), color = Orange)
-                                    Text("${item.downloadedBytes / 1024} KB", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
+                                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 7.dp), color = Orange, trackColor = Color(0xFF283650))
+                                    Text("${item.downloadedBytes / 1024} KB загружено", color = Muted, fontSize = 9.sp)
                                 }
                             }
                         }
-                        if (item.savedUri != null) {
-                            TextButton(onClick = { onOpen(item) }) { Text("Открыть", color = Orange, fontSize = 12.sp) }
-                        }
-                        IconButton(onClick = { onRemove(item.id) }) {
-                            Icon(Icons.Default.DeleteOutline, contentDescription = "Удалить запись", tint = Muted, modifier = Modifier.size(18.dp))
-                        }
+                        if (completed) IconButton(onClick = { onOpen(item) }) { Icon(Icons.Default.OpenInNew, contentDescription = "Открыть файл", tint = Orange) }
+                        IconButton(onClick = { onRemove(item.id) }) { Icon(Icons.Default.DeleteOutline, contentDescription = "Удалить запись", tint = Muted, modifier = Modifier.size(18.dp)) }
                     }
                 }
             }
         }
     }
     Spacer(Modifier.height(12.dp))
-    Text("История загрузок сохраняется на устройстве. Незавершённые загрузки после перезапуска отмечаются как прерванные.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+    Text("История загрузок хранится на устройстве. Незавершённые загрузки после перезапуска отмечаются как прерванные.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
 }
-
 @Composable
 private fun TesterPanel(onDownload: (String) -> Unit) {
     var versions by remember { mutableStateOf<List<PublishedVersion>>(emptyList()) }
