@@ -677,6 +677,16 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var panel by remember { mutableStateOf("") }
     var engine by remember { mutableStateOf("DuckDuckGo") }
     val onLoad: (String) -> Unit = { session.loadUri(resolveAddress(it, engine)) }
+    fun requestSafeNavigation(raw: String) {
+        val resolved = resolveAddress(raw, engine)
+        val report = analyzeLinkRisk(resolved)
+        if (report?.isSuspicious == true) {
+            pendingRiskUrl = raw
+            pendingRiskReport = report
+        } else {
+            onLoad(raw)
+        }
+    }
     var blur by remember { mutableFloatStateOf(settingsPrefs.getFloat("blur", 8f).coerceIn(0f, 24f)) }
     var animations by remember { mutableStateOf(settingsPrefs.getBoolean("animations", true)) }
     var trackers by remember { mutableStateOf(settingsPrefs.getBoolean("trackers", true)) }
@@ -695,6 +705,8 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var searchSource by remember { mutableStateOf(engine) }
     var tabCount by remember { mutableIntStateOf(1) }
     var toast by remember { mutableStateOf("") }
+    var pendingRiskUrl by remember { mutableStateOf<String?>(null) }
+    var pendingRiskReport by remember { mutableStateOf<LinkRiskReport?>(null) }
     var readerContent by remember { mutableStateOf("") }
     var readerSource by remember { mutableStateOf("") }
     var readerLoading by remember { mutableStateOf(false) }
@@ -794,7 +806,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         if (text.startsWith("https://") || text.startsWith("http://") || (text.contains(".") && !text.contains(" "))) {
             showSearchResults = false
             loaded = true
-            onLoad(text)
+            requestSafeNavigation(text)
             return
         }
         activeSearchText = text
@@ -900,6 +912,43 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     }
     LaunchedEffect(toast) {
         if (toast.isNotEmpty()) { kotlinx.coroutines.delay(2100); toast = "" }
+    }
+
+    pendingRiskReport?.let { report ->
+        AlertDialog(
+            onDismissRequest = { pendingRiskUrl = null; pendingRiskReport = null },
+            containerColor = Color(0xFF14243A),
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.GppBad, contentDescription = null, tint = Color(0xFFFFC46B), modifier = Modifier.size(25.dp))
+                    Spacer(Modifier.width(9.dp))
+                    Text("Подозрительная ссылка", color = Paper, fontWeight = FontWeight.Black)
+                }
+            },
+            text = {
+                Column {
+                    Text("Darknes Defense обнаружил признаки риска для адреса:", color = Muted, fontSize = 12.sp)
+                    Text(report.host, color = Paper, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 7.dp))
+                    report.warnings.take(4).forEach { warning ->
+                        Text("• $warning", color = Color(0xFFFFC46B), fontSize = 11.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 5.dp))
+                    }
+                    Text("Это не подтверждение вредоносности, но лучше проверить адрес перед переходом.", color = Muted, fontSize = 10.sp, lineHeight = 14.sp, modifier = Modifier.padding(top = 9.dp))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val target = pendingRiskUrl
+                    pendingRiskUrl = null
+                    pendingRiskReport = null
+                    if (!target.isNullOrBlank()) onLoad(target)
+                }) { Text("Всё равно открыть", color = Color(0xFFFFC46B)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRiskUrl = null; pendingRiskReport = null }) {
+                    Text("Отмена", color = Paper)
+                }
+            }
+        )
     }
 
     Column(Modifier.fillMaxSize().background(Ink).statusBarsPadding()) {
@@ -1028,7 +1077,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                         showSearchResults = false
                         loaded = true
                         query = url
-                        session.loadUri(url)
+                        requestSafeNavigation(url)
                     }
                 )
             } else if (!loaded) HomeScreen(
@@ -1047,7 +1096,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 },
                 onShortcut = { link ->
                     query = link
-                    onLoad(link)
+                    requestSafeNavigation(link)
                     loaded = true
                 }
             )
