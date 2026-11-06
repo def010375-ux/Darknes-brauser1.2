@@ -1678,37 +1678,69 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
 }
 
 @Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit, accentChoice:String, setAccentChoice:(String)->Unit, desktopMode:Boolean, setDesktopMode:(Boolean)->Unit) {
-    PanelTitle("Настройки", "Настрой Darknes Tor под себя")
-    Surface(
-        Modifier.fillMaxWidth().padding(bottom = 12.dp),
-        color = Color(0xFF142541), shape = RoundedCornerShape(19.dp), border = BorderStroke(1.dp, Border)
-    ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Orange.copy(alpha = .16f)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.Search, contentDescription = null, tint = Orange, modifier = Modifier.size(22.dp))
+    PanelTitle("Настройки", "Персонализация и управление Darknes Tor")
+    val engines = listOf("DuckDuckGo", "Google", "Bing", "Brave")
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
+        .background(Brush.linearGradient(listOf(Color(0xFF1A2B49), Color(0xFF10172B))))
+        .border(1.dp, Orange.copy(alpha = .38f), RoundedCornerShape(20.dp)).padding(15.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Orange.copy(alpha = .15f)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.TravelExplore, contentDescription = null, tint = Orange, modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
                 Text("ПОИСКОВАЯ СИСТЕМА", color = Muted, fontSize = 9.sp, letterSpacing = 1.2.sp)
-                Text("DuckDuckGo", color = Paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(engine, color = Paper, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
-            Icon(Icons.Default.CheckCircle, contentDescription = "Активна", tint = Color(0xFF62E6C2), modifier = Modifier.size(20.dp))
+            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF62E6C2), modifier = Modifier.size(20.dp))
+        }
+        Spacer(Modifier.height(13.dp))
+        engines.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { option ->
+                    val selected = engine == option
+                    Surface(Modifier.weight(1f).clickable { setEngine(option) }, color = if (selected) Orange.copy(alpha = .18f) else Color(0xFF10182B),
+                        shape = RoundedCornerShape(13.dp), border = BorderStroke(1.dp, if (selected) Orange else Border)) {
+                        Row(Modifier.padding(horizontal = 10.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(if (selected) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked,
+                                contentDescription = null, tint = if (selected) Orange else Muted, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(7.dp))
+                            Text(option, color = if (selected) Paper else Muted, fontSize = 12.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+                        }
+                    }
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(7.dp))
         }
     }
+    Spacer(Modifier.height(12.dp))
+    Text("ПРИВАТНОСТЬ И ОТОБРАЖЕНИЕ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
     SettingSwitch("Блокировать трекеры", trackers, setTrackers)
-    SettingSwitch("Тёмный режим сайтов", dark, setDark)
-    SettingSwitch("Анимации", anim, setAnim)
+    SettingSwitch("Тёмная схема сайтов", dark, setDark)
+    SettingSwitch("Анимации интерфейса", anim, setAnim)
     SettingSwitch("Версия сайтов для компьютера", desktopMode, setDesktopMode)
-    Text("Режим меняет User-Agent и viewport GeckoView для всех вкладок. Некоторые сайты могут отображаться иначе.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
-    Text("Размытие фона · ${blur.toInt()} px", color = Paper, modifier = Modifier.padding(top=12.dp))
-    Slider(value=blur, onValueChange=setBlur, valueRange=0f..24f, colors=SliderDefaults.colors(thumbColor=Orange, activeTrackColor=Orange))
-    Text("Цвет акцента", color = Paper, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
+    Text("Режим компьютера меняет User-Agent и viewport GeckoView. Отдельные сайты могут отображаться иначе.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+    Spacer(Modifier.height(14.dp))
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp)).background(Color(0xFF121C32)).border(1.dp, Border, RoundedCornerShape(17.dp)).padding(13.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.BlurOn, contentDescription = null, tint = Orange)
+            Spacer(Modifier.width(8.dp))
+            Text("Размытие фона", color = Paper, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Spacer(Modifier.weight(1f))
+            Text("${blur.toInt()} px", color = Orange, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+        Slider(value = blur, onValueChange = setBlur, valueRange = 0f..24f,
+            colors = SliderDefaults.colors(thumbColor = Orange, activeTrackColor = Orange, inactiveTrackColor = Border))
+    }
+    Text("ЦВЕТОВАЯ ТЕМА", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 15.dp, bottom = 8.dp))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-        listOf("cyan" to "Неоновый", "blue" to "Голубой", "purple" to "Фиолетовый", "green" to "Изумрудный").forEach { (key, label) ->
-            FilterChip(selected = accentChoice == key, onClick = { setAccentChoice(key) }, label = { Text(label, fontSize = 10.sp) }, colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Orange.copy(alpha = .22f), selectedLabelColor = Peach, labelColor = Muted))
+        listOf("cyan" to "Неон", "blue" to "Голубой", "purple" to "Фиолетовый", "green" to "Изумруд").forEach { (key, label) ->
+            FilterChip(selected = accentChoice == key, onClick = { setAccentChoice(key) }, label = { Text(label, fontSize = 10.sp) },
+                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Orange.copy(alpha = .22f), selectedLabelColor = Paper, labelColor = Muted))
         }
     }
-    Text("Дополнительные параметры защиты находятся в Центре безопасности.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 10.dp))
+    Text("Дополнительные параметры защиты находятся в Центре безопасности.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 12.dp))
 }
 @Composable private fun PrivacyPanel(trackers:Boolean, setTrackers:(Boolean)->Unit, ad:Boolean, setAd:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, night:Boolean, setNight:(Boolean)->Unit, openAndroidSettings:()->Unit) {
     PanelTitle("Центр безопасности", "Контроль защиты и разрешений сайтов")
