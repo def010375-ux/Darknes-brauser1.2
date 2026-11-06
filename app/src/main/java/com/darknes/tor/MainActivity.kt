@@ -2262,8 +2262,8 @@ private fun TabsPanel(
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Пространство вкладок", color = Paper, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-                Text("${titles.size} открыто · ${if (incognito) "приватный режим" else "обычный режим"}", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp))
+                Text("Вкладки", color = Paper, fontSize = 26.sp, fontWeight = FontWeight.Black, letterSpacing = (-.5).sp)
+                Text("ТВОЁ ПРОСТРАНСТВО · DARKNES", color = Muted, fontSize = 9.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 3.dp))
             }
             Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
                 .background(Brush.linearGradient(listOf(tabAccent.copy(alpha = .25f), Violet.copy(alpha = .16f))))
@@ -2282,7 +2282,7 @@ private fun TabsPanel(
             FilterChip(selected = !incognito, onClick = { setIncognito(false) }, label = { Text("Обычные") },
                 modifier = Modifier.weight(1f), colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = Orange.copy(alpha = .2f), selectedLabelColor = Paper, labelColor = Muted))
-            FilterChip(selected = incognito, onClick = { setIncognito(true) }, label = { Text("Инкогнито") },
+            FilterChip(selected = incognito, onClick = { setIncognito(true) }, label = { Text("Секретные") },
                 modifier = Modifier.weight(1f), colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = Violet.copy(alpha = .22f), selectedLabelColor = Color(0xFFE4DCFF), labelColor = Muted))
         }
@@ -2305,9 +2305,9 @@ private fun TabsPanel(
                     val isActive = index == activeIndex
                     val pageUrl = urls.getOrNull(index).orEmpty()
                     val host = runCatching { java.net.URI(pageUrl).host.orEmpty().removePrefix("www.") }.getOrDefault("")
-                    val cardShape = RoundedCornerShape(22.dp)
+                    val cardShape = RoundedCornerShape(21.dp)
                     val cardColors = if (incognito) listOf(Color(0xFF29245A), Color(0xFF11172D)) else listOf(Color(0xFF17334A), Color(0xFF0B1428))
-                    Box(Modifier.fillMaxWidth().aspectRatio(.88f).clip(cardShape).background(Brush.linearGradient(cardColors))
+                    Box(Modifier.fillMaxWidth().aspectRatio(.76f).clip(cardShape).background(Brush.linearGradient(cardColors))
                         .border(if (isActive) 2.dp else 1.dp, if (isActive) tabAccent else Border, cardShape)
                         .clickable { selectTab(index) }.animateContentSize().padding(13.dp)) {
                         Column(Modifier.fillMaxSize()) {
@@ -2343,7 +2343,7 @@ private fun TabsPanel(
                 }
             }
         }
-        Text("Коснись карточки для перехода. Группу можно изменить нажатием на нижнюю плашку.", color = Muted,
+        Text("Нажми на карточку, чтобы открыть страницу. Плашка внизу переключает группу вкладки.", color = Muted,
             fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 7.dp))
     }
 }
