@@ -176,9 +176,10 @@ private fun encodeVaultEntries(entries: List<VaultEntry>): String = JSONArray().
 @Composable
 private fun DarknesVaultPanel() {
     val context = LocalContext.current
-    val created = remember(context) { DarknesVaultCrypto.isCreated(context) }
+    var created by remember(context) { mutableStateOf(DarknesVaultCrypto.isCreated(context)) }
     var unlocked by remember { mutableStateOf(false) }
     var masterPassword by remember { mutableStateOf("") }
+    var vaultPassphrase by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
     var entries by remember { mutableStateOf<List<VaultEntry>>(emptyList()) }
     var addMode by remember { mutableStateOf(false) }
@@ -229,12 +230,12 @@ private fun DarknesVaultPanel() {
                     error = "Используй не менее 10 символов."
                 } else if (!created) {
                     val ok = DarknesVaultCrypto.create(context, masterPassword.toCharArray())
-                    if (ok) { entries = emptyList(); unlocked = true; masterPassword = "" }
+                    if (ok) { created = true; entries = emptyList(); vaultPassphrase = masterPassword; unlocked = true; masterPassword = "" }
                     else error = "Не удалось создать хранилище."
                 } else {
                     val json = DarknesVaultCrypto.unlock(context, masterPassword.toCharArray())
                     if (json == null) error = "Неверный мастер-пароль или повреждены данные."
-                    else { entries = decodeVaultEntries(json); unlocked = true; masterPassword = ""; error = "" }
+                    else { entries = decodeVaultEntries(json); vaultPassphrase = masterPassword; unlocked = true; masterPassword = ""; error = "" }
                 }
             },
             modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
@@ -247,7 +248,7 @@ private fun DarknesVaultPanel() {
                 Text("Сохранённые записи", color = Paper, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text("${entries.size} записей · хранятся только на этом устройстве", color = Muted, fontSize = 10.sp)
             }
-            TextButton(onClick = { unlocked = false; entries = emptyList(); revealIds = emptySet(); masterPassword = "" }) {
+            TextButton(onClick = { unlocked = false; entries = emptyList(); revealIds = emptySet(); masterPassword = ""; vaultPassphrase = "" }) {
                 Text("Заблокировать", color = Color(0xFF65DFFF), fontSize = 11.sp)
             }
         }
@@ -262,7 +263,7 @@ private fun DarknesVaultPanel() {
                     if (title.isBlank() || secret.isBlank()) error = "Заполни название и пароль."
                     else {
                         val updated = entries + VaultEntry(java.util.UUID.randomUUID().toString(), title.trim(), username, secret, website)
-                        if (DarknesVaultCrypto.save(context, masterPassword.toCharArray(), encodeVaultEntries(updated))) {
+                        if (DarknesVaultCrypto.save(context, vaultPassphrase.toCharArray(), encodeVaultEntries(updated))) {
                             entries = updated; title = ""; username = ""; secret = ""; website = ""; addMode = false; error = ""
                         } else error = "Не удалось зашифровать и сохранить запись."
                     }
