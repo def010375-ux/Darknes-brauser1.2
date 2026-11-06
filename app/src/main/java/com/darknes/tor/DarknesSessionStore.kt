@@ -4,7 +4,11 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -54,8 +58,7 @@ internal object DarknesSessionStore {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, secretKey())
         val encrypted = cipher.doFinal(json)
-        val packed = cipher.iv + encrypted
-        val encoded = Base64.encodeToString(packed, Base64.NO_WRAP)
+        val encoded = Base64.encodeToString(cipher.iv + encrypted, Base64.NO_WRAP)
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putString(SESSION_KEY, encoded).apply()
     }
@@ -71,16 +74,59 @@ internal object DarknesSessionStore {
         cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(128, iv))
         val json = JSONObject(String(cipher.doFinal(ciphertext), Charsets.UTF_8))
         DarknesSession(
-            accessToken = json.getString("access_token"),
-            refreshToken = json.getString("refresh_token"),
-            email = json.optString("email"),
-            userId = json.optString("user_id"),
-            expiresAt = json.optLong("expires_at", 0L)
+            json.getString("access_token"),
+            json.getString("refresh_token"),
+            json.optString("email"),
+            json.optString("user_id"),
+            json.optLong("expires_at", 0L)
         )
     }.getOrNull()
 
     fun clear(context: Context) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().remove(SESSION_KEY).apply()
+    }
+}
+
+internal suspend fun refreshDarknesSession(
+    context: Context,
+    oldSession: DarknesSession
+): DarknesSession? = withContext(Dispatchers.IO) {
+    var connection: HttpURLConnection? = null
+    try {
+        connection = (URL("${BuildConfig.SUPABASE_URL}/auth/v1/token?grant_type=refresh_token")
+            .openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 15000
+            readTimeout = 15000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+            setRequestProperty("Accept", "application/json")
+        }
+        val body = JSONObject().put("refresh_token", oldSession.refreshToken).toString()
+        connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+        if (connection.responseCode !in 200..299) {
+            DarknesSessionStore.clear(context)
+            return@withContext null
+        }
+        val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+        val access = json.optString("access_token")
+        val refresh = json.optString("refresh_token")
+        if (access.isBlank() || refresh.isBlank()) return@withContext null
+        val user = json.optJSONObject("user")
+        val session = DarknesSession(
+            accessToken = access,
+            refreshToken = refresh,
+            email = user?.optString("email").orEmpty().ifBlank { oldSession.email },
+            userId = user?.optString("id").orEmpty().ifBlank { oldSession.userId },
+            expiresAt = System.currentTimeMillis() / 1000L + json.optLong("expires_in", 3600L)
+        )
+        DarknesSessionStore.save(context, session)
+        session
+    } catch (_: Exception) {
+        null
+    } finally {
+        connection?.disconnect()
     }
 }
