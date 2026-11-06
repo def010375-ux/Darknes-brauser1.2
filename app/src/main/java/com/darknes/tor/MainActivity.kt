@@ -899,34 +899,44 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 border = BorderStroke(1.dp, Border),
                 shadowElevation = 18.dp,
                 modifier = Modifier
-                    .widthIn(min = if (islandOpen) 280.dp else 178.dp, max = if (islandOpen) 520.dp else 178.dp)
-                    .fillMaxWidth(if (islandOpen) 0.94f else 0.48f)
-                    .height(if (islandOpen) 58.dp else 38.dp)
+                    .widthIn(min = 280.dp, max = 560.dp)
+                    .fillMaxWidth(if (islandOpen) 0.96f else 0.92f)
+                    .height(if (islandOpen) 62.dp else 50.dp)
                     .clickable { if (!islandOpen) islandOpen = true }
                     .animateContentSize(if (animations) spring(dampingRatio = 0.72f, stiffness = 380f) else snap())
             ) {
                 if (!islandOpen) {
-                    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(7.dp).background(accent, CircleShape))
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            if (incognito) "Инкогнито · Darknes Tor" else "Darknes Tor",
-                            color = Paper, fontSize = 12.sp, fontWeight = FontWeight.Medium,
-                            modifier = Modifier.clickable {
-                                if (incognito) {
-                                    val now = SystemClock.elapsedRealtime()
-                                    testerTapCount = if (now - testerLastTap <= 1400L) testerTapCount + 1 else 1
-                                    testerLastTap = now
-                                    if (testerTapCount >= 3) {
-                                        panel = "Тестер"
-                                        islandOpen = false
-                                        testerTapCount = 0
-                                    }
-                                } else {
-                                    islandOpen = true
+                    Row(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(34.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = .14f)), contentAlignment = Alignment.Center) {
+                            Icon(
+                                if (incognito) Icons.Default.VisibilityOff else if (query.startsWith("https://")) Icons.Default.Lock else Icons.Default.Language,
+                                contentDescription = null, tint = accent, modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(11.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                if (incognito) "ПРИВАТНЫЙ РЕЖИМ" else if (loaded) runCatching { java.net.URI(query).host?.removePrefix("www.") ?: "Darknes Tor" }.getOrDefault("Darknes Tor") else "DARKNES TOR",
+                                color = Paper, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+                                modifier = Modifier.clickable {
+                                    if (incognito) {
+                                        val now = SystemClock.elapsedRealtime()
+                                        testerTapCount = if (now - testerLastTap <= 1400L) testerTapCount + 1 else 1
+                                        testerLastTap = now
+                                        if (testerTapCount >= 3) {
+                                            panel = "Тестер"
+                                            islandOpen = false
+                                            testerTapCount = 0
+                                        }
+                                    } else islandOpen = true
                                 }
-                            }
-                        )
+                            )
+                            Text(
+                                if (incognito) "История не сохраняется" else if (loaded && query.startsWith("https://")) "Защищённое соединение" else "Поиск и адрес сайта",
+                                color = Muted, fontSize = 9.sp, maxLines = 1
+                            )
+                        }
+                        Icon(Icons.Default.ExpandMore, contentDescription = "Открыть адресную строку", tint = accent, modifier = Modifier.size(20.dp))
                     }
                 } else {
                     Row(Modifier.fillMaxSize().padding(start = 16.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1506,7 +1516,7 @@ private fun SavedPagesPanel(
 @Composable private fun SettingSwitch(title: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, color = Paper, modifier = Modifier.weight(1f), fontSize = 15.sp)
-        Switch(checked, onChange, colors = SwitchDefaults.colors(checkedThumbColor = Ink, checkedTrackColor = Orange))
+        Switch(checked, onChange, colors = SwitchDefaults.colors(checkedThumbColor = Ink, checkedTrackColor = Orange, uncheckedThumbColor = Muted, uncheckedTrackColor = Color(0xFF293754)))
     }
 }
 @Composable
