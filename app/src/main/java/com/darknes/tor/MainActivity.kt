@@ -1588,7 +1588,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     PanelTitle("Darknes Tor Tester", "Публичный выбор версий браузера")
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color(0xFF241B16),
+        color = Color(0xFF13243C),
         shape = RoundedCornerShape(20.dp),
         border = BorderStroke(1.dp, Violet.copy(alpha = .65f))
     ) {
