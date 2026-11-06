@@ -367,6 +367,14 @@ private fun DarknesVaultPanel() {
                 Icon(Icons.Default.Fingerprint, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Включить биометрическую защиту")
             }
         }
+        OutlinedButton(onClick = {
+            runCatching {
+                context.startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE, Uri.parse("package:" + context.packageName)))
+            }.onFailure { error = "Не удалось открыть настройки автозаполнения Android." }
+        }, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.Password, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Подключить Android Autofill")
+        }
+        Text("Для автозаполнения выбери Darknes Vault в системных настройках. Перед использованием открой и разблокируй Vault. Данные доступны службе только пока хранилище разблокировано.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Сохранённые записи", color = Paper, fontWeight = FontWeight.Bold, fontSize = 14.sp)
