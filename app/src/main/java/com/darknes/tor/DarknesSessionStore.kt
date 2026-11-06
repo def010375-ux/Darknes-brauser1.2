@@ -130,3 +130,23 @@ internal suspend fun refreshDarknesSession(
         connection?.disconnect()
     }
 }
+
+internal suspend fun revokeDarknesSession(session: DarknesSession) = withContext(Dispatchers.IO) {
+    var connection: HttpURLConnection? = null
+    try {
+        connection = (URL("${BuildConfig.SUPABASE_URL}/auth/v1/logout")
+            .openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 10000
+            readTimeout = 10000
+            setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+            setRequestProperty("Authorization", "Bearer ${session.accessToken}")
+            setRequestProperty("Accept", "application/json")
+        }
+        connection.responseCode
+    } catch (_: Exception) {
+        // Local credentials are still cleared by the caller.
+    } finally {
+        connection?.disconnect()
+    }
+}
