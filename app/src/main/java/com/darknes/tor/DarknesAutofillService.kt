@@ -13,7 +13,7 @@ internal data class AutofillTargetFields(val username: AutofillId?, val password
 
 internal object DarknesAutofillResponses {
     fun findFields(structure: android.app.assist.AssistStructure): AutofillTargetFields? {
-        val fields = mutableListOf<Triple<AutofillId, List<String>, Int to String?>>()
+        val fields = mutableListOf<Triple<AutofillId, List<String>, Pair<Int, String?>>>()
         fun visit(node: android.app.assist.AssistStructure.ViewNode) {
             node.autofillId?.let { id -> fields.add(Triple(id, node.autofillHints?.toList() ?: emptyList(), node.inputType to node.webDomain)) }
             for (index in 0 until node.childCount) visit(node.getChildAt(index))
