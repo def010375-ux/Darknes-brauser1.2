@@ -1307,7 +1307,7 @@ private fun HomeScreen(
                     wallpaperContext.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
                     val sample = maxOf(1, maxOf(bounds.outWidth / 1200, bounds.outHeight / 900))
                     val options = BitmapFactory.Options().apply { inSampleSize = sample }
-                    LocalContext.current.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options)?.asImageBitmap() }
+                    wallpaperContext.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options)?.asImageBitmap() }
                 }.getOrNull()
             }
             if (wallpaperBitmap != null) {
