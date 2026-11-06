@@ -89,6 +89,228 @@ private fun encodeDownloadRecords(records: List<DownloadRecord>): String = JSONA
 }.toString()
 
 
+
+private data class VaultEntry(
+    val id: String,
+    val title: String,
+    val username: String,
+    val password: String,
+    val website: String
+)
+
+private object DarknesVaultCrypto {
+    private const val PREFS = "darknes_vault"
+    private const val SALT = "salt"
+    private const val IV = "iv"
+    private const val DATA = "data"
+    private const val ITERATIONS = 210000
+
+    fun isCreated(context: android.content.Context): Boolean =
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE).contains(SALT)
+
+    private fun derive(password: CharArray, salt: ByteArray): javax.crypto.SecretKey {
+        val spec = javax.crypto.spec.PBEKeySpec(password, salt, ITERATIONS, 256)
+        return try {
+            val bytes = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+                .generateSecret(spec).encoded
+            javax.crypto.spec.SecretKeySpec(bytes, "AES")
+        } finally {
+            spec.clearPassword()
+            password.fill('\u0000')
+        }
+    }
+
+    fun create(context: android.content.Context, password: CharArray): Boolean = runCatching {
+        val salt = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }
+        val key = derive(password, salt)
+        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, key)
+        val encrypted = cipher.doFinal("[]".toByteArray(Charsets.UTF_8))
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE).edit()
+            .putString(SALT, android.util.Base64.encodeToString(salt, android.util.Base64.NO_WRAP))
+            .putString(IV, android.util.Base64.encodeToString(cipher.iv, android.util.Base64.NO_WRAP))
+            .putString(DATA, android.util.Base64.encodeToString(encrypted, android.util.Base64.NO_WRAP))
+            .commit()
+    }.getOrDefault(false)
+
+    fun unlock(context: android.content.Context, password: CharArray): String? = runCatching {
+        val prefs = context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+        val salt = android.util.Base64.decode(prefs.getString(SALT, null), android.util.Base64.NO_WRAP)
+        val iv = android.util.Base64.decode(prefs.getString(IV, null), android.util.Base64.NO_WRAP)
+        val data = android.util.Base64.decode(prefs.getString(DATA, null), android.util.Base64.NO_WRAP)
+        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(javax.crypto.Cipher.DECRYPT_MODE, derive(password, salt), javax.crypto.spec.GCMParameterSpec(128, iv))
+        String(cipher.doFinal(data), Charsets.UTF_8)
+    }.getOrNull()
+
+    fun save(context: android.content.Context, password: CharArray, json: String): Boolean = runCatching {
+        val prefs = context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+        val salt = android.util.Base64.decode(prefs.getString(SALT, null), android.util.Base64.NO_WRAP)
+        val key = derive(password, salt)
+        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, key)
+        val encrypted = cipher.doFinal(json.toByteArray(Charsets.UTF_8))
+        prefs.edit()
+            .putString(IV, android.util.Base64.encodeToString(cipher.iv, android.util.Base64.NO_WRAP))
+            .putString(DATA, android.util.Base64.encodeToString(encrypted, android.util.Base64.NO_WRAP))
+            .commit()
+    }.getOrDefault(false)
+}
+
+private fun decodeVaultEntries(raw: String): List<VaultEntry> = runCatching {
+    val array = JSONArray(raw)
+    (0 until array.length()).mapNotNull { index ->
+        val item = array.optJSONObject(index) ?: return@mapNotNull null
+        VaultEntry(item.optString("id"), item.optString("title"), item.optString("username"),
+            item.optString("password"), item.optString("website"))
+    }
+}.getOrDefault(emptyList())
+
+private fun encodeVaultEntries(entries: List<VaultEntry>): String = JSONArray().apply {
+    entries.forEach { item ->
+        put(org.json.JSONObject().put("id", item.id).put("title", item.title)
+            .put("username", item.username).put("password", item.password).put("website", item.website))
+    }
+}.toString()
+
+@Composable
+private fun DarknesVaultPanel() {
+    val context = LocalContext.current
+    val created = remember(context) { DarknesVaultCrypto.isCreated(context) }
+    var unlocked by remember { mutableStateOf(false) }
+    var masterPassword by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf("") }
+    var entries by remember { mutableStateOf<List<VaultEntry>>(emptyList()) }
+    var addMode by remember { mutableStateOf(false) }
+    var title by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
+    var secret by remember { mutableStateOf("") }
+    var website by remember { mutableStateOf("") }
+    var revealIds by remember { mutableStateOf(setOf<String>()) }
+
+    PanelTitle("Darknes Vault", "Локальное зашифрованное хранилище паролей")
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color(0xCC10243A),
+        shape = RoundedCornerShape(23.dp),
+        border = BorderStroke(1.dp, Color(0x5542DFFF))
+    ) {
+        Row(Modifier.padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp))
+                .background(Brush.linearGradient(listOf(Color(0x5542DFFF), Color(0x559A83FF)))),
+                contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.VpnKey, contentDescription = null, tint = Color(0xFF65DFFF), modifier = Modifier.size(25.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("VAULT ENCRYPTION", color = Paper, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+                Text(if (unlocked) "Хранилище разблокировано" else "AES-256-GCM · PBKDF2", color = Color(0xFF65DFFF), fontSize = 10.sp)
+            }
+            Text(if (unlocked) "OPEN" else "LOCKED", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+
+    if (!unlocked) {
+        Text(if (created) "Введи мастер-пароль, чтобы открыть хранилище." else "Создай мастер-пароль. Он понадобится при каждом открытии Vault.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+        OutlinedTextField(
+            value = masterPassword, onValueChange = { masterPassword = it; error = "" },
+            modifier = Modifier.fillMaxWidth(), singleLine = true,
+            label = { Text("Мастер-пароль") },
+            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Paper, unfocusedTextColor = Paper,
+                focusedBorderColor = Color(0xFF65DFFF), unfocusedBorderColor = Border,
+                focusedLabelColor = Color(0xFF65DFFF), unfocusedLabelColor = Muted)
+        )
+        if (error.isNotBlank()) Text(error, color = Color(0xFFFF9B86), fontSize = 11.sp)
+        Button(
+            onClick = {
+                if (masterPassword.length < 10) {
+                    error = "Используй не менее 10 символов."
+                } else if (!created) {
+                    val ok = DarknesVaultCrypto.create(context, masterPassword.toCharArray())
+                    if (ok) { entries = emptyList(); unlocked = true; masterPassword = "" }
+                    else error = "Не удалось создать хранилище."
+                } else {
+                    val json = DarknesVaultCrypto.unlock(context, masterPassword.toCharArray())
+                    if (json == null) error = "Неверный мастер-пароль или повреждены данные."
+                    else { entries = decodeVaultEntries(json); unlocked = true; masterPassword = ""; error = "" }
+                }
+            },
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF42BFE8))
+        ) { Text(if (created) "Разблокировать" else "Создать защищённое хранилище", color = Color(0xFF071321), fontWeight = FontWeight.Bold) }
+        Text("Если мастер-пароль потерян, восстановить данные будет невозможно. Сброс приложения также может удалить хранилище.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 12.dp))
+    } else {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Сохранённые записи", color = Paper, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("${entries.size} записей · хранятся только на этом устройстве", color = Muted, fontSize = 10.sp)
+            }
+            TextButton(onClick = { unlocked = false; entries = emptyList(); revealIds = emptySet(); masterPassword = "" }) {
+                Text("Заблокировать", color = Color(0xFF65DFFF), fontSize = 11.sp)
+            }
+        }
+        if (addMode) {
+            OutlinedTextField(value = title, onValueChange = { title = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Название, например Почта") })
+            OutlinedTextField(value = website, onValueChange = { website = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Сайт (необязательно)") })
+            OutlinedTextField(value = username, onValueChange = { username = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Логин") })
+            OutlinedTextField(value = secret, onValueChange = { secret = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Пароль") })
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { addMode = false }) { Text("Отмена", color = Muted) }
+                Button(onClick = {
+                    if (title.isBlank() || secret.isBlank()) error = "Заполни название и пароль."
+                    else {
+                        val updated = entries + VaultEntry(java.util.UUID.randomUUID().toString(), title.trim(), username, secret, website)
+                        if (DarknesVaultCrypto.save(context, masterPassword.toCharArray(), encodeVaultEntries(updated))) {
+                            entries = updated; title = ""; username = ""; secret = ""; website = ""; addMode = false; error = ""
+                        } else error = "Не удалось зашифровать и сохранить запись."
+                    }
+                }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF42BFE8))) { Text("Сохранить", color = Color(0xFF071321)) }
+            }
+        } else {
+            OutlinedButton(onClick = { addMode = true; error = "" }, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Add, contentDescription = null); Spacer(Modifier.width(7.dp)); Text("Добавить пароль")
+            }
+        }
+        if (error.isNotBlank()) Text(error, color = Color(0xFFFF9B86), fontSize = 11.sp)
+        entries.forEach { item ->
+            Surface(
+                modifier = Modifier.fillMaxWidth().padding(top = 9.dp),
+                color = Color(0xCC101D31), shape = RoundedCornerShape(17.dp),
+                border = BorderStroke(1.dp, Border)
+            ) {
+                Column(Modifier.padding(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(item.title, color = Paper, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            if (item.website.isNotBlank()) Text(item.website, color = Muted, fontSize = 10.sp)
+                        }
+                        IconButton(onClick = {
+                            val updated = entries.filterNot { it.id == item.id }
+                            if (DarknesVaultCrypto.save(context, masterPassword.toCharArray(), encodeVaultEntries(updated))) entries = updated
+                            else error = "Не удалось сохранить изменения."
+                        }) { Icon(Icons.Default.DeleteOutline, contentDescription = "Удалить", tint = Color(0xFFFF9B86)) }
+                    }
+                    Text(if (item.username.isBlank()) "Логин не указан" else item.username, color = Muted, fontSize = 11.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (item.id in revealIds) item.password else "••••••••••", color = Paper, modifier = Modifier.weight(1f), fontSize = 12.sp)
+                        IconButton(onClick = { revealIds = if (item.id in revealIds) revealIds - item.id else revealIds + item.id }) {
+                            Icon(if (item.id in revealIds) Icons.Default.VisibilityOff else Icons.Default.Visibility, contentDescription = "Показать пароль", tint = Color(0xFF65DFFF))
+                        }
+                        IconButton(onClick = {
+                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Пароль", item.password))
+                            error = "Пароль скопирован. Очисти буфер обмена после использования."
+                        }) { Icon(Icons.Default.ContentCopy, contentDescription = "Копировать пароль", tint = Muted) }
+                    }
+                }
+            }
+        }
+        Text("Закрывай Vault после использования. Скопированный пароль остаётся в буфере обмена до его замены или очистки.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 12.dp))
+    }
+}
+
 private data class LinkRiskReport(val host: String, val warnings: List<String>) {
     val isSuspicious: Boolean get() = warnings.isNotEmpty()
 }
@@ -1191,6 +1413,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                             }
                             "Расширения" -> ExtensionsPanel(adBlock, { adBlock = it }, nightPages, { nightPages = it }) { toast = "Установка расширений появится позже" }
                             "Аккаунт" -> DarknesIdPanel()
+                            "Darknes Vault" -> DarknesVaultPanel()
                             "ИИ-чат" -> ChatPanel {
                                 panel = ""
                                 query = "https://duck.ai"
@@ -1646,7 +1869,8 @@ private fun MenuPanel(accent: Color, onAction: (String) -> Unit) {
         ),
         "ИНСТРУМЕНТЫ" to listOf(
             Icons.Default.Extension to "Расширения",
-            Icons.Default.AutoAwesome to "ИИ-чат"
+            Icons.Default.AutoAwesome to "ИИ-чат",
+            Icons.Default.Key to "Darknes Vault"
         ),
         "DARKNES" to listOf(
             Icons.Default.Settings to "Настройки",
