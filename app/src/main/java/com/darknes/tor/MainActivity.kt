@@ -168,27 +168,25 @@ private object DarknesVaultCrypto {
     fun hasBiometric(context: android.content.Context): Boolean =
         context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE).contains(BIO_DATA)
 
-    fun enableBiometric(context: android.content.Context, passphrase: String): Boolean = runCatching {
+    fun prepareBiometricEncryptCipher(): javax.crypto.Cipher? = runCatching {
         val generator = javax.crypto.KeyGenerator.getInstance(android.security.keystore.KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
         val spec = android.security.keystore.KeyGenParameterSpec.Builder(BIO_ALIAS,
             android.security.keystore.KeyProperties.PURPOSE_ENCRYPT or android.security.keystore.KeyProperties.PURPOSE_DECRYPT)
             .setBlockModes(android.security.keystore.KeyProperties.BLOCK_MODE_GCM)
             .setEncryptionPaddings(android.security.keystore.KeyProperties.ENCRYPTION_PADDING_NONE)
-            .setRandomizedEncryptionRequired(true)
-            .setUserAuthenticationRequired(true)
-            .setUserAuthenticationValidityDurationSeconds(-1)
-            .setInvalidatedByBiometricEnrollment(true)
-            .build()
+            .setRandomizedEncryptionRequired(true).setUserAuthenticationRequired(true)
+            .setUserAuthenticationValidityDurationSeconds(-1).setInvalidatedByBiometricEnrollment(true).build()
         generator.init(spec)
-        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, generator.generateKey())
+        val key = generator.generateKey()
+        javax.crypto.Cipher.getInstance("AES/GCM/NoPadding").apply { init(javax.crypto.Cipher.ENCRYPT_MODE, key) }
+    }.getOrNull()
+
+    fun saveBiometricPassphrase(context: android.content.Context, cipher: javax.crypto.Cipher, passphrase: String): Boolean = runCatching {
         val encrypted = cipher.doFinal(passphrase.toByteArray(Charsets.UTF_8))
         context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE).edit()
             .putString(BIO_IV, android.util.Base64.encodeToString(cipher.iv, android.util.Base64.NO_WRAP))
-            .putString(BIO_DATA, android.util.Base64.encodeToString(encrypted, android.util.Base64.NO_WRAP))
-            .commit()
+            .putString(BIO_DATA, android.util.Base64.encodeToString(encrypted, android.util.Base64.NO_WRAP)).commit()
     }.getOrDefault(false)
-
     fun biometricDecryptCipher(context: android.content.Context): javax.crypto.Cipher? = runCatching {
         val prefs = context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
         val iv = android.util.Base64.decode(prefs.getString(BIO_IV, null), android.util.Base64.NO_WRAP)
@@ -341,10 +339,23 @@ private fun DarknesVaultPanel() {
     } else {
         if (!DarknesVaultCrypto.hasBiometric(context)) {
             OutlinedButton(onClick = {
+                val host = activity
                 val available = BiometricManager.from(context).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-                if (available != BiometricManager.BIOMETRIC_SUCCESS) error = "На устройстве не настроена доступная биометрия. Настрой её в Android."
-                else if (DarknesVaultCrypto.enableBiometric(context, vaultPassphrase)) error = "Биометрическая разблокировка включена."
-                else error = "Не удалось подключить биометрию. Мастер-пароль по-прежнему работает."
+                val cipher = if (available == BiometricManager.BIOMETRIC_SUCCESS) DarknesVaultCrypto.prepareBiometricEncryptCipher() else null
+                if (host == null || cipher == null) {
+                    error = "Биометрия недоступна. Настрой отпечаток или лицо в Android."
+                } else {
+                    val prompt = BiometricPrompt(host, ContextCompat.getMainExecutor(context), object : BiometricPrompt.AuthenticationCallback() {
+                        override fun onAuthenticationError(code: Int, message: CharSequence) { error = "Биометрия: $message" }
+                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                            val ok = result.cryptoObject?.cipher?.let { DarknesVaultCrypto.saveBiometricPassphrase(context, it, vaultPassphrase) } == true
+                            error = if (ok) "Биометрическая разблокировка включена." else "Не удалось сохранить биометрическую защиту."
+                        }
+                    })
+                    val info = BiometricPrompt.PromptInfo.Builder().setTitle("Подключить Darknes Vault")
+                        .setSubtitle("Подтверди личность для защиты мастер-пароля").setNegativeButtonText("Отмена").build()
+                    prompt.authenticate(info, BiometricPrompt.CryptoObject(cipher))
+                }
             }, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Fingerprint, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Включить биометрическую защиту")
             }
