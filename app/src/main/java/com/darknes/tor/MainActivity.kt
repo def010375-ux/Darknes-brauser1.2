@@ -96,13 +96,13 @@ private fun encodeDownloadRecords(records: List<DownloadRecord>): String = JSONA
 
 
 
-private object VaultSessionCache {
+internal object VaultSessionCache {
     @Volatile var entries: List<VaultEntry> = emptyList()
     @Volatile var isUnlocked: Boolean = false
     fun set(value: List<VaultEntry>) { entries = value; isUnlocked = true }
     fun clear() { entries = emptyList(); isUnlocked = false }
 }
-private data class VaultEntry(
+internal data class VaultEntry(
     val id: String,
     val title: String,
     val username: String,
@@ -110,7 +110,7 @@ private data class VaultEntry(
     val website: String
 )
 
-private object DarknesVaultCrypto {
+internal object DarknesVaultCrypto {
     private const val PREFS = "darknes_vault"
     private const val SALT = "salt"
     private const val IV = "iv"
@@ -209,7 +209,7 @@ private object DarknesVaultCrypto {
     }.getOrNull()
 }
 
-private fun decodeVaultEntries(raw: String): List<VaultEntry> = runCatching {
+internal fun decodeVaultEntries(raw: String): List<VaultEntry> = runCatching {
     val array = JSONArray(raw)
     (0 until array.length()).mapNotNull { index ->
         val item = array.optJSONObject(index) ?: return@mapNotNull null
