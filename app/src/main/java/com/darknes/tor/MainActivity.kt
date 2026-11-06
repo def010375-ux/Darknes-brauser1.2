@@ -263,7 +263,7 @@ class MainActivity : ComponentActivity() {
 }
 
 private data class SearchResult(val title: String, val url: String, val snippet: String, val displayUrl: String)
-private data class PublishedVersion(val name: String, val tag: String, val notes: String, val apkUrl: String?)
+private data class PublishedVersion(val name: String, val tag: String, val notes: String, val apkUrl: String?, val apkSizeBytes: Long?, val apkDigest: String?)
 
 private suspend fun fetchPublishedVersions(): List<PublishedVersion> = withContext(Dispatchers.IO) {
     val connection = java.net.URL("https://api.github.com/repos/def010375-ux/Darknes-brauser1.2/releases")
@@ -279,10 +279,14 @@ private suspend fun fetchPublishedVersions(): List<PublishedVersion> = withConte
             val release = releases.optJSONObject(index) ?: return@mapNotNull null
             val assets = release.optJSONArray("assets") ?: JSONArray()
             var apkUrl: String? = null
+            var apkSizeBytes: Long? = null
+            var apkDigest: String? = null
             for (assetIndex in 0 until assets.length()) {
                 val asset = assets.optJSONObject(assetIndex) ?: continue
                 if (asset.optString("name").endsWith(".apk", ignoreCase = true)) {
                     apkUrl = asset.optString("browser_download_url").takeIf { it.startsWith("https://") }
+                    apkSizeBytes = asset.optLong("size", -1L).takeIf { it >= 0L }
+                    apkDigest = asset.optString("digest").takeIf { it.startsWith("sha256:") }
                     if (apkUrl != null) break
                 }
             }
@@ -290,7 +294,9 @@ private suspend fun fetchPublishedVersions(): List<PublishedVersion> = withConte
                 name = release.optString("name").ifBlank { release.optString("tag_name") },
                 tag = release.optString("tag_name"),
                 notes = release.optString("body").take(500),
-                apkUrl = apkUrl
+                apkUrl = apkUrl,
+                apkSizeBytes = apkSizeBytes,
+                apkDigest = apkDigest
             )
         }
     } finally {
@@ -2093,8 +2099,11 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     var versions by remember { mutableStateOf<List<PublishedVersion>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf("") }
+    var refreshKey by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(refreshKey) {
+        loading = true
+        error = ""
         try {
             versions = fetchPublishedVersions()
         } catch (problem: Exception) {
@@ -2104,7 +2113,10 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
         }
     }
 
-    PanelTitle("Darknes Tor Tester", "Публичный выбор версий браузера")
+    val installedVersion = BuildConfig.VERSION_NAME
+    val latestWithApk = versions.firstOrNull { it.apkUrl != null }
+
+    PanelTitle("Центр обновлений", "Проверка опубликованных версий Darknes Tor")
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = Color(0xFF13243C),
@@ -2113,14 +2125,35 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("1.5 Beta", color = Paper, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.weight(1f))
-                Text("В РАЗРАБОТКЕ", color = Violet, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                Column(Modifier.weight(1f)) {
+                    Text("УСТАНОВЛЕННАЯ ВЕРСИЯ", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
+                    Text(installedVersion, color = Paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                }
+                Surface(shape = CircleShape, color = Orange.copy(alpha = .13f), border = BorderStroke(1.dp, Border)) {
+                    Text("BETA", color = Orange, fontSize = 9.sp, fontWeight = FontWeight.Black,
+                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp))
+                }
             }
-            Text("Новая футуристическая оболочка, обновлённая иконка и переработанный интерфейс. Версия ещё не опубликована.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
-            Text("Это подготовленная версия проекта, а не опубликованный релиз.", color = Peach, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Проверяем только опубликованные GitHub Releases. Ветка разработки 1.5 Beta не считается готовым обновлением, пока APK не опубликован.",
+                color = Muted, fontSize = 11.sp, lineHeight = 16.sp
+            )
+            Spacer(Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = { refreshKey++ },
+                enabled = !loading,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Orange),
+                border = BorderStroke(1.dp, Border)
+            ) {
+                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(17.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(if (loading) "Проверяем…" else "Проверить обновления")
+            }
         }
     }
+
     Spacer(Modifier.height(16.dp))
     Text("ОПУБЛИКОВАННЫЕ ВЕРСИИ", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
     Spacer(Modifier.height(8.dp))
@@ -2128,26 +2161,40 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
         loading -> Row(verticalAlignment = Alignment.CenterVertically) {
             CircularProgressIndicator(color = Violet, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
             Spacer(Modifier.width(10.dp))
-            Text("Проверяем доступные релизы…", color = Muted, fontSize = 13.sp)
+            Text("Получаем данные GitHub Releases…", color = Muted, fontSize = 13.sp)
         }
         error.isNotBlank() -> Text(error, color = Peach, fontSize = 13.sp)
-        versions.isEmpty() -> Text("Пока нет опубликованных APK. Darknes Tor 1.5 Beta находится в разработке; готовые сборки появятся здесь после публикации в GitHub Releases.", color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
-        else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
+        versions.isEmpty() -> Text(
+            "Опубликованных релизов пока нет. Когда APK появится в GitHub Releases, он будет показан здесь.",
+            color = Muted, fontSize = 13.sp, lineHeight = 19.sp
+        )
+        else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.fillMaxWidth().heightIn(max = 390.dp)) {
             items(versions) { version ->
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     color = Color(0xFF111E32),
                     shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, Border)
+                    border = BorderStroke(1.dp, if (version == latestWithApk) Violet.copy(alpha = .8f) else Border)
                 ) {
                     Column(Modifier.padding(13.dp)) {
-                        Text(version.name, color = Paper, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                        if (version.notes.isNotBlank()) Text(version.notes, color = Muted, fontSize = 11.sp, maxLines = 3, modifier = Modifier.padding(top = 5.dp))
-                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(version.name, color = Paper, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                            if (version == latestWithApk) Text("APK ДОСТУПЕН", color = Color(0xFF65D69A), fontSize = 8.sp, fontWeight = FontWeight.Black)
+                        }
+                        Text("Тег: ${version.tag.ifBlank { "без тега" }}", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
+                        if (version.notes.isNotBlank()) Text(version.notes, color = Muted, fontSize = 11.sp, maxLines = 3, modifier = Modifier.padding(top = 6.dp))
                         if (version.apkUrl != null) {
-                            Text("Скачать APK", color = Violet, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onDownload(version.apkUrl) }.padding(vertical = 5.dp))
+                            val sizeLabel = version.apkSizeBytes?.let { String.format(java.util.Locale.US, "%.1f MB", it / 1048576.0) } ?: "размер не указан"
+                            Text("Файл APK · $sizeLabel", color = Peach, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp))
+                            if (version.apkDigest != null) {
+                                Text("SHA-256 опубликован GitHub", color = Color(0xFF65D69A), fontSize = 10.sp)
+                            } else {
+                                Text("Контрольная сумма не опубликована", color = Muted, fontSize = 10.sp)
+                            }
+                            Text("Скачать APK", color = Violet, fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clickable { onDownload(version.apkUrl) }.padding(vertical = 8.dp))
                         } else {
-                            Text("APK для этой версии не приложен", color = Muted, fontSize = 11.sp)
+                            Text("APK для этой версии не приложен", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 7.dp))
                         }
                     }
                 }
@@ -2155,7 +2202,10 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
         }
     }
     Spacer(Modifier.height(12.dp))
-    Text("Выбор версии открывает загрузку APK. Установка подтверждается Android. Для обновления поверх текущей версии подпись APK должна совпадать.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+    Text(
+        "Загрузка передаётся Android/браузеру. Установку всегда подтверждаешь в Android вручную. Для обновления поверх установленной версии нужны тот же applicationId и совместимая подпись разработчика. Наличие SHA-256 в GitHub отображается отдельно; приложение пока не проверяет загруженный файл автоматически.",
+        color = Muted, fontSize = 10.sp, lineHeight = 15.sp
+    )
 }
 
 @Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit, accentChoice:String, setAccentChoice:(String)->Unit, desktopMode:Boolean, setDesktopMode:(Boolean)->Unit) {
