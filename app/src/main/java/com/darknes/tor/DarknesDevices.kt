@@ -37,6 +37,9 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.util.UUID
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.TimeZone
 
 private data class DarknesDevice(
     val deviceId: String,
@@ -94,7 +97,7 @@ private object DarknesDeviceApi {
             .put("device_id", id)
             .put("device_name", name)
             .put("platform", "Android ${Build.VERSION.RELEASE}")
-            .put("last_seen_at", "now()")
+            .put("last_seen_at", SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }.format(Date()))
         request(session, "POST", "?on_conflict=user_id%2Cdevice_id", payload.toString(), "resolution=merge-duplicates,return=minimal")
     }
 
