@@ -2573,6 +2573,7 @@ private fun NotificationsPanel(onOpenSettings: () -> Unit) {
 
 @Composable
 private fun TesterPanel(onDownload: (String) -> Unit) {
+    val context = LocalContext.current
     var versions by remember { mutableStateOf<List<PublishedVersion>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf("") }
@@ -2590,7 +2591,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
         }
     }
 
-    val installedVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: "1.5-beta"
+    val installedVersion = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.5-beta"
     val latestWithApk = versions.firstOrNull { it.apkUrl != null }
 
     PanelTitle("Центр обновлений", "Проверка опубликованных версий Darknes Tor")
