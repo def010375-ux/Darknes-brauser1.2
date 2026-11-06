@@ -873,13 +873,14 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     }
 
     Column(Modifier.fillMaxSize().background(Ink).statusBarsPadding()) {
-        // Dynamic Island-style address capsule
+        // Futuristic expandable address and search capsule
+        val secureAddress = query.trim().startsWith("https://", ignoreCase = true)
         Box(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp), contentAlignment = Alignment.TopCenter) {
             Surface(
                 color = Glass,
-                shape = RoundedCornerShape(if (islandOpen) 28.dp else 30.dp),
-                border = BorderStroke(1.dp, Border),
-                shadowElevation = 18.dp,
+                shape = RoundedCornerShape(if (islandOpen) 25.dp else 30.dp),
+                border = BorderStroke(1.dp, if (islandOpen && secureAddress) Color(0x8865DDA5) else Border),
+                shadowElevation = if (islandOpen) 20.dp else 14.dp,
                 modifier = Modifier
                     .widthIn(min = if (islandOpen) 280.dp else 178.dp, max = if (islandOpen) 520.dp else 178.dp)
                     .fillMaxWidth(if (islandOpen) 0.94f else 0.48f)
@@ -911,23 +912,56 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                         )
                     }
                 } else {
-                    Row(Modifier.fillMaxSize().padding(start = 16.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(if (incognito) Icons.Default.VisibilityOff else Icons.Default.Search, contentDescription = if (incognito) "Инкогнито" else "Поиск", tint = accent, modifier = Modifier.size(21.dp))
-                        Spacer(Modifier.width(10.dp))
+                    Row(Modifier.fillMaxSize().padding(start = 13.dp, end = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                        AnimatedContent(
+                            targetState = secureAddress,
+                            transitionSpec = { fadeIn(tween(160)) togetherWith fadeOut(tween(100)) },
+                            label = "address-security"
+                        ) { secure ->
+                            Icon(
+                                if (incognito) Icons.Default.VisibilityOff else if (secure) Icons.Default.Lock else Icons.Default.Search,
+                                contentDescription = if (incognito) "Инкогнито" else if (secure) "HTTPS адрес" else "Поиск или адрес",
+                                tint = if (secure && !incognito) Color(0xFF65DDA5) else accent,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(9.dp))
                         BasicTextField(
-                            value = query, onValueChange = { query = it }, modifier = Modifier.weight(1f),
-                            singleLine = true, textStyle = TextStyle(color = Paper, fontSize = 14.sp),
+                            value = query,
+                            onValueChange = { query = it },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            textStyle = TextStyle(color = Paper, fontSize = 14.sp),
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
                             keyboardActions = KeyboardActions(onGo = {
                                 if (query.isNotBlank()) runSearch(query)
-                                keyboard?.hide(); islandOpen = false
+                                keyboard?.hide()
+                                islandOpen = false
                             }),
-                            decorationBox = { inner -> Box { if (query.isEmpty()) Text("Поиск или адрес", color = Muted, fontSize = 14.sp); inner() } }
+                            decorationBox = { inner ->
+                                Box {
+                                    if (query.isEmpty()) Text("Поиск или адрес", color = Muted, fontSize = 13.sp)
+                                    inner()
+                                }
+                            }
                         )
-                        Box(Modifier.size(42.dp).background(accent, CircleShape).clickable {
-                            if (query.isNotBlank()) runSearch(query)
-                            keyboard?.hide(); islandOpen = false
-                        }, contentAlignment = Alignment.Center) { Icon(Icons.Default.ArrowForward, contentDescription = "Перейти", tint = Ink, modifier = Modifier.size(21.dp)) }
+                        if (query.isNotBlank()) {
+                            IconButton(onClick = { query = "" }, modifier = Modifier.size(32.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = "Очистить адрес", tint = Muted, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                        Box(
+                            Modifier.size(39.dp).clip(CircleShape)
+                                .background(Brush.linearGradient(listOf(accent, Violet)))
+                                .clickable {
+                                    if (query.isNotBlank()) runSearch(query)
+                                    keyboard?.hide()
+                                    islandOpen = false
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.ArrowForward, contentDescription = "Перейти", tint = Ink, modifier = Modifier.size(20.dp))
+                        }
                     }
                 }
             }
@@ -1091,11 +1125,11 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             }
         }
 
-        // Floating bottom glass navigation, above Android gesture/navigation area
+        // Floating glass navigation dock
         Row(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 10.dp)
-                .height(62.dp).clip(RoundedCornerShape(26.dp)).background(Glass)
-                .border(1.dp, Border, RoundedCornerShape(26.dp)).padding(horizontal = 8.dp),
+            Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 10.dp)
+                .height(64.dp).clip(RoundedCornerShape(25.dp)).background(Glass)
+                .border(1.dp, Border, RoundedCornerShape(25.dp)).padding(horizontal = 5.dp),
             horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically
         ) {
             NavCircle(Icons.Default.ArrowBack, accent, enabled = canGoBack) { if (canGoBack) session.goBack() }
@@ -1103,9 +1137,22 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             NavCircle(Icons.Default.Refresh, accent, enabled = tabUrls.getOrNull(activeTab).orEmpty().isNotBlank()) {
                 if (tabUrls.getOrNull(activeTab).orEmpty().isNotBlank()) session.reload()
             }
+            NavCircle(Icons.Default.Home, accent) {
+                query = ""
+                loaded = false
+                showSearchResults = false
+                panel = ""
+            }
             NavCircle(Icons.Default.AutoAwesome, accent) { panel = "ИИ-чат" }
-            Box(Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(Color(0xFF1A3554)).clickable { panel = "Вкладки" }, contentAlignment = Alignment.Center) {
-                Text("${sessions.size}", color = Paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Surface(
+                modifier = Modifier.size(39.dp).clickable { panel = "Вкладки" },
+                shape = RoundedCornerShape(13.dp),
+                color = Color(0xFF1A3554),
+                border = BorderStroke(1.dp, if (panel == "Вкладки") accent else Border)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text("${sessions.size}", color = Paper, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
             }
             NavCircle(Icons.Default.MoreHoriz, accent) { panel = "Меню" }
         }
