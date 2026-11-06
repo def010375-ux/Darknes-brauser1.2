@@ -374,7 +374,7 @@ private fun DarknesVaultPanel() {
         }, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.Password, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Подключить Android Autofill")
         }
-        Text("Для автозаполнения выбери Darknes Vault в системных настройках. Перед использованием открой и разблокируй Vault. Данные доступны службе только пока хранилище разблокировано.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+        Text("Для автозаполнения выбери Darknes Vault в системных настройках. Если Vault заблокирован, Android запросит мастер-пароль перед заполнением. Пароли подбираются только для совпадающего домена.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Сохранённые записи", color = Paper, fontWeight = FontWeight.Bold, fontSize = 14.sp)
