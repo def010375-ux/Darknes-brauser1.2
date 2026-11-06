@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.SystemClock
 import android.net.Uri
 import android.widget.Toast
+import android.graphics.BitmapFactory
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -31,6 +32,7 @@ import androidx.compose.ui.*
 import androidx.compose.ui.draw.*
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -672,6 +674,10 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var engine by remember { mutableStateOf("DuckDuckGo") }
     val onLoad: (String) -> Unit = { session.loadUri(resolveAddress(it, engine)) }
     var blur by remember { mutableFloatStateOf(settingsPrefs.getFloat("blur", 8f).coerceIn(0f, 24f)) }
+    var wallpaperUri by remember { mutableStateOf(settingsPrefs.getString("wallpaperUri", "") ?: "") }
+    var incognitoAccentChoice by remember { mutableStateOf(settingsPrefs.getString("incognitoAccent", "purple") ?: "purple") }
+    var homeLayout by remember { mutableStateOf(settingsPrefs.getString("homeLayout", "grid") ?: "grid") }
+    var interfaceLanguage by remember { mutableStateOf(settingsPrefs.getString("language", "ru") ?: "ru") }
     var animations by remember { mutableStateOf(settingsPrefs.getBoolean("animations", true)) }
     var trackers by remember { mutableStateOf(settingsPrefs.getBoolean("trackers", true)) }
     var darkSites by remember { mutableStateOf(settingsPrefs.getBoolean("darkSites", true)) }
@@ -705,6 +711,25 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         mutableStateListOf<SavedPage>().apply { addAll(readSavedPages(savedPrefs.getString("bookmarks", null))) }
     }
     var desktopMode by remember { mutableStateOf(settingsPrefs.getBoolean("desktopMode", false)) }
+    val wallpaperPicker = androidx.activity.compose.rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            wallpaperUri = uri.toString()
+        }
+    }
+    val configPicker = androidx.activity.compose.rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) runCatching {
+            val raw = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: error("empty")
+            val config = org.json.JSONObject(raw)
+            config.optString("accent", accentChoice).takeIf { it in listOf("cyan", "blue", "purple", "green") }?.let { accentChoice = it }
+            config.optString("incognitoAccent", incognitoAccentChoice).takeIf { it in listOf("purple", "cyan", "blue", "green") }?.let { incognitoAccentChoice = it }
+            config.optString("homeLayout", homeLayout).takeIf { it in listOf("grid", "list", "compact") }?.let { homeLayout = it }
+            config.optString("language", interfaceLanguage).takeIf { it in listOf("ru", "en") }?.let { interfaceLanguage = it }
+            if (config.has("blur")) blur = config.optDouble("blur", blur.toDouble()).toFloat().coerceIn(0f, 32f)
+            if (config.has("wallpaperUri")) wallpaperUri = config.optString("wallpaperUri")
+            toast = "Конфигурация применена"
+        }.onFailure { toast = "Не удалось прочитать конфигурацию JSON" }
+    }
     val offlinePages = remember(savedPrefs) {
         mutableStateListOf<OfflinePage>().apply {
             addAll(readOfflinePages(savedPrefs.getString("offline_pages", null)))
@@ -731,10 +756,14 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 .apply()
         }
     }
-    LaunchedEffect(blur, animations, trackers, darkSites, adBlock, nightPages, accentChoice, desktopMode) {
+    LaunchedEffect(blur, animations, trackers, darkSites, adBlock, nightPages, accentChoice, desktopMode, wallpaperUri, incognitoAccentChoice, homeLayout, interfaceLanguage) {
         settingsPrefs.edit()
             .putBoolean("desktopMode", desktopMode)
             .putString("accent", accentChoice)
+            .putString("wallpaperUri", wallpaperUri)
+            .putString("incognitoAccent", incognitoAccentChoice)
+            .putString("homeLayout", homeLayout)
+            .putString("language", interfaceLanguage)
             .putFloat("blur", blur)
             .putBoolean("animations", animations)
             .putBoolean("trackers", trackers)
@@ -743,11 +772,12 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             .putBoolean("nightPages", nightPages)
             .apply()
     }
-    val accent = if (incognito) Violet else when (accentChoice) {
+    val accent = when (if (incognito) incognitoAccentChoice else accentChoice) {
         "blue" -> Color(0xFF55A8FF)
         "purple" -> Color(0xFFB28AFF)
         "green" -> Color(0xFF65D69A)
-        else -> Orange
+        "cyan" -> Orange
+        else -> if (incognito) Violet else Orange
     }
     LaunchedEffect(trackers, sessions.size) {
         sessions.forEach { it.settings.setUseTrackingProtection(trackers) }
@@ -1022,6 +1052,8 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 engine = engine,
                 onEngineChange = { engine = it },
                 bookmarks = bookmarks.toList(),
+                wallpaperUri = wallpaperUri,
+                homeLayout = homeLayout,
                 onSecretSettings = { panel = "Настройки" },
                 onSearch = {
                     runSearch(query)
@@ -1092,7 +1124,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                     else -> action
                                 }
                             }
-                            "Настройки" -> SettingsPanel(engine, { engine = it }, trackers, { trackers = it }, darkSites, { darkSites = it }, animations, { animations = it }, blur, { blur = it }, accentChoice, { accentChoice = it }, desktopMode, { desktopMode = it })
+                            "Настройки" -> SettingsPanel(engine, { engine = it }, trackers, { trackers = it }, darkSites, { darkSites = it }, animations, { animations = it }, blur, { blur = it }, accentChoice, { accentChoice = it }, desktopMode, { desktopMode = it }, incognitoAccentChoice, { incognitoAccentChoice = it }, homeLayout, { homeLayout = it }, interfaceLanguage, { interfaceLanguage = it }, wallpaperUri, { wallpaperPicker.launch(arrayOf("image/*")) }, { wallpaperUri = "" }, { configPicker.launch(arrayOf("application/json", "text/plain", "*/*")) })
                             "Безопасность" -> PrivacyPanel(trackers, { trackers = it }, adBlock, { adBlock = it }, darkSites, { darkSites = it }, nightPages, { nightPages = it }) {
                                 runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))) }
                                     .onFailure { toast = "Не удалось открыть настройки Android" }
@@ -1256,6 +1288,8 @@ private fun HomeScreen(
     engine: String,
     onEngineChange: (String) -> Unit,
     bookmarks: List<SavedPage>,
+    wallpaperUri: String,
+    homeLayout: String,
     onSecretSettings: () -> Unit,
     onSearch: () -> Unit,
     onShortcut: (String) -> Unit
@@ -1264,13 +1298,25 @@ private fun HomeScreen(
     var lastTitleTapAt by remember { mutableLongStateOf(0L) }
     Column(Modifier.fillMaxSize().background(Ink).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(18.dp))
-        BlackHoleScene(
-            iconBurst = 0f,
-            modifier = Modifier.width(270.dp).height(205.dp).blur(blur.dp),
-            accent = accent,
-            showOrbitIcons = false,
-            showParticles = false
-        )
+        Box(Modifier.fillMaxWidth().height(220.dp), contentAlignment = Alignment.Center) {
+            val wallpaperBitmap = remember(wallpaperUri) {
+                if (wallpaperUri.isBlank()) null else runCatching {
+                    val uri = Uri.parse(wallpaperUri)
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    LocalContext.current.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+                    val sample = maxOf(1, maxOf(bounds.outWidth / 1200, bounds.outHeight / 900))
+                    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+                    LocalContext.current.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options)?.asImageBitmap() }
+                }.getOrNull()
+            }
+            if (wallpaperBitmap != null) {
+                Image(bitmap = wallpaperBitmap, contentDescription = "Обои стартовой страницы", contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(24.dp)).blur(blur.dp))
+                Box(Modifier.fillMaxSize().padding(horizontal = 12.dp).clip(RoundedCornerShape(24.dp)).background(Color.Black.copy(alpha = .28f)))
+            }
+            BlackHoleScene(iconBurst = 0f, modifier = Modifier.width(270.dp).height(205.dp).blur(if (wallpaperBitmap == null) blur.dp else (blur / 2f).dp),
+                accent = accent, showOrbitIcons = false, showParticles = false)
+        }
         Spacer(Modifier.height(4.dp))
         Text(
             "Darknes Tor",
@@ -1331,7 +1377,8 @@ private fun HomeScreen(
             Triple("Reddit", Icons.Default.Forum, "https://reddit.com"),
             Triple("Twitch", Icons.Default.LiveTv, "https://twitch.tv")
         )
-        LazyVerticalGrid(columns = GridCells.Fixed(4), modifier = Modifier.fillMaxWidth().height(204.dp).padding(horizontal = 14.dp), userScrollEnabled = false) {
+        val siteColumns = when (homeLayout) { "compact" -> 5; "list" -> 1; else -> 4 }
+        LazyVerticalGrid(columns = GridCells.Fixed(siteColumns), modifier = Modifier.fillMaxWidth().height(if (homeLayout == "list") 420.dp else 204.dp).padding(horizontal = 14.dp), userScrollEnabled = false) {
             items(sites) { (name, icon, url) ->
                 Column(
                     Modifier.padding(5.dp).clip(RoundedCornerShape(19.dp))
@@ -1734,7 +1781,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     Text("Выбор версии открывает загрузку APK. Установка подтверждается Android. Для обновления поверх текущей версии подпись APK должна совпадать.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
 }
 
-@Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit, accentChoice:String, setAccentChoice:(String)->Unit, desktopMode:Boolean, setDesktopMode:(Boolean)->Unit) {
+@Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit, accentChoice:String, setAccentChoice:(String)->Unit, desktopMode:Boolean, setDesktopMode:(Boolean)->Unit, incognitoAccent:String, setIncognitoAccent:(String)->Unit, homeLayout:String, setHomeLayout:(String)->Unit, language:String, setLanguage:(String)->Unit, wallpaperUri:String, chooseWallpaper:()->Unit, clearWallpaper:()->Unit, importConfig:()->Unit) {
     PanelTitle("Настройки", "Персонализация и управление Darknes Tor")
     val engines = listOf("DuckDuckGo", "Google", "Bing", "Brave")
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
@@ -1797,6 +1844,37 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
                 colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Orange.copy(alpha = .22f), selectedLabelColor = Paper, labelColor = Muted))
         }
     }
+    Spacer(Modifier.height(15.dp))
+    Text("ОФОРМЛЕНИЕ ОБЫЧНОГО РЕЖИМА", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    Text("Акцент обычного режима", color = Paper, fontSize = 12.sp, modifier = Modifier.padding(top = 7.dp, bottom = 6.dp))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        listOf("cyan" to "Неон", "blue" to "Синий", "purple" to "Лиловый", "green" to "Зелёный").forEach { (key, label) -> FilterChip(selected = accentChoice == key, onClick = { setAccentChoice(key) }, label = { Text(label, fontSize = 9.sp) }) }
+    }
+    Text("Акцент инкогнито", color = Paper, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp, bottom = 6.dp))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        listOf("purple" to "Фиолетовый", "cyan" to "Неон", "blue" to "Синий", "green" to "Зелёный").forEach { (key, label) -> FilterChip(selected = incognitoAccent == key, onClick = { setIncognitoAccent(key) }, label = { Text(label, fontSize = 9.sp) }) }
+    }
+    Spacer(Modifier.height(14.dp))
+    Text("ФОНОВОЕ ИЗОБРАЖЕНИЕ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    Text(if (wallpaperUri.isBlank()) "Своё фото ещё не выбрано" else "Пользовательское фото установлено", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(vertical = 7.dp))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Button(onClick = chooseWallpaper, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Ink), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.Image, null); Spacer(Modifier.width(5.dp)); Text("Выбрать фото", fontSize = 11.sp) }
+        OutlinedButton(onClick = clearWallpaper, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) { Text("Убрать фото", fontSize = 11.sp) }
+    }
+    Text("Размытие фона: ${blur.toInt()} px", color = Paper, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+    Slider(value = blur, onValueChange = setBlur, valueRange = 0f..32f)
+    Spacer(Modifier.height(12.dp))
+    Text("РАСКЛАДКА СТАРТОВОЙ СТРАНИЦЫ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) { listOf("grid" to "Сетка", "list" to "Список", "compact" to "Компактная").forEach { (key, label) -> FilterChip(selected = homeLayout == key, onClick = { setHomeLayout(key) }, label = { Text(label, fontSize = 10.sp) }) } }
+    Spacer(Modifier.height(12.dp))
+    Text("ЯЗЫК ИНТЕРФЕЙСА", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(selected = language == "ru", onClick = { setLanguage("ru") }, label = { Text("Русский") }); FilterChip(selected = language == "en", onClick = { setLanguage("en") }, label = { Text("English") }) }
+    Text("Язык сохраняется. Полный перевод всех экранов подключается отдельно.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+    Spacer(Modifier.height(14.dp))
+    Text("ТЕМЫ И КОНФИГУРАЦИИ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    Text("Импорт JSON-конфигурации Darknes Studio. Применяются только безопасные параметры оформления.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+    OutlinedButton(onClick = importConfig, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.FileOpen, null); Spacer(Modifier.width(7.dp)); Text("Импортировать конфигурацию") }
+    Text("Поддерживаются accent, incognitoAccent, homeLayout, language, blur и wallpaperUri. Скрипты и исполняемый код не запускаются.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
     Text("Дополнительные параметры защиты находятся в Центре безопасности.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 12.dp))
 }
 @Composable private fun PrivacyPanel(trackers:Boolean, setTrackers:(Boolean)->Unit, ad:Boolean, setAd:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, night:Boolean, setNight:(Boolean)->Unit, openAndroidSettings:()->Unit) {
