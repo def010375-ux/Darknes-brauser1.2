@@ -1248,16 +1248,66 @@ private fun HomeScreen(
 ) {
     var titleTapCount by remember { mutableIntStateOf(0) }
     var lastTitleTapAt by remember { mutableLongStateOf(0L) }
-    Column(Modifier.fillMaxSize().background(Ink).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-        Spacer(Modifier.height(18.dp))
+    var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            currentTime = System.currentTimeMillis()
+            kotlinx.coroutines.delay(30_000)
+        }
+    }
+
+    val clock = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(currentTime))
+    val date = java.text.SimpleDateFormat("EEEE, d MMMM", java.util.Locale("ru")).format(java.util.Date(currentTime))
+        .replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale("ru")) else it.toString() }
+
+    Column(
+        Modifier.fillMaxSize().background(Ink).verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(Modifier.height(12.dp))
+
+        // Personal dashboard clock card
+        Surface(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+            color = Color(0xCC101D31),
+            shape = RoundedCornerShape(23.dp),
+            border = BorderStroke(1.dp, Border.copy(alpha = .9f)),
+            shadowElevation = 8.dp
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 17.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(date.uppercase(java.util.Locale("ru")), color = Muted, fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
+                    Text(clock, style = TextStyle(
+                        brush = Brush.linearGradient(listOf(Paper, accent, Violet)),
+                        fontSize = 34.sp, fontWeight = FontWeight.Bold
+                    ))
+                    Text("ТВОЁ ПРОСТРАНСТВО В СЕТИ", color = Muted, fontSize = 8.sp,
+                        fontWeight = FontWeight.SemiBold, letterSpacing = 1.1.sp)
+                }
+                Box(
+                    Modifier.size(62.dp).clip(RoundedCornerShape(19.dp))
+                        .background(Brush.linearGradient(listOf(accent.copy(alpha = .22f), Violet.copy(alpha = .2f)))),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = accent, modifier = Modifier.size(29.dp))
+                }
+            }
+        }
+
+        Spacer(Modifier.height(9.dp))
         BlackHoleScene(
             iconBurst = 0f,
-            modifier = Modifier.width(270.dp).height(205.dp).blur(blur.dp),
+            modifier = Modifier.width(270.dp).height(190.dp).blur(blur.dp),
             accent = accent,
             showOrbitIcons = false,
             showParticles = false
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(2.dp))
         Text(
             "Darknes Tor",
             modifier = Modifier.clickable {
@@ -1278,24 +1328,15 @@ private fun HomeScreen(
             shape = RoundedCornerShape(50.dp),
             border = BorderStroke(1.dp, Border.copy(alpha = .9f))
         ) {
-            Row(
-                Modifier.padding(horizontal = 13.dp, vertical = 7.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    Modifier.size(6.dp).clip(CircleShape)
-                        .background(Brush.linearGradient(listOf(Orange, Violet)))
-                )
+            Row(Modifier.padding(horizontal = 13.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(6.dp).clip(CircleShape)
+                    .background(Brush.linearGradient(listOf(Orange, Violet))))
                 Spacer(Modifier.width(8.dp))
-                Text(
-                    "DARKNES TOR  ·  1.5 BETA",
-                    color = Color(0xFFBFDFFF),
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.15.sp
-                )
+                Text("DARKNES TOR  ·  1.5 BETA", color = Color(0xFFBFDFFF),
+                    fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.15.sp)
             }
         }
+
         Spacer(Modifier.height(18.dp))
         HomeSearchBar(
             value = searchText,
@@ -1305,6 +1346,7 @@ private fun HomeScreen(
             accent = accent,
             onSearch = onSearch
         )
+
         Spacer(Modifier.height(24.dp))
         val sites = listOf(
             Triple(Icons.Default.PlayCircle, "YouTube", "https://youtube.com"),
@@ -1315,8 +1357,14 @@ private fun HomeScreen(
             Triple(Icons.Default.Forum, "Reddit", "https://reddit.com"),
             Triple(Icons.Default.LiveTv, "Twitch", "https://twitch.tv")
         )
-        Text("БЫСТРЫЙ ДОСТУП", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.8.sp,
-            modifier = Modifier.align(Alignment.Start).padding(start = 22.dp, bottom = 9.dp))
+        Row(
+            Modifier.fillMaxWidth().padding(start = 22.dp, end = 18.dp, bottom = 9.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("БЫСТРЫЙ ДОСТУП", color = Muted, fontSize = 10.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = 1.8.sp, modifier = Modifier.weight(1f))
+            Text("7 САЙТОВ", color = accent, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+        }
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1341,9 +1389,17 @@ private fun HomeScreen(
                 }
             }
         }
+
         Spacer(Modifier.height(20.dp))
         if (bookmarks.isNotEmpty()) {
-            Text("ТВОИ ЗАКЛАДКИ", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, modifier = Modifier.align(Alignment.Start).padding(start = 22.dp, top = 18.dp, bottom = 8.dp))
+            Row(
+                Modifier.fillMaxWidth().padding(start = 22.dp, end = 18.dp, top = 4.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("ТВОИ ЗАКЛАДКИ", color = Muted, fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, modifier = Modifier.weight(1f))
+                Text("${bookmarks.size} СОХРАНЕНО", color = accent, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+            }
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(9.dp)
@@ -1371,11 +1427,26 @@ private fun HomeScreen(
                     }
                 }
             }
+        } else {
+            Surface(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                color = Color(0x88101D31),
+                shape = RoundedCornerShape(18.dp),
+                border = BorderStroke(1.dp, Border.copy(alpha = .7f))
+            ) {
+                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.BookmarkBorder, contentDescription = null, tint = accent, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text("Здесь будут твои закладки", color = Paper, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Сохраняй интересные страницы, чтобы вернуться к ним позже.", color = Muted, fontSize = 9.sp)
+                    }
+                }
+            }
         }
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(22.dp))
     }
 }
-
 @Composable
 private fun HomeSearchBar(
     value: String,
