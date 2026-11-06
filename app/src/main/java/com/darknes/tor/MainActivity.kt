@@ -1665,23 +1665,110 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
 
 @Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit, accentChoice:String, setAccentChoice:(String)->Unit, desktopMode:Boolean, setDesktopMode:(Boolean)->Unit) {
     PanelTitle("Настройки", "Настрой Darknes Tor под себя")
-    Text("Поисковая система · DuckDuckGo", color = Muted, fontSize = 13.sp)
-    Text("Единственная поисковая система браузера — DuckDuckGo.", color = Peach, fontSize = 13.sp, modifier = Modifier.padding(vertical = 10.dp))
-    SettingSwitch("Блокировать трекеры", trackers, setTrackers)
-    SettingSwitch("Тёмный режим сайтов", dark, setDark)
-    SettingSwitch("Анимации", anim, setAnim)
-    SettingSwitch("Версия сайтов для компьютера", desktopMode, setDesktopMode)
-    Text("Режим меняет User-Agent и viewport GeckoView для всех вкладок. Некоторые сайты могут отображаться иначе.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
-    Text("Размытие фона · ${blur.toInt()} px", color = Paper, modifier = Modifier.padding(top=12.dp))
-    Slider(value=blur, onValueChange=setBlur, valueRange=0f..24f, colors=SliderDefaults.colors(thumbColor=Orange, activeTrackColor=Orange))
-    Text("Цвет акцента", color = Paper, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-        listOf("orange" to "Оранжевый", "blue" to "Синий", "purple" to "Фиолетовый", "green" to "Зелёный").forEach { (key, label) ->
-            FilterChip(selected = accentChoice == key, onClick = { setAccentChoice(key) }, label = { Text(label, fontSize = 10.sp) }, colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Orange.copy(alpha = .22f), selectedLabelColor = Peach, labelColor = Muted))
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color(0xCC111F35),
+        shape = RoundedCornerShape(22.dp),
+        border = BorderStroke(1.dp, Border)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
+                        .background(Brush.linearGradient(listOf(Color(0x5542DFFF), Color(0x559A83FF)))),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Search, contentDescription = null, tint = Orange, modifier = Modifier.size(22.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("ПОИСКОВАЯ СИСТЕМА", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                    Text("DuckDuckGo", color = Paper, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                }
+                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Orange, modifier = Modifier.size(19.dp))
+            }
+            Text(
+                "Единственная поисковая система браузера. Поиск открывается без отдельного аккаунта.",
+                color = Muted, fontSize = 11.sp, lineHeight = 16.sp,
+                modifier = Modifier.padding(top = 10.dp)
+            )
         }
     }
-    Text("Дополнительные параметры защиты находятся в Центре безопасности.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 10.dp))
+    Spacer(Modifier.height(12.dp))
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color(0xCC111F35),
+        shape = RoundedCornerShape(22.dp),
+        border = BorderStroke(1.dp, Border)
+    ) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp, bottom = 3.dp)) {
+                Icon(Icons.Default.Security, contentDescription = null, tint = Orange, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(9.dp))
+                Text("ПРИВАТНОСТЬ И ОТОБРАЖЕНИЕ", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.05.sp)
+            }
+            SettingSwitch("Блокировать трекеры", trackers, setTrackers)
+            HorizontalDivider(color = Border.copy(alpha = .65f))
+            SettingSwitch("Тёмный режим сайтов", dark, setDark)
+            HorizontalDivider(color = Border.copy(alpha = .65f))
+            SettingSwitch("Анимации интерфейса", anim, setAnim)
+            HorizontalDivider(color = Border.copy(alpha = .65f))
+            SettingSwitch("Версия сайтов для компьютера", desktopMode, setDesktopMode)
+            Text(
+                "Режим компьютера меняет User-Agent и viewport GeckoView для всех вкладок. Некоторые сайты могут отображаться иначе.",
+                color = Muted, fontSize = 10.sp, lineHeight = 15.sp,
+                modifier = Modifier.padding(top = 4.dp, bottom = 9.dp)
+            )
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color(0xCC111F35),
+        shape = RoundedCornerShape(22.dp),
+        border = BorderStroke(1.dp, Border)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.BlurOn, contentDescription = null, tint = Orange, modifier = Modifier.size(19.dp))
+                Spacer(Modifier.width(9.dp))
+                Text("ВИЗУАЛЬНЫЕ ЭФФЕКТЫ", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
+            }
+            Text("Размытие фона", color = Paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 14.dp))
+            Text("${blur.toInt()} px", color = Orange, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Slider(
+                value = blur,
+                onValueChange = setBlur,
+                valueRange = 0f..24f,
+                colors = SliderDefaults.colors(thumbColor = Orange, activeTrackColor = Orange)
+            )
+            Text("Цвет акцента", color = Paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 7.dp, bottom = 9.dp))
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                listOf("orange" to "Оранжевый", "blue" to "Синий", "purple" to "Фиолетовый", "green" to "Зелёный").forEach { (key, label) ->
+                    FilterChip(
+                        selected = accentChoice == key,
+                        onClick = { setAccentChoice(key) },
+                        label = { Text(label, fontSize = 10.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Orange.copy(alpha = .22f),
+                            selectedLabelColor = Peach,
+                            labelColor = Muted
+                        )
+                    )
+                }
+            }
+        }
+    }
+    Text(
+        "Дополнительные параметры защиты находятся в Центре безопасности.",
+        color = Muted, fontSize = 11.sp, lineHeight = 16.sp,
+        modifier = Modifier.padding(top = 12.dp)
+    )
 }
+
 @Composable private fun PrivacyPanel(trackers:Boolean, setTrackers:(Boolean)->Unit, ad:Boolean, setAd:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, night:Boolean, setNight:(Boolean)->Unit, openAndroidSettings:()->Unit) {
     PanelTitle("Центр безопасности", "Контроль защиты и разрешений сайтов")
     Surface(Modifier.fillMaxWidth(), color = Color(0xFF111E32), shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, Border)) {
