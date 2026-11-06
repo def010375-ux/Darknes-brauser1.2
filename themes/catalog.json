@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "themes": [
+    {
+      "id": "event-horizon",
+      "name": "Event Horizon",
+      "accent": "cyan",
+      "incognitoAccent": "purple",
+      "homeLayout": "grid",
+      "blur": 12,
+      "language": "ru"
+    },
+    {
+      "id": "deep-space",
+      "name": "Deep Space",
+      "accent": "purple",
+      "incognitoAccent": "blue",
+      "homeLayout": "compact",
+      "blur": 18,
+      "language": "ru"
+    },
+    {
+      "id": "arctic",
+      "name": "Arctic Glass",
+      "accent": "blue",
+      "incognitoAccent": "cyan",
+      "homeLayout": "list",
+      "blur": 7,
+      "language": "en"
+    },
+    {
+      "id": "emerald",
+      "name": "Emerald Nebula",
+      "accent": "green",
+      "incognitoAccent": "purple",
+      "homeLayout": "grid",
+      "blur": 10,
+      "language": "en"
+    },
+    {
+      "id": "minimal",
+      "name": "Minimal Void",
+      "accent": "cyan",
+      "incognitoAccent": "green",
+      "homeLayout": "compact",
+      "blur": 0,
+      "language": "ru"
+    }
+  ]
+}
