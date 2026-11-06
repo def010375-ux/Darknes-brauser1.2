@@ -370,6 +370,7 @@ private fun DarknesLaunchGate(onAuthenticated: () -> Unit) {
                 refreshDarknesSession(context, savedSession)
             }
             if (validSession != null) {
+                runCatching { DarknesDeviceApi.register(context, validSession) }
                 onAuthenticated()
                 return@LaunchedEffect
             }
