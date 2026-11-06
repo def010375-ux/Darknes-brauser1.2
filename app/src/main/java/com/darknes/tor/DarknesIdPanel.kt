@@ -54,14 +54,23 @@ fun DarknesIdPanel(onAuthenticated: (() -> Unit)? = null) {
             Text("Сессия хранится в зашифрованном виде на этом устройстве.", color = Color(DarknesMuted), fontSize = 12.sp)
             Button(
                 onClick = {
-                    DarknesSessionStore.clear(context)
-                    currentSession = null
-                    message = "Вы вышли из аккаунта на этом устройстве."
+                    val sessionToRevoke = currentSession
+                    busy = true
+                    scope.launch {
+                        if (sessionToRevoke != null) {
+                            withContext(Dispatchers.IO) { revokeDarknesSession(sessionToRevoke) }
+                        }
+                        DarknesSessionStore.clear(context)
+                        currentSession = null
+                        busy = false
+                        message = "Вы вышли из аккаунта."
+                    }
                 },
+                enabled = !busy,
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(DarknesOrange), contentColor = Color(DarknesInk))
-            ) { Text("Выйти из аккаунта", fontWeight = FontWeight.Bold) }
+            ) { Text(if (busy) "Выход..." else "Выйти из аккаунта", fontWeight = FontWeight.Bold) }
             if (message.isNotBlank()) Text(message, color = Color(DarknesMuted), fontSize = 12.sp)
         } else {
             Text(
