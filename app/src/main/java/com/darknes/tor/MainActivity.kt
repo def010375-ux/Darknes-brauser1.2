@@ -56,14 +56,14 @@ import org.mozilla.geckoview.GeckoSessionSettings
 import org.mozilla.geckoview.GeckoView
 import org.mozilla.geckoview.WebResponse
 
-private val Ink = Color(0xFF050404)
-private val Paper = Color(0xFFF6F1EC)
-private val Orange = Color(0xFFFF8A1F)
-private val Peach = Color(0xFFFFC27A)
-private val Violet = Color(0xFF9D7BFF)
-private val Muted = Color(0xFF8B8580)
-private val Glass = Color(0xD91A1715)
-private val Border = Color(0x35FFF4E8)
+private val Ink = Color(0xFF070A14)
+private val Paper = Color(0xFFF1F5FF)
+private val Orange = Color(0xFF38D9FF)
+private val Peach = Color(0xFFB69CFF)
+private val Violet = Color(0xFF8B6CFF)
+private val Muted = Color(0xFF929DB8)
+private val Glass = Color(0xD9161D32)
+private val Border = Color(0x5546CFFF)
 
 private data class DownloadRecord(val id: Long, val name: String, val status: String, val savedUri: String? = null, val downloadedBytes: Long = 0L, val totalBytes: Long = 0L)
 
@@ -380,7 +380,7 @@ private fun DarknesLaunchGate(onAuthenticated: () -> Unit) {
 
     Column(
         Modifier.fillMaxSize().background(
-            Brush.verticalGradient(listOf(Color(0xFF100A07), Ink, Color(0xFF080605)))
+            Brush.verticalGradient(listOf(Color(0xFF0D1024), Ink, Color(0xFF050711)))
         ).statusBarsPadding().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -409,7 +409,7 @@ private fun DarknesLaunchGate(onAuthenticated: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().heightIn(min = 270.dp, max = 390.dp),
                 color = Color(0xE6161210),
                 shape = RoundedCornerShape(28.dp),
-                border = BorderStroke(1.dp, Color(0x55FF9A43)),
+                border = BorderStroke(1.dp, Color(0x6646CFFF)),
                 shadowElevation = 22.dp
             ) {
                 Column(Modifier.padding(18.dp)) {
