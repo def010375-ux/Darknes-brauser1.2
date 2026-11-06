@@ -1225,7 +1225,31 @@ private fun HomeScreen(
             style = TextStyle(brush = Brush.linearGradient(listOf(Paper, Peach)), fontSize = 39.sp, fontWeight = FontWeight.Bold)
         )
         Text("Поиск без входа и слежки", color = Muted, fontSize = 14.sp)
-        Spacer(Modifier.height(22.dp))
+        Spacer(Modifier.height(10.dp))
+        Surface(
+            color = Color(0x33204468),
+            shape = RoundedCornerShape(50.dp),
+            border = BorderStroke(1.dp, Border.copy(alpha = .9f))
+        ) {
+            Row(
+                Modifier.padding(horizontal = 13.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.size(6.dp).clip(CircleShape)
+                        .background(Brush.linearGradient(listOf(Orange, Violet)))
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "DARKNES TOR  ·  1.5 BETA",
+                    color = Color(0xFFBFDFFF),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.15.sp
+                )
+            }
+        }
+        Spacer(Modifier.height(18.dp))
         HomeSearchBar(
             value = searchText,
             onValueChange = onSearchTextChange,
