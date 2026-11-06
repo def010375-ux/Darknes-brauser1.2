@@ -1047,7 +1047,15 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                             .background(Glass).border(1.dp, Border, RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
                             .clickable(enabled = false) {}.padding(20.dp)
                     ) {
-                        when (panel) {
+                        AnimatedContent(
+                            targetState = panel,
+                            transitionSpec = {
+                                (fadeIn(tween(190)) + slideInHorizontally(tween(230, easing = FastOutSlowInEasing)) { it / 12 } + scaleIn(initialScale = .985f))
+                                    .togetherWith(fadeOut(tween(120)) + slideOutHorizontally(tween(150)) { -it / 18 })
+                            },
+                            label = "darknes-panel-transition"
+                        ) { currentPanel ->
+                        when (currentPanel) {
                             "Меню" -> MenuPanel(accent) { action ->
                                 panel = when(action) {
                                     "Новая вкладка" -> { addTab(); loaded = false; "" }
@@ -1124,6 +1132,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                 onRemove = { page -> history.remove(page) },
                                 onClear = { history.clear() })
                             "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), tabGroups.toList(), activeTab, incognito, { value -> if (value) privateModeUsed = true; incognito = value }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { index -> tabGroups[index] = when (tabGroups[index]) { "Основная" -> "Работа"; "Работа" -> "Личное"; else -> "Основная" } }, { panel = "" })
+                        }
                         }
                     }
                 }
