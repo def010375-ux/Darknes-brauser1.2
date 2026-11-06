@@ -1273,11 +1273,30 @@ private fun HomeScreen(
         Spacer(Modifier.height(20.dp))
         if (bookmarks.isNotEmpty()) {
             Text("ТВОИ ЗАКЛАДКИ", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, modifier = Modifier.align(Alignment.Start).padding(start = 22.dp, top = 18.dp, bottom = 8.dp))
-            LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = Modifier.fillMaxWidth().heightIn(max = 190.dp).padding(horizontal = 12.dp), userScrollEnabled = false) {
-                items(bookmarks.take(6)) { page ->
-                    Column(Modifier.padding(5.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF12223A)).border(1.dp, Border, RoundedCornerShape(16.dp)).clickable { onShortcut(page.url) }.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.Bookmark, contentDescription = null, tint = accent, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.height(5.dp)); Text(page.title, color = Paper, fontSize = 10.sp, maxLines = 1)
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(9.dp)
+            ) {
+                bookmarks.take(8).forEach { page ->
+                    Surface(
+                        modifier = Modifier.width(190.dp).height(68.dp).clickable { onShortcut(page.url) },
+                        color = Color(0xCC111F35),
+                        shape = RoundedCornerShape(19.dp),
+                        border = BorderStroke(1.dp, Border)
+                    ) {
+                        Row(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(37.dp).clip(RoundedCornerShape(13.dp))
+                                .background(Color(0x333DDFFF)), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Bookmark, contentDescription = null, tint = accent, modifier = Modifier.size(19.dp))
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(page.title, color = Paper, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                Text(runCatching { java.net.URI(page.url).host.orEmpty().removePrefix("www.") }.getOrDefault(page.url),
+                                    color = Muted, fontSize = 9.sp, maxLines = 1)
+                            }
+                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Muted, modifier = Modifier.size(16.dp))
+                        }
                     }
                 }
             }
