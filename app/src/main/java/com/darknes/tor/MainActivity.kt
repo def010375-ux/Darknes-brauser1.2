@@ -733,6 +733,8 @@ private fun resolveAddress(raw: String, engine: String): String {
 
 @Composable
 private fun DarknesLaunchGate(onAuthenticated: () -> Unit) {
+    val context = LocalContext.current
+    val changesPrefs = remember(context) { context.getSharedPreferences("darknes_id_profile", android.content.Context.MODE_PRIVATE) }
     val iconBurst = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         kotlinx.coroutines.delay(850)
@@ -743,6 +745,8 @@ private fun DarknesLaunchGate(onAuthenticated: () -> Unit) {
         }
     }
     var showLogin by remember { mutableStateOf(false) }
+    var showChangelog by remember { mutableStateOf(false) }
+    var dontShowAgain by remember { mutableStateOf(changesPrefs.getBoolean("hide_1_5_changelog", false)) }
     LaunchedEffect(Unit) {
         kotlinx.coroutines.delay(650)
         showLogin = true
@@ -756,34 +760,22 @@ private fun DarknesLaunchGate(onAuthenticated: () -> Unit) {
     ) {
         Spacer(Modifier.height(8.dp))
         Text("WELCOME TO", color = Muted, fontSize = 10.sp, letterSpacing = 4.sp, fontWeight = FontWeight.SemiBold)
-        Text(
-            "DARKNES",
-            color = Paper,
-            fontSize = 30.sp,
-            letterSpacing = 5.sp,
-            fontWeight = FontWeight.Black,
-            modifier = Modifier.padding(top = 3.dp)
-        )
+        Text("DARKNES", color = Paper, fontSize = 30.sp, letterSpacing = 5.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(top = 3.dp))
         Text("ВХОД В ТВОЮ ВСЕЛЕННУЮ", color = Peach, fontSize = 9.sp, letterSpacing = 2.2.sp)
-        Box(
-            Modifier.fillMaxWidth().weight(0.9f).padding(top = 4.dp),
-            contentAlignment = Alignment.Center
-        ) {
+        Box(Modifier.fillMaxWidth().weight(0.9f).padding(top = 4.dp), contentAlignment = Alignment.Center) {
             BlackHoleScene(iconBurst = iconBurst.value)
         }
-        AnimatedVisibility(
-            visible = showLogin,
-            enter = fadeIn(tween(500)) + slideInVertically(tween(500)) { it / 5 }
-        ) {
+        AnimatedVisibility(visible = showLogin, enter = fadeIn(tween(500)) + slideInVertically(tween(500)) { it / 5 }) {
             Surface(
                 modifier = Modifier.fillMaxWidth().heightIn(min = 270.dp, max = 390.dp),
-                color = Color(0xE6161210),
-                shape = RoundedCornerShape(28.dp),
-                border = BorderStroke(1.dp, Color(0x55FF9A43)),
-                shadowElevation = 22.dp
+                color = Color(0xE6161210), shape = RoundedCornerShape(28.dp),
+                border = BorderStroke(1.dp, Color(0x55FF9A43)), shadowElevation = 22.dp
             ) {
                 Column(Modifier.padding(18.dp)) {
-                    DarknesIdPanel(onAuthenticated = onAuthenticated)
+                    DarknesIdPanel(onAuthenticated = {
+                        if (changesPrefs.getBoolean("hide_1_5_changelog", false)) onAuthenticated()
+                        else showChangelog = true
+                    })
                 }
             }
         }
@@ -791,8 +783,61 @@ private fun DarknesLaunchGate(onAuthenticated: () -> Unit) {
         Text("DARKNES ID  ·  ЕДИНЫЙ АККАУНТ", color = Muted, fontSize = 9.sp, letterSpacing = 1.5.sp)
         Spacer(Modifier.height(5.dp))
     }
-}
 
+    if (showChangelog) {
+        AlertDialog(
+            onDismissRequest = { },
+            containerColor = Color(0xFF101D31),
+            titleContentColor = Paper,
+            textContentColor = Muted,
+            title = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("DARKNES TOR · 1.5 BETA", color = Orange, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.4.sp)
+                    Text("Список изменений", color = Paper, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text("Что нового после входа в Darknes ID", color = Muted, fontSize = 11.sp)
+                }
+            },
+            text = {
+                Column(Modifier.fillMaxWidth().heightIn(max = 390.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                    val changes = listOf(
+                        "Новый интерфейс" to "Футуристическая тёмная тема, стеклянные панели, cyan/violet-подсветка и плавные переходы между разделами.",
+                        "Darknes Vault" to "Локальное зашифрованное хранилище логинов и паролей с мастер-паролем и биометрической защитой.",
+                        "Автозаполнение Android" to "Подготовлена интеграция системного автозаполнения с запросом разблокировки Vault и подбором записей по домену.",
+                        "Защита ссылок" to "Локальная проверка подозрительных адресов и предупреждение перед переходом по рискованной ссылке.",
+                        "Центр обновлений" to "Проверка опубликованных версий и APK через GitHub Releases.",
+                        "Darknes ID" to "Единый профиль экосистемы Darknes. Сейчас профиль хранится локально; облачная синхронизация появится позже."
+                    )
+                    changes.forEachIndexed { index, item ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                            Surface(shape = CircleShape, color = Orange.copy(alpha = .13f), border = BorderStroke(1.dp, Border), modifier = Modifier.size(27.dp)) {
+                                Box(contentAlignment = Alignment.Center) { Text((index + 1).toString(), color = Orange, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                            }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(item.first, color = Paper, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text(item.second, color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+                            }
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().clickable { dontShowAgain = !dontShowAgain }) {
+                        Checkbox(checked = dontShowAgain, onCheckedChange = { dontShowAgain = it }, colors = CheckboxDefaults.colors(checkedColor = Orange, uncheckedColor = Muted, checkmarkColor = Ink))
+                        Text("Больше не показывать", color = Paper, fontSize = 12.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        changesPrefs.edit().putBoolean("hide_1_5_changelog", dontShowAgain).apply()
+                        showChangelog = false
+                        onAuthenticated()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Ink),
+                    shape = RoundedCornerShape(13.dp)
+                ) { Text("Я прочитал", fontWeight = FontWeight.Bold) }
+            }
+        )
+    }
+}
 @Composable
 private fun BlackHoleScene(
     iconBurst: Float,
