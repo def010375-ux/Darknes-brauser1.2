@@ -8,6 +8,9 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -176,6 +179,7 @@ private fun encodeVaultEntries(entries: List<VaultEntry>): String = JSONArray().
 @Composable
 private fun DarknesVaultPanel() {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     var created by remember(context) { mutableStateOf(DarknesVaultCrypto.isCreated(context)) }
     var unlocked by remember { mutableStateOf(false) }
     var masterPassword by remember { mutableStateOf("") }
@@ -188,6 +192,23 @@ private fun DarknesVaultPanel() {
     var secret by remember { mutableStateOf("") }
     var website by remember { mutableStateOf("") }
     var revealIds by remember { mutableStateOf(setOf<String>()) }
+
+    // Lock the in-memory vault when the app leaves the foreground.
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                unlocked = false
+                entries = emptyList()
+                revealIds = emptySet()
+                masterPassword = ""
+                vaultPassphrase = ""
+                secret = ""
+                addMode = false
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     PanelTitle("Darknes Vault", "Локальное зашифрованное хранилище паролей")
     Surface(
@@ -241,7 +262,7 @@ private fun DarknesVaultPanel() {
             modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF42BFE8))
         ) { Text(if (created) "Разблокировать" else "Создать защищённое хранилище", color = Color(0xFF071321), fontWeight = FontWeight.Bold) }
-        Text("Если мастер-пароль потерян, восстановить данные будет невозможно. Сброс приложения также может удалить хранилище.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 12.dp))
+        Text("Если мастер-пароль потерян, восстановить данные будет невозможно. Vault автоматически блокируется при сворачивании приложения.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 12.dp))
     } else {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -289,7 +310,7 @@ private fun DarknesVaultPanel() {
                         }
                         IconButton(onClick = {
                             val updated = entries.filterNot { it.id == item.id }
-                            if (DarknesVaultCrypto.save(context, masterPassword.toCharArray(), encodeVaultEntries(updated))) entries = updated
+                            if (DarknesVaultCrypto.save(context, vaultPassphrase.toCharArray(), encodeVaultEntries(updated))) entries = updated
                             else error = "Не удалось сохранить изменения."
                         }) { Icon(Icons.Default.DeleteOutline, contentDescription = "Удалить", tint = Color(0xFFFF9B86)) }
                     }
@@ -308,7 +329,7 @@ private fun DarknesVaultPanel() {
                 }
             }
         }
-        Text("Закрывай Vault после использования. Скопированный пароль остаётся в буфере обмена до его замены или очистки.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 12.dp))
+        Text("Закрывай Vault после использования. При сворачивании приложения записи и ключ из памяти очищаются. Скопированный пароль остаётся в буфере обмена до его замены или очистки.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 12.dp))
     }
 }
 
