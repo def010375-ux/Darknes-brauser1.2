@@ -348,6 +348,7 @@ private fun resolveAddress(raw: String, engine: String): String {
 
 @Composable
 private fun DarknesLaunchGate(onAuthenticated: () -> Unit) {
+    val context = LocalContext.current
     val iconBurst = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         kotlinx.coroutines.delay(850)
@@ -360,6 +361,19 @@ private fun DarknesLaunchGate(onAuthenticated: () -> Unit) {
     var showLogin by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         kotlinx.coroutines.delay(650)
+        val savedSession = DarknesSessionStore.load(context)
+        if (savedSession != null) {
+            val nowSeconds = System.currentTimeMillis() / 1000L
+            val validSession = if (savedSession.expiresAt > nowSeconds + 60L) {
+                savedSession
+            } else {
+                refreshDarknesSession(context, savedSession)
+            }
+            if (validSession != null) {
+                onAuthenticated()
+                return@LaunchedEffect
+            }
+        }
         showLogin = true
     }
 
