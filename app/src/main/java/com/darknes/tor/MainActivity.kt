@@ -1,6 +1,7 @@
 package com.darknes.tor
 
 import android.os.Bundle
+import android.view.WindowManager
 import android.content.Intent
 import android.os.SystemClock
 import android.net.Uri
@@ -499,7 +500,7 @@ private fun BlackHoleScene(
 
             // A tilted, perspective-projected accretion disk. Rear edge is drawn first.
             rotate(-13f, pivot = Offset(cx, cy)) {
-                rotate(rotation * .16f, pivot = Offset(cx, cy)) {
+                rotate(rotation, pivot = Offset(cx, cy)) {
                     drawArc(
                         brush = Brush.sweepGradient(listOf(Color.Transparent, accent.copy(alpha = .25f), Color(0xFFFFD9A0), accent, Color.Transparent), center = Offset(cx, cy)),
                         startAngle = 180f, sweepAngle = 180f, useCenter = false,
@@ -541,7 +542,7 @@ private fun BlackHoleScene(
                 }
 
                 // Bright front lip of the disk gives the scene a strong 3D silhouette.
-                rotate(rotation * .16f, pivot = Offset(cx, cy)) {
+                rotate(rotation, pivot = Offset(cx, cy)) {
                     drawArc(
                         brush = Brush.sweepGradient(listOf(Color.Transparent, accent, Color(0xFFFFF1D2), accent.copy(alpha = .8f), Color.Transparent), center = Offset(cx, cy)),
                         startAngle = 0f, sweepAngle = 180f, useCenter = false,
@@ -621,6 +622,12 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         return
     }
     val context = LocalContext.current
+    DisposableEffect(incognito, context) {
+        val window = (context as? ComponentActivity)?.window
+        if (incognito) window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        else window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
+    }
     val tabsPrefs = remember(context) { context.getSharedPreferences("darknes_tabs", android.content.Context.MODE_PRIVATE) }
     val restoredTabs = remember(tabsPrefs) {
         readBrowserTabs(tabsPrefs.getString("tabs", null))
@@ -722,6 +729,22 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var searchSource by remember { mutableStateOf(engine) }
     var tabCount by remember { mutableIntStateOf(1) }
     var toast by remember { mutableStateOf("") }
+    fun exitPrivateSession() {
+        sessions.getOrNull(activeTab)?.let { privateSession ->
+            privateSession.purgeHistory()
+            privateSession.loadUri("about:blank")
+        }
+        if (activeTab in tabUrls.indices) tabUrls[activeTab] = ""
+        if (activeTab in tabTitles.indices) tabTitles[activeTab] = "Новая вкладка"
+        query = ""
+        loaded = false
+        showSearchResults = false
+        incognito = false
+        privateModeUsed = false
+        islandOpen = false
+        panel = ""
+        toast = "Приватная вкладка очищена"
+    }
     var readerContent by remember { mutableStateOf("") }
     var readerSource by remember { mutableStateOf("") }
     var readerLoading by remember { mutableStateOf(false) }
@@ -973,7 +996,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         when {
             panel.isNotEmpty() -> panel = ""
             islandOpen -> islandOpen = false
-            incognito -> incognito = false
+            incognito -> exitPrivateSession()
         }
     }
     LaunchedEffect(toast) {
@@ -1097,7 +1120,13 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                         session.loadUri(url)
                     }
                 )
-            } else if (!loaded) HomeScreen(
+            } else if (!loaded && incognito) IncognitoHomeScreen(
+                accent = accent,
+                searchText = query,
+                onSearchTextChange = { query = it },
+                onSearch = { runSearch(query); keyboard?.hide() },
+                onExit = { exitPrivateSession() }
+            ) else if (!loaded) HomeScreen(
                 accent = accent,
                 blur = blur,
                 animations = animations,
@@ -1259,7 +1288,9 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                     Text("$count", color = Paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
-            NavCircle(Icons.Default.MoreHoriz, accent) { panel = "Меню" }
+            NavCircle(if (incognito) Icons.Default.Close else Icons.Default.MoreHoriz, accent) {
+                if (incognito) exitPrivateSession() else panel = "Меню"
+            }
         }
     }
 }
@@ -1333,6 +1364,89 @@ private fun SearchResultsScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun IncognitoHomeScreen(
+    accent: Color,
+    searchText: String,
+    onSearchTextChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    onExit: () -> Unit
+) {
+    Column(
+        Modifier.fillMaxSize().background(
+            Brush.verticalGradient(listOf(Color(0xFF100D25), Color(0xFF070A14), Color(0xFF080D1B)))
+        ).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 26.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            Modifier.size(76.dp).clip(CircleShape)
+                .background(Brush.radialGradient(listOf(accent.copy(alpha = .30f), Violet.copy(alpha = .12f), Color.Transparent)))
+                .border(1.dp, accent.copy(alpha = .48f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Default.VisibilityOff, contentDescription = null, tint = accent, modifier = Modifier.size(34.dp))
+        }
+        Spacer(Modifier.height(18.dp))
+        Text("DARKNES · PRIVATE", color = Paper, fontSize = 23.sp, fontWeight = FontWeight.Black, letterSpacing = 1.5.sp)
+        Spacer(Modifier.height(7.dp))
+        Text("Приватный сеанс", color = accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(8.dp))
+        Text("История посещений не добавляется в историю браузера. Закрой приватную вкладку, когда закончишь.",
+            color = Muted, fontSize = 12.sp, lineHeight = 18.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        Spacer(Modifier.height(24.dp))
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                .background(Color(0xFF17152E)).border(1.dp, accent.copy(alpha = .32f), RoundedCornerShape(18.dp)).padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Shield, tint = Color(0xFF62E6C2), contentDescription = null, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Защита экрана активна", color = Paper, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text("Снимки экрана и запись экрана заблокированы", color = Muted, fontSize = 10.sp, lineHeight = 14.sp)
+            }
+            Box(Modifier.size(7.dp).background(Color(0xFF62E6C2), CircleShape))
+        }
+        Spacer(Modifier.height(20.dp))
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp))
+                .background(Color(0xFF111A30)).border(1.dp, Border, RoundedCornerShape(17.dp)).padding(horizontal = 13.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Search, tint = accent, contentDescription = null)
+            Spacer(Modifier.width(9.dp))
+            Box(Modifier.weight(1f)) {
+                if (searchText.isEmpty()) Text("Поиск в приватном режиме", color = Muted, fontSize = 13.sp)
+                BasicTextField(value = searchText, onValueChange = onSearchTextChange, modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, textStyle = TextStyle(color = Paper, fontSize = 14.sp),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { onSearch() }))
+            }
+            IconButton(onClick = onSearch, modifier = Modifier.size(34.dp)) {
+                Icon(Icons.Default.ArrowForward, tint = accent, contentDescription = "Искать")
+            }
+        }
+        Spacer(Modifier.height(18.dp))
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                .background(Color(0xFF10172A)).border(1.dp, Border, RoundedCornerShape(18.dp)).padding(15.dp)
+        ) {
+            Text("ПРАВИЛА ПРИВАТНОГО СЕАНСА", color = accent, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(10.dp))
+            Text("• Страницы не записываются в локальную историю браузера", color = Paper, fontSize = 11.sp, lineHeight = 17.sp)
+            Text("• Завершение сеанса очищает навигационную историю текущей вкладки", color = Paper, fontSize = 11.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 5.dp))
+            Text("• Приватный режим не скрывает трафик от сайтов, сети или интернет-провайдера", color = Muted, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 7.dp))
+        }
+        Spacer(Modifier.height(22.dp))
+        Button(onClick = onExit, modifier = Modifier.fillMaxWidth().height(52.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Ink), shape = RoundedCornerShape(16.dp)) {
+            Icon(Icons.Default.Lock, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Завершить приватный сеанс", fontWeight = FontWeight.Bold)
         }
     }
 }
