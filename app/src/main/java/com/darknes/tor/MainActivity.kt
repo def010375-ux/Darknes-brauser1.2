@@ -1296,6 +1296,7 @@ private fun HomeScreen(
 ) {
     var titleTapCount by remember { mutableIntStateOf(0) }
     var lastTitleTapAt by remember { mutableLongStateOf(0L) }
+    val wallpaperContext = LocalContext.current
     Column(Modifier.fillMaxSize().background(Ink).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(18.dp))
         Box(Modifier.fillMaxWidth().height(220.dp), contentAlignment = Alignment.Center) {
@@ -1303,7 +1304,7 @@ private fun HomeScreen(
                 if (wallpaperUri.isBlank()) null else runCatching {
                     val uri = Uri.parse(wallpaperUri)
                     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                    LocalContext.current.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+                    wallpaperContext.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
                     val sample = maxOf(1, maxOf(bounds.outWidth / 1200, bounds.outHeight / 900))
                     val options = BitmapFactory.Options().apply { inSampleSize = sample }
                     LocalContext.current.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options)?.asImageBitmap() }
