@@ -687,7 +687,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var readerSource by remember { mutableStateOf("") }
     var readerLoading by remember { mutableStateOf(false) }
     var readerError by remember { mutableStateOf("") }
-    var accentChoice by remember { mutableStateOf(settingsPrefs.getString("accent", "orange") ?: "orange") }
+    var accentChoice by remember { mutableStateOf(settingsPrefs.getString("accent", "cyan") ?: "cyan") }
     var testerTapCount by remember { mutableIntStateOf(0) }
     var testerLastTap by remember { mutableLongStateOf(0L) }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -1112,7 +1112,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         // Floating bottom glass navigation, above Android gesture/navigation area
         Row(
             Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 10.dp)
-                .height(62.dp).clip(RoundedCornerShape(26.dp)).background(Glass)
+                .height(68.dp).clip(RoundedCornerShape(26.dp)).background(Brush.horizontalGradient(listOf(Color(0xE6162038), Color(0xE610172B), Color(0xE61B2040))))
                 .border(1.dp, Border, RoundedCornerShape(26.dp)).padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1122,7 +1122,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 if (tabUrls.getOrNull(activeTab).orEmpty().isNotBlank()) session.reload()
             }
             NavCircle(Icons.Default.AutoAwesome, accent) { panel = "ИИ-чат" }
-            Box(Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(Color(0xFF30251C)).clickable { panel = "Вкладки" }, contentAlignment = Alignment.Center) {
+            Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Brush.linearGradient(listOf(accent.copy(alpha = .28f), Violet.copy(alpha = .20f)))).border(1.dp, accent.copy(alpha = .5f), RoundedCornerShape(14.dp)).clickable { panel = "Вкладки" }, contentAlignment = Alignment.Center) {
                 Text("${sessions.size}", color = Paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             }
             NavCircle(Icons.Default.MoreHoriz, accent) { panel = "Меню" }
@@ -1144,7 +1144,7 @@ private fun SearchResultsScreen(
             }
             Text("\${results.size}", color = Muted, fontSize = 12.sp)
         }
-        Surface(color = Color(0xFF171311), shape = RoundedCornerShape(18.dp),
+        Surface(color = Color(0xFF10172B), shape = RoundedCornerShape(18.dp),
             border = BorderStroke(1.dp, accent.copy(alpha = .35f)),
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
             Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1175,10 +1175,10 @@ private fun SearchResultsScreen(
                 verticalArrangement = Arrangement.spacedBy(11.dp)) {
                 items(results.size) { index ->
                     val result = results[index]
-                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xFF151210))
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xFF0D1426))
                         .border(1.dp, Border, RoundedCornerShape(18.dp)).clickable { onOpenResult(result.url) }.padding(15.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(25.dp).clip(CircleShape).background(Color(0xFF30251C)), contentAlignment = Alignment.Center) {
+                            Box(Modifier.size(25.dp).clip(CircleShape).background(Color(0xFF17213B)), contentAlignment = Alignment.Center) {
                                 Text(result.displayUrl.take(1).uppercase(), color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                             Spacer(Modifier.width(8.dp))
@@ -1240,7 +1240,7 @@ private fun HomeScreen(
                     onSecretSettings()
                 }
             },
-            style = TextStyle(brush = Brush.linearGradient(listOf(Paper, Peach)), fontSize = 39.sp, fontWeight = FontWeight.Bold)
+            style = TextStyle(brush = Brush.linearGradient(listOf(Paper, Orange, Violet)), fontSize = 39.sp, fontWeight = FontWeight.Bold)
         )
         Text("Поиск без входа и слежки", color = Muted, fontSize = 14.sp)
         Spacer(Modifier.height(22.dp))
@@ -1253,21 +1253,38 @@ private fun HomeScreen(
             onSearch = onSearch
         )
         Spacer(Modifier.height(24.dp))
-        val sites = listOf("Y" to "YouTube", "D" to "DuckDuckGo", "Gh" to "GitHub", "W" to "Wikipedia", "T" to "Telegram", "R" to "Reddit", "Tw" to "Twitch")
-        LazyVerticalGrid(columns = GridCells.Fixed(4), modifier = Modifier.fillMaxWidth().height(190.dp).padding(horizontal = 12.dp), userScrollEnabled = false) {
-            items(sites) { (letter, name) ->
-                Column(Modifier.padding(5.dp).clip(RoundedCornerShape(18.dp)).background(Brush.linearGradient(listOf(Color(0xFF29211B), Color(0xFF141110)))).border(1.dp, Border, RoundedCornerShape(18.dp)).clickable { onShortcut(when(name) { "YouTube" -> "https://youtube.com"; "DuckDuckGo" -> "https://duckduckgo.com"; "GitHub" -> "https://github.com"; "Wikipedia" -> "https://wikipedia.org"; "Telegram" -> "https://telegram.org"; "Reddit" -> "https://reddit.com"; else -> "https://twitch.tv" }) }.padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(letter, color = Orange, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(4.dp))
-                    Text(name, color = Paper, fontSize = 10.sp, maxLines = 1)
+        Text("БЫСТРЫЙ ДОСТУП", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp, modifier = Modifier.align(Alignment.Start).padding(start = 24.dp, bottom = 10.dp))
+        val sites = listOf(
+            Triple("YouTube", Icons.Default.PlayCircleFilled, "https://youtube.com"),
+            Triple("DuckDuckGo", Icons.Default.Search, "https://duckduckgo.com"),
+            Triple("GitHub", Icons.Default.Code, "https://github.com"),
+            Triple("Wikipedia", Icons.Default.Language, "https://wikipedia.org"),
+            Triple("Telegram", Icons.Default.Send, "https://telegram.org"),
+            Triple("Reddit", Icons.Default.Forum, "https://reddit.com"),
+            Triple("Twitch", Icons.Default.LiveTv, "https://twitch.tv")
+        )
+        LazyVerticalGrid(columns = GridCells.Fixed(4), modifier = Modifier.fillMaxWidth().height(204.dp).padding(horizontal = 14.dp), userScrollEnabled = false) {
+            items(sites) { (name, icon, url) ->
+                Column(
+                    Modifier.padding(5.dp).clip(RoundedCornerShape(19.dp))
+                        .background(Brush.linearGradient(listOf(Color(0xFF1A2B49), Color(0xFF10172B))))
+                        .border(1.dp, Border, RoundedCornerShape(19.dp))
+                        .clickable { onShortcut(url) }.padding(vertical = 13.dp, horizontal = 3.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(accent.copy(alpha = .13f)), contentAlignment = Alignment.Center) {
+                        Icon(icon, contentDescription = name, tint = accent, modifier = Modifier.size(23.dp))
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(name, color = Paper, fontSize = 9.sp, maxLines = 1, fontWeight = FontWeight.Medium)
                 }
             }
         }
         if (bookmarks.isNotEmpty()) {
-            Text("ТВОИ ЗАКЛАДКИ", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, modifier = Modifier.align(Alignment.Start).padding(start = 22.dp, top = 18.dp, bottom = 8.dp))
+            Text("ТВОИ ЗАКЛАДКИ", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp, modifier = Modifier.align(Alignment.Start).padding(start = 24.dp, top = 20.dp, bottom = 8.dp))
             LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = Modifier.fillMaxWidth().heightIn(max = 190.dp).padding(horizontal = 12.dp), userScrollEnabled = false) {
                 items(bookmarks.take(6)) { page ->
-                    Column(Modifier.padding(5.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF211B17)).border(1.dp, Border, RoundedCornerShape(16.dp)).clickable { onShortcut(page.url) }.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(Modifier.padding(5.dp).clip(RoundedCornerShape(16.dp)).background(Brush.linearGradient(listOf(Color(0xFF1A2B49), Color(0xFF10172B)))).border(1.dp, Border, RoundedCornerShape(16.dp)).clickable { onShortcut(page.url) }.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally {
                         Icon(Icons.Default.Bookmark, contentDescription = null, tint = accent, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.height(5.dp)); Text(page.title, color = Paper, fontSize = 10.sp, maxLines = 1)
                     }
@@ -1289,15 +1306,17 @@ private fun HomeSearchBar(
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 20.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(Color(0xFF171311))
-            .border(1.dp, accent.copy(alpha = .42f), RoundedCornerShape(24.dp))
-            .padding(horizontal = 15.dp, vertical = 12.dp)
+        Modifier.fillMaxWidth().padding(horizontal = 18.dp)
+            .clip(RoundedCornerShape(27.dp))
+            .background(Brush.linearGradient(listOf(Color(0xE61B2947), Color(0xF00E162B), Color(0xE61A2040))))
+            .border(1.dp, accent.copy(alpha = .55f), RoundedCornerShape(27.dp))
+            .padding(horizontal = 15.dp, vertical = 14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Search, contentDescription = "Поиск", tint = accent, modifier = Modifier.size(22.dp))
-            Spacer(Modifier.width(10.dp))
+            Box(Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(accent.copy(alpha = .14f)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Search, contentDescription = "Поиск", tint = accent, modifier = Modifier.size(21.dp))
+            }
+            Spacer(Modifier.width(11.dp))
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
@@ -1311,7 +1330,7 @@ private fun HomeSearchBar(
                 }),
                 decorationBox = { inner ->
                     Box {
-                        if (value.isEmpty()) Text("Найти в интернете", color = Muted, fontSize = 15.sp)
+                        if (value.isEmpty()) Text("Поиск или адрес сайта", color = Muted, fontSize = 14.sp)
                         inner()
                     }
                 }
@@ -1321,30 +1340,33 @@ private fun HomeSearchBar(
                     Icon(Icons.Default.Close, contentDescription = "Очистить", tint = Muted)
                 }
             }
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(5.dp))
             Box(
-                Modifier.size(38.dp).clip(CircleShape).background(accent).clickable {
-                    onSearch()
-                    keyboard?.hide()
-                },
+                Modifier.size(42.dp).clip(RoundedCornerShape(15.dp))
+                    .background(Brush.linearGradient(listOf(accent, Violet)))
+                    .clickable { onSearch(); keyboard?.hide() },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.ArrowForward, contentDescription = "Искать", tint = Ink)
+                Icon(Icons.Default.ArrowUpward, contentDescription = "Искать", tint = Ink, modifier = Modifier.size(22.dp))
             }
         }
-        Spacer(Modifier.height(10.dp))
-        Row(
-            Modifier.clip(RoundedCornerShape(50)).background(Color(0xFF29211B))
-                .padding(horizontal = 11.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Поиск через", color = Muted, fontSize = 11.sp)
-            Spacer(Modifier.width(6.dp))
-            Text("DuckDuckGo", color = Peach, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(6.dp).background(Color(0xFF62E6C2), CircleShape))
+            Spacer(Modifier.width(7.dp))
+            Text("ПОИСКОВАЯ СИСТЕМА", color = Muted, fontSize = 9.sp, letterSpacing = 1.1.sp)
+            Spacer(Modifier.weight(1f))
+            Row(
+                Modifier.clip(RoundedCornerShape(50)).background(Color(0xFF25365A)).padding(horizontal = 11.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Shield, contentDescription = null, tint = accent, modifier = Modifier.size(13.dp))
+                Spacer(Modifier.width(5.dp))
+                Text("DuckDuckGo", color = Paper, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }
-
 @Composable private fun NavCircle(icon: ImageVector, accent: Color, enabled: Boolean = true, action: () -> Unit) {
     Box(Modifier.size(42.dp).clip(CircleShape).clickable(enabled = enabled) { action() }, contentAlignment = Alignment.Center) {
         Icon(icon, contentDescription = null, tint = if (enabled) Paper else Muted.copy(alpha = .35f), modifier = Modifier.size(22.dp))
@@ -1377,7 +1399,7 @@ private fun HomeSearchBar(
     )
     LazyVerticalGrid(columns = GridCells.Fixed(3), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         items(items) { (icon, name) ->
-            Column(Modifier.aspectRatio(1f).clip(RoundedCornerShape(20.dp)).background(Color(0xFF25201C)).border(1.dp, Border, RoundedCornerShape(20.dp)).clickable { onAction(name) }.padding(10.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.aspectRatio(1f).clip(RoundedCornerShape(20.dp)).background(Color(0xFF1A2948)).border(1.dp, Border, RoundedCornerShape(20.dp)).clickable { onAction(name) }.padding(10.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(icon, contentDescription = name, tint = accent, modifier = Modifier.size(28.dp))
                 Spacer(Modifier.height(8.dp))
                 Text(name, color = Paper, fontSize = 11.sp)
@@ -1397,7 +1419,7 @@ private fun SavedPagesPanel(
     var filter by remember(title) { mutableStateOf("") }
     PanelTitle(title, subtitle)
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFF171311))
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFF10172B))
             .border(1.dp, Border, RoundedCornerShape(16.dp)).padding(horizontal = 13.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1414,7 +1436,7 @@ private fun SavedPagesPanel(
     val visiblePages = pages.filter { it.title.contains(filter, true) || it.url.contains(filter, true) }
     if (visiblePages.isEmpty()) {
         Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xFF171311))
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xFF10172B))
                 .border(1.dp, Border, RoundedCornerShape(18.dp)).padding(22.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -1432,7 +1454,7 @@ private fun SavedPagesPanel(
             items(visiblePages, key = { it.url }) { page ->
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xFF211D1A),
+                    color = Color(0xFF141D33),
                     shape = RoundedCornerShape(16.dp),
                     border = BorderStroke(1.dp, Border)
                 ) {
@@ -1474,7 +1496,7 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
     if (downloads.isEmpty()) {
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF171311)).border(1.dp, Border, RoundedCornerShape(20.dp))
+                .background(Color(0xFF10172B)).border(1.dp, Border, RoundedCornerShape(20.dp))
                 .padding(22.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -1491,7 +1513,7 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
             items(downloads, key = { it.id }) { item ->
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xFF211D1A),
+                    color = Color(0xFF141D33),
                     shape = RoundedCornerShape(17.dp),
                     border = BorderStroke(1.dp, Border)
                 ) {
@@ -1546,7 +1568,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     PanelTitle("Darknes Tor Tester", "Публичный выбор версий браузера")
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color(0xFF241B16),
+        color = Color(0xFF151E37),
         shape = RoundedCornerShape(20.dp),
         border = BorderStroke(1.dp, Violet.copy(alpha = .65f))
     ) {
@@ -1575,7 +1597,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
             items(versions) { version ->
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xFF211D1A),
+                    color = Color(0xFF141D33),
                     shape = RoundedCornerShape(16.dp),
                     border = BorderStroke(1.dp, Border)
                 ) {
@@ -1610,7 +1632,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     Slider(value=blur, onValueChange=setBlur, valueRange=0f..24f, colors=SliderDefaults.colors(thumbColor=Orange, activeTrackColor=Orange))
     Text("Цвет акцента", color = Paper, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-        listOf("orange" to "Оранжевый", "blue" to "Синий", "purple" to "Фиолетовый", "green" to "Зелёный").forEach { (key, label) ->
+        listOf("cyan" to "Неоновый", "blue" to "Голубой", "purple" to "Фиолетовый", "green" to "Изумрудный").forEach { (key, label) ->
             FilterChip(selected = accentChoice == key, onClick = { setAccentChoice(key) }, label = { Text(label, fontSize = 10.sp) }, colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Orange.copy(alpha = .22f), selectedLabelColor = Peach, labelColor = Muted))
         }
     }
@@ -1618,7 +1640,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
 }
 @Composable private fun PrivacyPanel(trackers:Boolean, setTrackers:(Boolean)->Unit, ad:Boolean, setAd:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, night:Boolean, setNight:(Boolean)->Unit, openAndroidSettings:()->Unit) {
     PanelTitle("Центр безопасности", "Контроль защиты и разрешений сайтов")
-    Surface(Modifier.fillMaxWidth(), color = Color(0xFF211D1A), shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, Border)) {
+    Surface(Modifier.fillMaxWidth(), color = Color(0xFF141D33), shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, Border)) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.Shield, contentDescription = null, tint = Orange, modifier = Modifier.size(25.dp)); Spacer(Modifier.width(9.dp))
             Column { Text("Защита GeckoView", color = Paper, fontWeight = FontWeight.SemiBold); Text("Enhanced Tracking Protection", color = Muted, fontSize = 10.sp) }
@@ -1666,7 +1688,7 @@ private fun OfflinePagesPanel(
             items(offlinePages, key = { it.url }) { page ->
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xFF211D1A),
+                    color = Color(0xFF141D33),
                     shape = RoundedCornerShape(16.dp),
                     border = BorderStroke(1.dp, Border)
                 ) {
@@ -1728,7 +1750,7 @@ private fun OfflinePageViewerPanel(page: OfflinePage?, onBack: () -> Unit) {
 }
 @Composable private fun ChatPanel(onOpenAi:()->Unit) {
     PanelTitle("Darknes AI", "Приватный ИИ-помощник")
-    Surface(Modifier.fillMaxWidth(), color = Color(0xFF211D1A), shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, Border)) {
+    Surface(Modifier.fillMaxWidth(), color = Color(0xFF141D33), shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, Border)) {
         Column(Modifier.padding(16.dp)) {
             Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Orange, modifier = Modifier.size(34.dp))
             Spacer(Modifier.height(10.dp))
@@ -1775,7 +1797,7 @@ private fun TabsPanel(
         }
         Spacer(Modifier.height(12.dp))
         Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xFF171311)).padding(5.dp),
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xFF10172B)).padding(5.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             FilterChip(
@@ -1816,9 +1838,9 @@ private fun TabsPanel(
                     .getOrDefault("")
                 val cardShape = RoundedCornerShape(21.dp)
                 val cardColors = if (incognito) {
-                    listOf(Color(0xFF392A60), Color(0xFF191426))
+                    listOf(Color(0xFF29245A), Color(0xFF11172D))
                 } else {
-                    listOf(Color(0xFF382419), Color(0xFF17110E))
+                    listOf(Color(0xFF17334A), Color(0xFF0B1428))
                 }
                 Box(
                     Modifier.fillMaxWidth().aspectRatio(.91f)
