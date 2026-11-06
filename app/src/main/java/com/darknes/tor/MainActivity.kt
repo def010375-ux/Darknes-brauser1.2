@@ -1406,46 +1406,103 @@ private fun HomeSearchBar(
     if (subtitle.isNotEmpty()) { Spacer(Modifier.height(4.dp)); Text(subtitle, color = Muted, fontSize = 13.sp) }
     Spacer(Modifier.height(20.dp))
 }
-@Composable private fun MenuPanel(accent: Color, onAction: (String) -> Unit) {
-    PanelTitle("Меню")
-    val items = listOf(
-        Icons.Default.Add to "Новая вкладка",
-        Icons.Default.Bookmark to "Добавить закладку",
-        Icons.Default.Bookmarks to "Закладки",
-        Icons.Default.History to "История",
-        Icons.Default.Download to "Загрузки",
-        Icons.Default.VisibilityOff to "Инкогнито",
-        Icons.Default.Extension to "Расширения",
-        Icons.Default.AutoAwesome to "ИИ-чат",
-        Icons.Default.Settings to "Настройки",
-        Icons.Default.Person to "Аккаунт",
-        Icons.Default.Shield to "Безопасность",
-        Icons.Default.Translate to "Перевести страницу",
-        Icons.Default.MenuBook to "Режим чтения",
-        Icons.Default.ViewColumn to "Разделить экран",
-        Icons.Default.Download to "Сохранить офлайн",
-        Icons.Default.Bookmarks to "Офлайн-страницы"
+@Composable
+private fun MenuPanel(accent: Color, onAction: (String) -> Unit) {
+    val sections = listOf(
+        "ВКЛАДКИ И НАВИГАЦИЯ" to listOf(
+            Icons.Default.Add to "Новая вкладка",
+            Icons.Default.VisibilityOff to "Инкогнито",
+            Icons.Default.ViewColumn to "Разделить экран",
+            Icons.Default.Translate to "Перевести страницу",
+            Icons.Default.MenuBook to "Режим чтения"
+        ),
+        "БИБЛИОТЕКА" to listOf(
+            Icons.Default.Bookmark to "Добавить закладку",
+            Icons.Default.Bookmarks to "Закладки",
+            Icons.Default.History to "История",
+            Icons.Default.Download to "Загрузки",
+            Icons.Default.Download to "Сохранить офлайн",
+            Icons.Default.Bookmarks to "Офлайн-страницы"
+        ),
+        "ИНСТРУМЕНТЫ" to listOf(
+            Icons.Default.Extension to "Расширения",
+            Icons.Default.AutoAwesome to "ИИ-чат"
+        ),
+        "DARKNES" to listOf(
+            Icons.Default.Settings to "Настройки",
+            Icons.Default.Person to "Аккаунт",
+            Icons.Default.Shield to "Безопасность"
+        )
     )
+
     LazyColumn(
-        modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp),
-        verticalArrangement = Arrangement.spacedBy(9.dp)
+        modifier = Modifier.fillMaxWidth().heightIn(max = 590.dp),
+        contentPadding = PaddingValues(bottom = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(items) { (icon, name) ->
-            Surface(
-                modifier = Modifier.fillMaxWidth().height(66.dp).clickable { onAction(name) },
-                color = Color(0xCC111F35),
-                shape = RoundedCornerShape(19.dp),
-                border = BorderStroke(1.dp, Border)
-            ) {
-                Row(Modifier.fillMaxSize().padding(horizontal = 15.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
-                        .background(Brush.linearGradient(listOf(Color(0x553DDFFF), Color(0x553F6DFF)))),
-                        contentAlignment = Alignment.Center) {
-                        Icon(icon, contentDescription = name, tint = accent, modifier = Modifier.size(22.dp))
+        item {
+            Column(Modifier.fillMaxWidth()) {
+                PanelTitle("Центр управления", "Инструменты и разделы Darknes Tor")
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color(0xCC142640),
+                    shape = RoundedCornerShape(22.dp),
+                    border = BorderStroke(1.dp, Border)
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            Modifier.size(46.dp).clip(RoundedCornerShape(16.dp))
+                                .background(Brush.linearGradient(listOf(accent.copy(alpha = .32f), Violet.copy(alpha = .22f)))),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Bolt, contentDescription = null, tint = accent, modifier = Modifier.size(25.dp))
+                        }
+                        Spacer(Modifier.width(13.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("DARKNES TOR", color = Paper, fontSize = 13.sp, fontWeight = FontWeight.Black, letterSpacing = 1.3.sp)
+                            Text("Быстрый доступ ко всем функциям", color = Muted, fontSize = 10.sp)
+                        }
+                        Text("1.5 BETA", color = accent, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = .8.sp)
                     }
-                    Spacer(Modifier.width(14.dp))
-                    Text(name, color = Paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Muted)
+                }
+            }
+        }
+        sections.forEach { (sectionTitle, entries) ->
+            item {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(Modifier.width(3.dp).height(13.dp).clip(CircleShape).background(accent))
+                    Spacer(Modifier.width(9.dp))
+                    Text(sectionTitle, color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.35.sp)
+                }
+            }
+            items(entries) { (icon, name) ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth().height(62.dp).clickable { onAction(name) },
+                    color = Color(0xCC101D31),
+                    shape = RoundedCornerShape(18.dp),
+                    border = BorderStroke(1.dp, Border.copy(alpha = .8f))
+                ) {
+                    Row(
+                        Modifier.fillMaxSize().padding(horizontal = 13.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            Modifier.size(39.dp).clip(RoundedCornerShape(13.dp))
+                                .background(Brush.linearGradient(listOf(accent.copy(alpha = .20f), Violet.copy(alpha = .13f)))),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(icon, contentDescription = name, tint = accent, modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(Modifier.width(13.dp))
+                        Text(name, color = Paper, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Muted, modifier = Modifier.size(19.dp))
+                    }
                 }
             }
         }
