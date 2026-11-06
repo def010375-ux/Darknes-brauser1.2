@@ -1783,6 +1783,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
 }
 
 @Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit, accentChoice:String, setAccentChoice:(String)->Unit, desktopMode:Boolean, setDesktopMode:(Boolean)->Unit, incognitoAccent:String, setIncognitoAccent:(String)->Unit, homeLayout:String, setHomeLayout:(String)->Unit, language:String, setLanguage:(String)->Unit, wallpaperUri:String, chooseWallpaper:()->Unit, clearWallpaper:()->Unit, importConfig:()->Unit) {
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
     PanelTitle("Настройки", "Персонализация и управление Darknes Tor")
     val engines = listOf("DuckDuckGo", "Google", "Bing", "Brave")
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
@@ -1827,24 +1828,6 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     SettingSwitch("Версия сайтов для компьютера", desktopMode, setDesktopMode)
     Text("Режим компьютера меняет User-Agent и viewport GeckoView. Отдельные сайты могут отображаться иначе.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
     Spacer(Modifier.height(14.dp))
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp)).background(Color(0xFF121C32)).border(1.dp, Border, RoundedCornerShape(17.dp)).padding(13.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.BlurOn, contentDescription = null, tint = Orange)
-            Spacer(Modifier.width(8.dp))
-            Text("Размытие фона", color = Paper, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-            Spacer(Modifier.weight(1f))
-            Text("${blur.toInt()} px", color = Orange, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-        }
-        Slider(value = blur, onValueChange = setBlur, valueRange = 0f..24f,
-            colors = SliderDefaults.colors(thumbColor = Orange, activeTrackColor = Orange, inactiveTrackColor = Border))
-    }
-    Text("ЦВЕТОВАЯ ТЕМА", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 15.dp, bottom = 8.dp))
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-        listOf("cyan" to "Неон", "blue" to "Голубой", "purple" to "Фиолетовый", "green" to "Изумруд").forEach { (key, label) ->
-            FilterChip(selected = accentChoice == key, onClick = { setAccentChoice(key) }, label = { Text(label, fontSize = 10.sp) },
-                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Orange.copy(alpha = .22f), selectedLabelColor = Paper, labelColor = Muted))
-        }
-    }
     Spacer(Modifier.height(15.dp))
     Text("ОФОРМЛЕНИЕ ОБЫЧНОГО РЕЖИМА", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
     Text("Акцент обычного режима", color = Paper, fontSize = 12.sp, modifier = Modifier.padding(top = 7.dp, bottom = 6.dp))
@@ -1877,6 +1860,8 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     OutlinedButton(onClick = importConfig, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.FileOpen, null); Spacer(Modifier.width(7.dp)); Text("Импортировать конфигурацию") }
     Text("Поддерживаются accent, incognitoAccent, homeLayout, language, blur и wallpaperUri. Скрипты и исполняемый код не запускаются.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
     Text("Дополнительные параметры защиты находятся в Центре безопасности.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 12.dp))
+    Spacer(Modifier.height(22.dp))
+    }
 }
 @Composable private fun PrivacyPanel(trackers:Boolean, setTrackers:(Boolean)->Unit, ad:Boolean, setAd:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, night:Boolean, setNight:(Boolean)->Unit, openAndroidSettings:()->Unit) {
     PanelTitle("Центр безопасности", "Защита браузера и контроль доступа")
