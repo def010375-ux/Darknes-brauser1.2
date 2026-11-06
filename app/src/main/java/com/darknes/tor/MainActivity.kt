@@ -342,7 +342,13 @@ private fun resolveAddress(raw: String, engine: String): String {
     if (s.startsWith("https://") || s.startsWith("http://")) return s
     if (s.contains(".") && !s.contains(" ")) return "https://$s"
     val q = java.net.URLEncoder.encode(s, "UTF-8")
-    return "https://duckduckgo.com/?q=$q"
+    val base = when (engine) {
+        "Google" -> "https://www.google.com/search?q="
+        "Bing" -> "https://www.bing.com/search?q="
+        "Brave" -> "https://search.brave.com/search?q="
+        else -> "https://duckduckgo.com/?q="
+    }
+    return base + q
 }
 
 
