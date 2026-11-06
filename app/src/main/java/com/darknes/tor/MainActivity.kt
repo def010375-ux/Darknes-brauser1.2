@@ -1749,23 +1749,68 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     Text("Дополнительные параметры защиты находятся в Центре безопасности.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 12.dp))
 }
 @Composable private fun PrivacyPanel(trackers:Boolean, setTrackers:(Boolean)->Unit, ad:Boolean, setAd:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, night:Boolean, setNight:(Boolean)->Unit, openAndroidSettings:()->Unit) {
-    PanelTitle("Центр безопасности", "Контроль защиты и разрешений сайтов")
-    Surface(Modifier.fillMaxWidth(), color = Color(0xFF141D33), shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, Border)) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Shield, contentDescription = null, tint = Orange, modifier = Modifier.size(25.dp)); Spacer(Modifier.width(9.dp))
-            Column { Text("Защита GeckoView", color = Paper, fontWeight = FontWeight.SemiBold); Text("Enhanced Tracking Protection", color = Muted, fontSize = 10.sp) }
+    PanelTitle("Центр безопасности", "Защита браузера и контроль доступа")
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(21.dp))
+        .background(Brush.linearGradient(listOf(Color(0xFF1A2D4B), Color(0xFF10172B))))
+        .border(1.dp, Orange.copy(alpha = .42f), RoundedCornerShape(21.dp)).padding(15.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(46.dp).clip(RoundedCornerShape(15.dp)).background(Color(0xFF62E6C2).copy(alpha = .14f))
+                .border(1.dp, Color(0xFF62E6C2).copy(alpha = .35f), RoundedCornerShape(15.dp)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Shield, contentDescription = null, tint = Color(0xFF62E6C2), modifier = Modifier.size(25.dp))
+            }
+            Spacer(Modifier.width(11.dp))
+            Column(Modifier.weight(1f)) {
+                Text("ЗАЩИТА БРАУЗЕРА", color = Muted, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+                Text("Контроль активен", color = Paper, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            }
+            Text("LOCAL", color = Color(0xFF62E6C2), fontSize = 9.sp, fontWeight = FontWeight.Bold)
         }
+        Spacer(Modifier.height(12.dp))
+        Text("Настройки ниже управляют режимами защиты интерфейса и GeckoView. Они не заменяют системные разрешения Android.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
     }
+    Spacer(Modifier.height(14.dp))
+    Text("ЗАЩИТА ОТ ОТСЛЕЖИВАНИЯ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
     SettingSwitch("Блокировать известные трекеры", trackers, setTrackers)
     SettingSwitch("Усиленная защита от отслеживания", ad, setAd)
+    Spacer(Modifier.height(13.dp))
+    Text("ПРИВАТНОСТЬ И ОТОБРАЖЕНИЕ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
     SettingSwitch("Тёмная схема сайтов", dark, setDark)
     SettingSwitch("Ночной режим страниц", night, setNight)
+    Spacer(Modifier.height(14.dp))
+    Text("РАЗРЕШЕНИЯ УСТРОЙСТВА", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    val permissions = listOf(
+        Triple(Icons.Default.CameraAlt, "Камера", "Android спросит доступ при необходимости"),
+        Triple(Icons.Default.Mic, "Микрофон", "Доступ контролируется системой Android"),
+        Triple(Icons.Default.LocationOn, "Геолокация", "Сайт должен отдельно запросить местоположение"),
+        Triple(Icons.Default.Notifications, "Уведомления", "Управляются настройками приложения Android")
+    )
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xFF111A2E))
+        .border(1.dp, Border, RoundedCornerShape(18.dp)).padding(horizontal = 12.dp)) {
+        permissions.forEachIndexed { index, item ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(Orange.copy(alpha = .12f)), contentAlignment = Alignment.Center) {
+                    Icon(item.first, contentDescription = null, tint = Orange, modifier = Modifier.size(19.dp))
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(item.second, color = Paper, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(item.third, color = Muted, fontSize = 10.sp, lineHeight = 14.sp)
+                }
+                Icon(Icons.Default.Lock, contentDescription = "Контроль Android", tint = Muted, modifier = Modifier.size(15.dp))
+            }
+            if (index != permissions.lastIndex) Divider(color = Border.copy(alpha = .55f))
+        }
+    }
     Spacer(Modifier.height(10.dp))
-    Text("Камера, микрофон, геолокация и уведомления управляются разрешениями Android и запросами самих сайтов.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+    Text("Приложение не объявляет отдельные разрешения камеры, микрофона и геолокации в AndroidManifest. Системные настройки доступны отдельно.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
     Spacer(Modifier.height(12.dp))
-    Button(onClick = openAndroidSettings, modifier = Modifier.fillMaxWidth().height(50.dp), colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Ink), shape = RoundedCornerShape(16.dp)) { Text("Разрешения приложения Android", fontWeight = FontWeight.Bold) }
+    Button(onClick = openAndroidSettings, modifier = Modifier.fillMaxWidth().height(52.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Ink), shape = RoundedCornerShape(16.dp)) {
+        Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text("Открыть разрешения Android", fontWeight = FontWeight.Bold)
+    }
 }
-
 @Composable private fun ReaderPanel(source:String, content:String, loading:Boolean, error:String, onRetry:()->Unit) {
     PanelTitle("Режим чтения", "Текст страницы без лишнего оформления")
     Text(source, color = Muted, fontSize = 10.sp, maxLines = 2)
