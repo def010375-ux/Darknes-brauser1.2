@@ -1518,73 +1518,179 @@ private fun SavedPagesPanel(
     onClear: (() -> Unit)? = null
 ) {
     var filter by remember(title) { mutableStateOf("") }
+    val isHistory = title == "История"
+    val visiblePages = pages.filter { it.title.contains(filter, true) || it.url.contains(filter, true) }
+
     PanelTitle(title, subtitle)
+
+    if (isHistory) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color(0xCC142640),
+            shape = RoundedCornerShape(21.dp),
+            border = BorderStroke(1.dp, Border)
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
+                        .background(Brush.linearGradient(listOf(Orange.copy(alpha = .25f), Violet.copy(alpha = .18f)))),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.History, contentDescription = null, tint = Orange, modifier = Modifier.size(23.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Журнал посещений", color = Paper, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text("Сайтов сохранено: ${pages.size}", color = Muted, fontSize = 10.sp)
+                }
+                Text("LOCAL", color = Orange, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+    }
+
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFF0D192B))
-            .border(1.dp, Border, RoundedCornerShape(16.dp)).padding(horizontal = 13.dp, vertical = 11.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp))
+            .background(Color(0xFF0D192B))
+            .border(1.dp, Border, RoundedCornerShape(17.dp))
+            .padding(horizontal = 13.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(Icons.Default.Search, contentDescription = null, tint = Orange)
-        Spacer(Modifier.width(9.dp))
+        Icon(Icons.Default.Search, contentDescription = null, tint = Orange, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
         BasicTextField(
-            value = filter, onValueChange = { filter = it },
-            modifier = Modifier.weight(1f), singleLine = true,
+            value = filter,
+            onValueChange = { filter = it },
+            modifier = Modifier.weight(1f),
+            singleLine = true,
             textStyle = TextStyle(color = Paper, fontSize = 14.sp),
-            decorationBox = { inner -> Box { if (filter.isEmpty()) Text("Найти сохранённый сайт", color = Muted, fontSize = 13.sp); inner() } }
+            decorationBox = { inner ->
+                Box {
+                    if (filter.isEmpty()) Text(
+                        if (isHistory) "Поиск по истории" else "Найти закладку",
+                        color = Muted, fontSize = 13.sp
+                    )
+                    inner()
+                }
+            }
         )
+        if (filter.isNotEmpty()) {
+            Icon(
+                Icons.Default.Close, contentDescription = "Очистить поиск",
+                tint = Muted, modifier = Modifier.size(18.dp).clickable { filter = "" }
+            )
+        }
     }
+
     Spacer(Modifier.height(12.dp))
-    val visiblePages = pages.filter { it.title.contains(filter, true) || it.url.contains(filter, true) }
+
     if (visiblePages.isEmpty()) {
         Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xFF0D192B))
-                .border(1.dp, Border, RoundedCornerShape(18.dp)).padding(22.dp),
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(21.dp))
+                .background(Color(0xCC101D31))
+                .border(1.dp, Border, RoundedCornerShape(21.dp))
+                .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(if (title == "История") Icons.Default.History else Icons.Default.BookmarkBorder,
-                contentDescription = null, tint = Orange, modifier = Modifier.size(32.dp))
-            Spacer(Modifier.height(8.dp))
-            Text(if (pages.isEmpty()) "Пока здесь пусто" else "Ничего не найдено", color = Paper, fontWeight = FontWeight.SemiBold)
-            Text(if (title == "История") "Открытые сайты появятся здесь." else "Добавляй страницы через меню браузера.", color = Muted, fontSize = 12.sp)
+            Box(
+                Modifier.size(54.dp).clip(RoundedCornerShape(18.dp))
+                    .background(Brush.linearGradient(listOf(Orange.copy(alpha = .20f), Violet.copy(alpha = .16f)))),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    if (isHistory) Icons.Default.History else Icons.Default.BookmarkBorder,
+                    contentDescription = null, tint = Orange, modifier = Modifier.size(29.dp)
+                )
+            }
+            Spacer(Modifier.height(11.dp))
+            Text(
+                if (pages.isEmpty()) if (isHistory) "История пока пуста" else "Закладок пока нет" else "Ничего не найдено",
+                color = Paper, fontWeight = FontWeight.Bold, fontSize = 14.sp
+            )
+            Text(
+                if (isHistory) "Посещённые сайты появятся здесь." else "Сохраняй нужные страницы через меню браузера.",
+                color = Muted, fontSize = 11.sp, lineHeight = 16.sp
+            )
         }
     } else {
         LazyColumn(
-            modifier = Modifier.fillMaxWidth().heightIn(max = 440.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.fillMaxWidth().heightIn(max = 450.dp),
+            contentPadding = PaddingValues(bottom = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             items(visiblePages, key = { it.url }) { page ->
+                val host = runCatching { java.net.URI(page.url).host.orEmpty().removePrefix("www.") }
+                    .getOrDefault("")
+                val visitedAt = runCatching {
+                    java.text.SimpleDateFormat("dd.MM.yyyy  HH:mm", java.util.Locale.getDefault())
+                        .format(java.util.Date(page.time))
+                }.getOrDefault("")
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xFF111E32),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, Border)
+                    color = Color(0xCC101D31),
+                    shape = RoundedCornerShape(19.dp),
+                    border = BorderStroke(1.dp, Border.copy(alpha = .85f))
                 ) {
                     Row(
-                        Modifier.clickable { onOpen(page.url) }.padding(start = 13.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
+                        Modifier.fillMaxWidth().clickable { onOpen(page.url) }
+                            .padding(start = 12.dp, top = 11.dp, bottom = 11.dp, end = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Public, contentDescription = null, tint = Orange, modifier = Modifier.size(23.dp))
-                        Spacer(Modifier.width(10.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(page.title, color = Paper, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 2)
-                            Text(page.url, color = Muted, fontSize = 10.sp, maxLines = 1)
+                        Box(
+                            Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
+                                .background(Brush.linearGradient(listOf(Orange.copy(alpha = .20f), Violet.copy(alpha = .14f)))),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                if (isHistory) Icons.Default.Language else Icons.Default.Bookmark,
+                                contentDescription = null, tint = Orange, modifier = Modifier.size(21.dp)
+                            )
                         }
-                        IconButton(onClick = { onRemove(page) }) {
-                            Icon(Icons.Default.Close, contentDescription = "Удалить", tint = Muted, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(page.title, color = Paper, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            Text(host.ifBlank { page.url }, color = Muted, fontSize = 10.sp, maxLines = 1)
+                            Text(if (isHistory) visitedAt else page.url, color = Orange.copy(alpha = .85f), fontSize = 9.sp, maxLines = 1)
+                        }
+                        IconButton(onClick = { onRemove(page) }, modifier = Modifier.size(38.dp)) {
+                            Icon(Icons.Default.Close, contentDescription = "Удалить", tint = Muted, modifier = Modifier.size(17.dp))
                         }
                     }
                 }
             }
         }
     }
-    if (onClear != null && pages.isNotEmpty()) {
-        Spacer(Modifier.height(10.dp))
-        TextButton(onClick = onClear) { Text("Очистить историю", color = Orange) }
-    }
-    Spacer(Modifier.height(8.dp))
-    Text("Данные хранятся на этом устройстве. Режим инкогнито не добавляет страницы в историю.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
-}
 
+    if (onClear != null && pages.isNotEmpty()) {
+        Spacer(Modifier.height(9.dp))
+        Surface(
+            modifier = Modifier.fillMaxWidth().clickable { onClear() },
+            color = Color(0x331B2C46),
+            shape = RoundedCornerShape(15.dp),
+            border = BorderStroke(1.dp, Border.copy(alpha = .65f))
+        ) {
+            Row(
+                Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = Peach, modifier = Modifier.size(19.dp))
+                Spacer(Modifier.width(9.dp))
+                Text("Очистить историю", color = Peach, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Muted, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+
+    Spacer(Modifier.height(8.dp))
+    Text(
+        "Данные хранятся на этом устройстве. Режим инкогнито не добавляет страницы в историю.",
+        color = Muted, fontSize = 10.sp, lineHeight = 15.sp
+    )
+}
 @Composable private fun SettingSwitch(title: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, color = Paper, modifier = Modifier.weight(1f), fontSize = 15.sp)
