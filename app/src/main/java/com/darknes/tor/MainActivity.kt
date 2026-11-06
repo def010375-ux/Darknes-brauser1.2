@@ -952,10 +952,22 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                             }),
                             decorationBox = { inner -> Box { if (query.isEmpty()) Text("Поиск или адрес", color = Muted, fontSize = 14.sp); inner() } }
                         )
-                        Box(Modifier.size(42.dp).background(accent, CircleShape).clickable {
-                            if (query.isNotBlank()) runSearch(query)
-                            keyboard?.hide(); islandOpen = false
-                        }, contentAlignment = Alignment.Center) { Icon(Icons.Default.ArrowForward, contentDescription = "Перейти", tint = Ink, modifier = Modifier.size(21.dp)) }
+                        if (query.isNotBlank()) {
+                            IconButton(onClick = { query = "" }, modifier = Modifier.size(34.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = "Очистить адрес", tint = Muted, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                        Box(
+                            Modifier.size(42.dp).clip(CircleShape)
+                                .background(Brush.linearGradient(listOf(accent, Violet)))
+                                .clickable {
+                                    if (query.isNotBlank()) runSearch(query)
+                                    keyboard?.hide(); islandOpen = false
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.ArrowForward, contentDescription = "Перейти", tint = Ink, modifier = Modifier.size(21.dp))
+                        }
                     }
                 }
             }
