@@ -15,6 +15,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".AutofillAuthActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
         <service
             android:name=".DarknesAutofillService"
             android:label="Darknes Vault"
