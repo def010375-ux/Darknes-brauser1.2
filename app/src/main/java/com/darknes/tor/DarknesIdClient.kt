@@ -149,7 +149,7 @@ private object DarknesIdApi {
 }
 
 @Composable
-internal fun DarknesIdPanel(onAuthenticated: () -> Unit = {}) {
+internal fun LegacyDarknesIdPanel(onAuthenticated: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var isRegister by remember { mutableStateOf(false) }
