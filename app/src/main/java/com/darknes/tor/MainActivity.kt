@@ -681,6 +681,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         val resolved = resolveAddress(raw, engine)
         val report = analyzeLinkRisk(resolved)
         if (report?.isSuspicious == true) {
+            loaded = false
             pendingRiskUrl = raw
             pendingRiskReport = report
         } else {
@@ -916,11 +917,11 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
 
     pendingRiskReport?.let { report ->
         AlertDialog(
-            onDismissRequest = { pendingRiskUrl = null; pendingRiskReport = null },
+            onDismissRequest = { pendingRiskUrl = null; pendingRiskReport = null; loaded = false },
             containerColor = Color(0xFF14243A),
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.GppBad, contentDescription = null, tint = Color(0xFFFFC46B), modifier = Modifier.size(25.dp))
+                    Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Color(0xFFFFC46B), modifier = Modifier.size(25.dp))
                     Spacer(Modifier.width(9.dp))
                     Text("Подозрительная ссылка", color = Paper, fontWeight = FontWeight.Black)
                 }
@@ -944,7 +945,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 }) { Text("Всё равно открыть", color = Color(0xFFFFC46B)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingRiskUrl = null; pendingRiskReport = null }) {
+                TextButton(onClick = { pendingRiskUrl = null; pendingRiskReport = null; loaded = false }) {
                     Text("Отмена", color = Paper)
                 }
             }
