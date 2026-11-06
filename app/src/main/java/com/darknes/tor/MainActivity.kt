@@ -158,6 +158,48 @@ private object DarknesVaultCrypto {
             .putString(DATA, android.util.Base64.encodeToString(encrypted, android.util.Base64.NO_WRAP))
             .commit()
     }.getOrDefault(false)
+    private const val BIO_ALIAS = "darknes_vault_biometric_key"
+    private const val BIO_IV = "bio_iv"
+    private const val BIO_DATA = "bio_data"
+
+    fun hasBiometric(context: android.content.Context): Boolean =
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE).contains(BIO_DATA)
+
+    fun enableBiometric(context: android.content.Context, passphrase: String): Boolean = runCatching {
+        val generator = javax.crypto.KeyGenerator.getInstance(android.security.keystore.KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        val spec = android.security.keystore.KeyGenParameterSpec.Builder(BIO_ALIAS,
+            android.security.keystore.KeyProperties.PURPOSE_ENCRYPT or android.security.keystore.KeyProperties.PURPOSE_DECRYPT)
+            .setBlockModes(android.security.keystore.KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(android.security.keystore.KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setRandomizedEncryptionRequired(true)
+            .setUserAuthenticationRequired(true)
+            .setUserAuthenticationValidityDurationSeconds(-1)
+            .setInvalidatedByBiometricEnrollment(true)
+            .build()
+        generator.init(spec)
+        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, generator.generateKey())
+        val encrypted = cipher.doFinal(passphrase.toByteArray(Charsets.UTF_8))
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE).edit()
+            .putString(BIO_IV, android.util.Base64.encodeToString(cipher.iv, android.util.Base64.NO_WRAP))
+            .putString(BIO_DATA, android.util.Base64.encodeToString(encrypted, android.util.Base64.NO_WRAP))
+            .commit()
+    }.getOrDefault(false)
+
+    fun biometricDecryptCipher(context: android.content.Context): javax.crypto.Cipher? = runCatching {
+        val prefs = context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+        val iv = android.util.Base64.decode(prefs.getString(BIO_IV, null), android.util.Base64.NO_WRAP)
+        val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        val key = keyStore.getKey(BIO_ALIAS, null) as java.security.SecretKey
+        javax.crypto.Cipher.getInstance("AES/GCM/NoPadding").apply {
+            init(javax.crypto.Cipher.DECRYPT_MODE, key, javax.crypto.spec.GCMParameterSpec(128, iv))
+        }
+    }.getOrNull()
+
+    fun biometricEncryptedPassphrase(context: android.content.Context): ByteArray? = runCatching {
+        val encoded = context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE).getString(BIO_DATA, null) ?: return null
+        android.util.Base64.decode(encoded, android.util.Base64.NO_WRAP)
+    }.getOrNull()
 }
 
 private fun decodeVaultEntries(raw: String): List<VaultEntry> = runCatching {
