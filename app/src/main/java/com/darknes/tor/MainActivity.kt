@@ -2311,6 +2311,34 @@ private fun TabsPanel(
                         .border(if (isActive) 2.dp else 1.dp, if (isActive) tabAccent else Border, cardShape)
                         .clickable { selectTab(index) }.animateContentSize().padding(13.dp)) {
                         Column(Modifier.fillMaxSize()) {
+                            Box(
+                                Modifier.fillMaxWidth().height(94.dp).clip(RoundedCornerShape(14.dp))
+                                    .background(Brush.linearGradient(cardColors))
+                            ) {
+                                Column(Modifier.fillMaxSize().padding(9.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(Modifier.weight(1f).height(17.dp).clip(RoundedCornerShape(6.dp))
+                                            .background(Color(0x553D5473)).padding(horizontal = 6.dp), contentAlignment = Alignment.CenterStart) {
+                                            Text(host.ifBlank { "darknes://start" }, color = Paper.copy(alpha = .72f), fontSize = 7.sp, maxLines = 1)
+                                        }
+                                        Spacer(Modifier.width(5.dp))
+                                        Box(Modifier.size(17.dp).clip(CircleShape).background(Color(0x554A6080)), contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.Close, null, tint = Paper.copy(alpha = .8f), modifier = Modifier.size(10.dp))
+                                        }
+                                    }
+                                    Spacer(Modifier.height(9.dp))
+                                    Box(Modifier.fillMaxWidth(.58f).height(7.dp).clip(CircleShape).background(tabAccent.copy(alpha = .75f)))
+                                    Spacer(Modifier.height(6.dp))
+                                    Box(Modifier.fillMaxWidth(.88f).height(5.dp).clip(CircleShape).background(Color.White.copy(alpha = .20f)))
+                                    Spacer(Modifier.height(5.dp))
+                                    Box(Modifier.fillMaxWidth(.70f).height(5.dp).clip(CircleShape).background(Color.White.copy(alpha = .13f)))
+                                    Spacer(Modifier.weight(1f))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        repeat(3) { Box(Modifier.weight(1f).height(15.dp).clip(RoundedCornerShape(5.dp)).background(Color.White.copy(alpha = .08f))) }
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(9.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(tabAccent.copy(alpha = .17f))
                                     .border(1.dp, tabAccent.copy(alpha = .28f), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
