@@ -1514,8 +1514,26 @@ private fun SavedPagesPanel(
 }
 
 @Composable private fun SettingSwitch(title: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, color = Paper, modifier = Modifier.weight(1f), fontSize = 15.sp)
+    val settingIcon = when {
+        title.contains("трекер", ignoreCase = true) || title.contains("защит", ignoreCase = true) -> Icons.Default.Shield
+        title.contains("тёмн", ignoreCase = true) || title.contains("ночн", ignoreCase = true) -> Icons.Default.DarkMode
+        title.contains("анимац", ignoreCase = true) -> Icons.Default.AutoAwesome
+        title.contains("компьютер", ignoreCase = true) -> Icons.Default.DesktopWindows
+        else -> Icons.Default.Tune
+    }
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 4.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Brush.linearGradient(listOf(Color(0xFF1B2A48), Color(0xFF10172B))))
+            .border(1.dp, Border, RoundedCornerShape(18.dp))
+            .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(Orange.copy(alpha = .13f)), contentAlignment = Alignment.Center) {
+            Icon(settingIcon, contentDescription = null, tint = Orange, modifier = Modifier.size(19.dp))
+        }
+        Spacer(Modifier.width(11.dp))
+        Text(title, color = Paper, modifier = Modifier.weight(1f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
         Switch(checked, onChange, colors = SwitchDefaults.colors(checkedThumbColor = Ink, checkedTrackColor = Orange, uncheckedThumbColor = Muted, uncheckedTrackColor = Color(0xFF293754)))
     }
 }
@@ -1650,8 +1668,22 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
 
 @Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit, accentChoice:String, setAccentChoice:(String)->Unit, desktopMode:Boolean, setDesktopMode:(Boolean)->Unit) {
     PanelTitle("Настройки", "Настрой Darknes Tor под себя")
-    Text("Поисковая система · DuckDuckGo", color = Muted, fontSize = 13.sp)
-    Text("Единственная поисковая система браузера — DuckDuckGo.", color = Peach, fontSize = 13.sp, modifier = Modifier.padding(vertical = 10.dp))
+    Surface(
+        Modifier.fillMaxWidth().padding(bottom = 12.dp),
+        color = Color(0xFF142541), shape = RoundedCornerShape(19.dp), border = BorderStroke(1.dp, Border)
+    ) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Orange.copy(alpha = .16f)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Search, contentDescription = null, tint = Orange, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(11.dp))
+            Column(Modifier.weight(1f)) {
+                Text("ПОИСКОВАЯ СИСТЕМА", color = Muted, fontSize = 9.sp, letterSpacing = 1.2.sp)
+                Text("DuckDuckGo", color = Paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Icon(Icons.Default.CheckCircle, contentDescription = "Активна", tint = Color(0xFF62E6C2), modifier = Modifier.size(20.dp))
+        }
+    }
     SettingSwitch("Блокировать трекеры", trackers, setTrackers)
     SettingSwitch("Тёмный режим сайтов", dark, setDark)
     SettingSwitch("Анимации", anim, setAnim)
