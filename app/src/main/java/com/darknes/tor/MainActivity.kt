@@ -336,7 +336,7 @@ private fun DarknesVaultPanel() {
                 } else {
                     val json = DarknesVaultCrypto.unlock(context, masterPassword.toCharArray())
                     if (json == null) error = "Неверный мастер-пароль или повреждены данные."
-                    else { entries = decodeVaultEntries(json); vaultPassphrase = masterPassword; unlocked = true; masterPassword = ""; error = "" }
+                    else { entries = decodeVaultEntries(json); VaultSessionCache.set(entries); vaultPassphrase = masterPassword; unlocked = true; masterPassword = ""; error = "" }
                 }
             },
             modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
