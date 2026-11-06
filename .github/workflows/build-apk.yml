@@ -3,7 +3,7 @@ name: Build Darknes Tor APK
 on:
   workflow_dispatch:
   push:
-    branches: [main, master]
+    branches: [main, master, 'feature/futuristic-1.5-beta']
 
 permissions:
   contents: read
