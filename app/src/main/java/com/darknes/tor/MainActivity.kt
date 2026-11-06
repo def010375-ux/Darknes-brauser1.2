@@ -414,11 +414,29 @@ private fun DarknesLaunchGate(onAuthenticated: () -> Unit) {
             ) {
                 Column(Modifier.padding(18.dp)) {
                     DarknesIdPanel(onAuthenticated = onAuthenticated)
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(
+                        onClick = onAuthenticated,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "Продолжить без аккаунта",
+                            color = Peach,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    Text(
+                        "Браузером можно пользоваться без регистрации. Darknes ID подключается по желанию.",
+                        color = Muted,
+                        fontSize = 11.sp,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
                 }
             }
         }
         Spacer(Modifier.height(8.dp))
-        Text("DARKNES ID  ·  ЕДИНЫЙ АККАУНТ", color = Muted, fontSize = 9.sp, letterSpacing = 1.5.sp)
+        Text("DARKNES ID  ·  НЕОБЯЗАТЕЛЬНО", color = Muted, fontSize = 9.sp, letterSpacing = 1.5.sp)
         Spacer(Modifier.height(5.dp))
     }
 }
