@@ -50,6 +50,7 @@ import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.json.JSONArray
 import java.net.URLEncoder
+import java.net.URL
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoRuntimeSettings
 import org.mozilla.geckoview.ContentBlocking
@@ -66,6 +67,20 @@ private val Violet = Color(0xFF8B6CFF)
 private val Muted = Color(0xFF929DB8)
 private val Glass = Color(0xD9161D32)
 private val Border = Color(0x5546CFFF)
+
+private data class ThemePack(val id: String, val name: String, val accent: String, val incognitoAccent: String, val homeLayout: String, val blur: Float, val language: String)
+
+private fun parseThemePacks(raw: String): List<ThemePack> = runCatching {
+    val array = JSONArray(org.json.JSONObject(raw).optJSONArray("themes").toString())
+    (0 until array.length()).mapNotNull { i ->
+        val item = array.optJSONObject(i) ?: return@mapNotNull null
+        val accent = item.optString("accent", "cyan")
+        val privateAccent = item.optString("incognitoAccent", "purple")
+        val layout = item.optString("homeLayout", "grid")
+        if (accent !in listOf("cyan", "blue", "purple", "green") || privateAccent !in listOf("cyan", "blue", "purple", "green") || layout !in listOf("grid", "list", "compact")) return@mapNotNull null
+        ThemePack(item.optString("id"), item.optString("name"), accent, privateAccent, layout, item.optDouble("blur", 8.0).toFloat().coerceIn(0f, 32f), item.optString("language", "ru").takeIf { it == "en" } ?: "ru")
+    }
+}.getOrDefault(emptyList())
 
 private data class DownloadRecord(val id: Long, val name: String, val status: String, val savedUri: String? = null, val downloadedBytes: Long = 0L, val totalBytes: Long = 0L)
 
@@ -443,144 +458,149 @@ private fun BlackHoleScene(
     showParticles: Boolean = true
 ) {
     val arrival = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        arrival.animateTo(1f, tween(1150, easing = FastOutSlowInEasing))
-    }
-    val infinite = rememberInfiniteTransition(label = "black-hole")
-    val rotation by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(1050, easing = LinearEasing)),
-        label = "disk-rotation"
-    )
-    val particleFlow by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1750, easing = LinearEasing)),
-        label = "particle-flow"
-    )
+    LaunchedEffect(Unit) { arrival.animateTo(1f, tween(1250, easing = FastOutSlowInEasing)) }
+    val motion = rememberInfiniteTransition(label = "darknes-3d-black-hole")
+    val rotation by motion.animateFloat(0f, 360f, infiniteRepeatable(tween(5200, easing = LinearEasing)), label = "accretion-rotation")
+    val infall by motion.animateFloat(0f, 1f, infiniteRepeatable(tween(2300, easing = LinearEasing)), label = "particle-infall")
+    val pulse by motion.animateFloat(.78f, 1.12f, infiniteRepeatable(tween(1800, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse), label = "horizon-pulse")
+
     Box(modifier.fillMaxWidth().height(250.dp), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize().graphicsLayer {
-            val progress = arrival.value
-            alpha = progress
-            scaleX = 0.42f + progress * 0.58f
-            scaleY = 0.42f + progress * 0.58f
-            translationY = -105.dp.toPx() * (1f - progress)
+            alpha = arrival.value
+            val scale = .72f + arrival.value * .28f
+            scaleX = scale
+            scaleY = scale
+            translationY = -54.dp.toPx() * (1f - arrival.value)
         }) {
-            val cx = size.width / 2f
-            val cy = size.height / 2f
+            val cx = size.width * .5f
+            val cy = size.height * .5f
             val unit = minOf(size.width, size.height)
-            val rx = unit * 0.43f
-            val ry = unit * 0.19f
+            val rx = unit * .435f
+            val ry = unit * .235f
+            val horizon = unit * .112f
 
-            drawOval(
+            // Volumetric gravitational glow behind the accretion disk.
+            drawCircle(
                 brush = Brush.radialGradient(
-                    listOf(accent.copy(alpha = 0.40f), accent.copy(alpha = 0.13f), Color.Transparent),
-                    center = Offset(cx, cy),
-                    radius = unit * 0.48f
+                    listOf(accent.copy(alpha = .25f), Color(0xFF684BFF).copy(alpha = .12f), Color.Transparent),
+                    center = Offset(cx, cy), radius = unit * .49f
                 ),
-                topLeft = Offset(cx - rx * 1.22f, cy - ry * 2.15f),
-                size = androidx.compose.ui.geometry.Size(rx * 2.44f, ry * 4.3f)
+                radius = unit * .49f, center = Offset(cx, cy)
             )
+            for (layer in 0..3) {
+                drawOval(
+                    color = accent.copy(alpha = .09f - layer * .014f),
+                    topLeft = Offset(cx - rx * (1.05f + layer * .055f), cy - ry * (1.18f + layer * .10f)),
+                    size = androidx.compose.ui.geometry.Size(rx * (2.1f + layer * .11f), ry * (2.36f + layer * .20f)),
+                    style = Stroke(width = unit * (.025f - layer * .004f))
+                )
+            }
 
-            // A tilted, perspective-compressed accretion disk, seen from the side.
+            // A tilted, perspective-projected accretion disk. Rear edge is drawn first.
             rotate(-13f, pivot = Offset(cx, cy)) {
-                rotate(rotation, pivot = Offset(cx, cy)) {
-                    drawOval(
-                        brush = Brush.sweepGradient(
-                            listOf(
-                                Color.Transparent, accent.copy(alpha = 0.9f), accent,
-                                Color(0xFFFFF0D0), accent.copy(alpha = 0.85f), Color.Transparent
-                            ),
-                            center = Offset(cx, cy)
-                        ),
-                        topLeft = Offset(cx - rx, cy - ry),
-                        size = androidx.compose.ui.geometry.Size(rx * 2f, ry * 2f),
-                        style = Stroke(width = unit * 0.105f)
+                rotate(rotation * .16f, pivot = Offset(cx, cy)) {
+                    drawArc(
+                        brush = Brush.sweepGradient(listOf(Color.Transparent, accent.copy(alpha = .25f), Color(0xFFFFD9A0), accent, Color.Transparent), center = Offset(cx, cy)),
+                        startAngle = 180f, sweepAngle = 180f, useCenter = false,
+                        topLeft = Offset(cx - rx, cy - ry), size = androidx.compose.ui.geometry.Size(rx * 2f, ry * 2f),
+                        style = Stroke(width = unit * .095f)
                     )
-                    drawOval(
-                        brush = Brush.linearGradient(
-                            listOf(Color.Transparent, Color(0xFFFFE0A8), accent, Color.Transparent),
-                            start = Offset(cx - rx, cy - ry),
-                            end = Offset(cx + rx, cy + ry)
-                        ),
-                        topLeft = Offset(cx - rx * 0.83f, cy - ry * 0.67f),
-                        size = androidx.compose.ui.geometry.Size(rx * 1.66f, ry * 1.34f),
-                        style = Stroke(width = unit * 0.035f)
+                    drawArc(
+                        color = Color(0xFFFFE4B5).copy(alpha = .72f),
+                        startAngle = 190f, sweepAngle = 160f, useCenter = false,
+                        topLeft = Offset(cx - rx * .83f, cy - ry * .82f),
+                        size = androidx.compose.ui.geometry.Size(rx * 1.66f, ry * 1.64f),
+                        style = Stroke(width = unit * .018f)
                     )
-                    if (showParticles) for (i in 0 until 46) {
-                        val lane = (i % 9) / 9f
-                        val angle = (i * 0.71f + rotation * Math.PI.toFloat() / 180f * (1.15f + lane))
-                        val radius = (0.22f + ((i * 37) % 100) / 145f) * (1f - particleFlow * 0.12f)
+                }
+
+                // 3D particle field: orbital radius contracts toward the event horizon;
+                // perspective depth changes each particle's apparent size and brightness.
+                if (showParticles) {
+                    val particleCount = 132
+                    for (i in 0 until particleCount) {
+                        val seed = i / particleCount.toFloat()
+                        val cycle = (seed + infall) % 1f
+                        val radius = .20f + (1f - cycle) * .82f
+                        val angle = i * 2.39996f + rotation * .0174533f * (1.1f + seed * 1.8f) + cycle * 5.6f
+                        val depth = kotlin.math.sin(angle.toDouble()).toFloat()
+                        val perspective = .58f + (depth + 1f) * .28f
                         val px = cx + kotlin.math.cos(angle.toDouble()).toFloat() * rx * radius
-                        val py = cy + kotlin.math.sin(angle.toDouble()).toFloat() * ry * radius
-                        val particleSize = unit * (0.0035f + (i % 4) * 0.0012f)
-                        drawCircle(
-                            color = if (i % 4 == 0) Color(0xFFFFE2B2) else accent,
-                            radius = particleSize,
-                            center = Offset(px, py),
-                            alpha = 0.5f + (i % 5) * 0.1f
-                        )
+                        val py = cy + depth * ry * radius * .88f
+                        val particleRadius = unit * (.0022f + perspective * .0045f) * (.65f + cycle * .45f)
+                        val tint = if (i % 9 == 0) Color(0xFFFFE9C5) else if (i % 4 == 0) Color(0xFFB8A4FF) else accent
+                        drawCircle(tint.copy(alpha = (.30f + perspective * .55f) * (1f - cycle * .18f)), particleRadius, Offset(px, py))
+                        if (i % 3 == 0) {
+                            val tailAngle = angle - .12f
+                            val tx = cx + kotlin.math.cos(tailAngle.toDouble()).toFloat() * rx * radius * 1.035f
+                            val ty = cy + kotlin.math.sin(tailAngle.toDouble()).toFloat() * ry * radius * .88f
+                            drawLine(tint.copy(alpha = .24f * perspective), Offset(tx, ty), Offset(px, py), strokeWidth = particleRadius * .9f)
+                        }
                     }
+                }
+
+                // Bright front lip of the disk gives the scene a strong 3D silhouette.
+                rotate(rotation * .16f, pivot = Offset(cx, cy)) {
+                    drawArc(
+                        brush = Brush.sweepGradient(listOf(Color.Transparent, accent, Color(0xFFFFF1D2), accent.copy(alpha = .8f), Color.Transparent), center = Offset(cx, cy)),
+                        startAngle = 0f, sweepAngle = 180f, useCenter = false,
+                        topLeft = Offset(cx - rx, cy - ry), size = androidx.compose.ui.geometry.Size(rx * 2f, ry * 2f),
+                        style = Stroke(width = unit * .082f)
+                    )
+                    drawArc(
+                        color = Color(0xFFFFEBCB).copy(alpha = .92f),
+                        startAngle = 4f, sweepAngle = 172f, useCenter = false,
+                        topLeft = Offset(cx - rx * .90f, cy - ry * .90f),
+                        size = androidx.compose.ui.geometry.Size(rx * 1.8f, ry * 1.8f),
+                        style = Stroke(width = unit * .012f)
+                    )
                 }
             }
 
-            // Dark event horizon and the bright gravitational-lensing rim.
-            drawOval(
+            // Event horizon: a dark spherical core with a thin gravitational-lensing rim.
+            drawCircle(
                 brush = Brush.radialGradient(
-                    listOf(Color.Black, Color(0xFF020202), Color(0xFF120904)),
-                    center = Offset(cx, cy),
-                    radius = unit * 0.18f
+                    listOf(Color(0xFF000000), Color(0xFF01030A), Color(0xFF151025).copy(alpha = .94f)),
+                    center = Offset(cx - horizon * .22f, cy - horizon * .22f),
+                    radius = horizon * 1.45f
                 ),
-                topLeft = Offset(cx - unit * 0.17f, cy - unit * 0.105f),
-                size = androidx.compose.ui.geometry.Size(unit * 0.34f, unit * 0.21f)
+                radius = horizon * pulse, center = Offset(cx, cy)
             )
-            drawOval(
-                color = accent.copy(alpha = 0.8f),
-                topLeft = Offset(cx - unit * 0.174f, cy - unit * 0.108f),
-                size = androidx.compose.ui.geometry.Size(unit * 0.348f, unit * 0.216f),
-                style = Stroke(width = unit * 0.006f)
+            drawCircle(
+                color = Color(0xFFFFE7C0).copy(alpha = .75f),
+                radius = horizon * 1.08f * pulse, center = Offset(cx, cy),
+                style = Stroke(width = unit * .008f)
+            )
+            drawCircle(
+                brush = Brush.radialGradient(listOf(accent.copy(alpha = .18f), Color.Transparent), center = Offset(cx, cy), radius = horizon * 1.9f),
+                radius = horizon * 1.9f, center = Offset(cx, cy)
             )
 
-            // Infalling sparks spiral toward the event horizon.
-            if (showParticles) for (i in 0 until 30) {
-                val t = (i / 30f + particleFlow) % 1f
-                val angle = i * 2.4f + t * 8.5f
-                val radius = unit * (0.43f - t * 0.29f)
-                val px = cx + kotlin.math.cos(angle.toDouble()).toFloat() * radius
-                val py = cy + kotlin.math.sin(angle.toDouble()).toFloat() * radius * 0.34f
-                drawCircle(
-                    color = accent.copy(alpha = 0.95f),
-                    radius = unit * (0.003f + (1f - t) * 0.003f),
-                    center = Offset(px, py),
-                    alpha = 0.8f - t * 0.45f
-                )
+            // A few fast inward streaks emphasize the suction motion.
+            if (showParticles) for (i in 0 until 24) {
+                val t = (i / 24f + infall) % 1f
+                val angle = i * .83f + rotation * .012f + t * 6.4f
+                val r = horizon * (2.0f + (1f - t) * 4.3f)
+                val x = cx + kotlin.math.cos(angle.toDouble()).toFloat() * r * 1.7f
+                val y = cy + kotlin.math.sin(angle.toDouble()).toFloat() * r * .72f
+                val tailR = r * 1.24f
+                val tx = cx + kotlin.math.cos((angle + .16f).toDouble()).toFloat() * tailR * 1.7f
+                val ty = cy + kotlin.math.sin((angle + .16f).toDouble()).toFloat() * tailR * .72f
+                drawLine(accent.copy(alpha = .58f * (1f - t * .45f)), Offset(tx, ty), Offset(x, y), strokeWidth = unit * .004f)
+                drawCircle(Color(0xFFFFE9C5).copy(alpha = .85f - t * .4f), unit * .004f, Offset(x, y))
             }
         }
 
         val bubble = Modifier.size(39.dp).clip(CircleShape)
-            .background(Color(0xE62A1B12))
-            .border(1.dp, accent.copy(alpha = 0.55f), CircleShape)
-        @Composable fun BurstIcon(
-            icon: ImageVector,
-            description: String,
-            travelX: Dp,
-            travelY: Dp
-        ) {
+            .background(Color(0xE6161B2B)).border(1.dp, accent.copy(alpha = .55f), CircleShape)
+        @Composable fun BurstIcon(icon: ImageVector, description: String, travelX: Dp, travelY: Dp) {
             Box(
-                Modifier.align(Alignment.Center)
-                    .offset(x = travelX * iconBurst, y = travelY * iconBurst)
-                    .then(bubble)
-                    .graphicsLayer {
-                        val spread = 0.18f + iconBurst * 0.82f
-                        scaleX = spread
-                        scaleY = spread
-                        alpha = iconBurst
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, contentDescription = description, tint = Peach, modifier = Modifier.size(19.dp))
-            }
+                Modifier.align(Alignment.Center).offset(x = travelX * iconBurst, y = travelY * iconBurst)
+                    .then(bubble).graphicsLayer {
+                        val spread = .18f + iconBurst * .82f
+                        scaleX = spread; scaleY = spread; alpha = iconBurst
+                    }, contentAlignment = Alignment.Center
+            ) { Icon(icon, contentDescription = description, tint = Paper, modifier = Modifier.size(19.dp)) }
         }
         if (showOrbitIcons) {
             BurstIcon(Icons.Default.Search, "Поиск", (-112).dp, (-54).dp)
@@ -678,6 +698,11 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var incognitoAccentChoice by remember { mutableStateOf(settingsPrefs.getString("incognitoAccent", "purple") ?: "purple") }
     var homeLayout by remember { mutableStateOf(settingsPrefs.getString("homeLayout", "grid") ?: "grid") }
     var interfaceLanguage by remember { mutableStateOf(settingsPrefs.getString("language", "ru") ?: "ru") }
+    var showHomeBranding by remember { mutableStateOf(settingsPrefs.getBoolean("showHomeBranding", true)) }
+    var showHomeShortcuts by remember { mutableStateOf(settingsPrefs.getBoolean("showHomeShortcuts", true)) }
+    var showHomeBookmarks by remember { mutableStateOf(settingsPrefs.getBoolean("showHomeBookmarks", true)) }
+    var themePacks by remember { mutableStateOf<List<ThemePack>>(emptyList()) }
+    var loadingThemePacks by remember { mutableStateOf(false) }
     var animations by remember { mutableStateOf(settingsPrefs.getBoolean("animations", true)) }
     var trackers by remember { mutableStateOf(settingsPrefs.getBoolean("trackers", true)) }
     var darkSites by remember { mutableStateOf(settingsPrefs.getBoolean("darkSites", true)) }
@@ -727,8 +752,22 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             config.optString("language", interfaceLanguage).takeIf { it in listOf("ru", "en") }?.let { interfaceLanguage = it }
             if (config.has("blur")) blur = config.optDouble("blur", blur.toDouble()).toFloat().coerceIn(0f, 32f)
             if (config.has("wallpaperUri")) wallpaperUri = config.optString("wallpaperUri")
+            if (config.has("showHomeBranding")) showHomeBranding = config.optBoolean("showHomeBranding")
+            if (config.has("showHomeShortcuts")) showHomeShortcuts = config.optBoolean("showHomeShortcuts")
+            if (config.has("showHomeBookmarks")) showHomeBookmarks = config.optBoolean("showHomeBookmarks")
             toast = "Конфигурация применена"
         }.onFailure { toast = "Не удалось прочитать конфигурацию JSON" }
+    }
+    val exportConfigPicker = androidx.activity.compose.rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) runCatching {
+            val config = org.json.JSONObject().put("format", "darknes-studio-v1")
+                .put("accent", accentChoice).put("incognitoAccent", incognitoAccentChoice)
+                .put("homeLayout", homeLayout).put("language", interfaceLanguage).put("blur", blur)
+                .put("wallpaperUri", wallpaperUri).put("showHomeBranding", showHomeBranding)
+                .put("showHomeShortcuts", showHomeShortcuts).put("showHomeBookmarks", showHomeBookmarks)
+            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(config.toString(2)) } ?: error("Cannot write file")
+            toast = "Конфигурация экспортирована"
+        }.onFailure { toast = "Ошибка экспорта конфигурации" }
     }
     val offlinePages = remember(savedPrefs) {
         mutableStateListOf<OfflinePage>().apply {
@@ -756,7 +795,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 .apply()
         }
     }
-    LaunchedEffect(blur, animations, trackers, darkSites, adBlock, nightPages, accentChoice, desktopMode, wallpaperUri, incognitoAccentChoice, homeLayout, interfaceLanguage) {
+    LaunchedEffect(blur, animations, trackers, darkSites, adBlock, nightPages, accentChoice, desktopMode, wallpaperUri, incognitoAccentChoice, homeLayout, interfaceLanguage, showHomeBranding, showHomeShortcuts, showHomeBookmarks) {
         settingsPrefs.edit()
             .putBoolean("desktopMode", desktopMode)
             .putString("accent", accentChoice)
@@ -764,6 +803,9 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             .putString("incognitoAccent", incognitoAccentChoice)
             .putString("homeLayout", homeLayout)
             .putString("language", interfaceLanguage)
+            .putBoolean("showHomeBranding", showHomeBranding)
+            .putBoolean("showHomeShortcuts", showHomeShortcuts)
+            .putBoolean("showHomeBookmarks", showHomeBookmarks)
             .putFloat("blur", blur)
             .putBoolean("animations", animations)
             .putBoolean("trackers", trackers)
@@ -1054,6 +1096,9 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 bookmarks = bookmarks.toList(),
                 wallpaperUri = wallpaperUri,
                 homeLayout = homeLayout,
+                showBranding = showHomeBranding,
+                showShortcuts = showHomeShortcuts,
+                showBookmarks = showHomeBookmarks,
                 onSecretSettings = { panel = "Настройки" },
                 onSearch = {
                     runSearch(query)
@@ -1124,7 +1169,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                     else -> action
                                 }
                             }
-                            "Настройки" -> SettingsPanel(engine, { engine = it }, trackers, { trackers = it }, darkSites, { darkSites = it }, animations, { animations = it }, blur, { blur = it }, accentChoice, { accentChoice = it }, desktopMode, { desktopMode = it }, incognitoAccentChoice, { incognitoAccentChoice = it }, homeLayout, { homeLayout = it }, interfaceLanguage, { interfaceLanguage = it }, wallpaperUri, { wallpaperPicker.launch(arrayOf("image/*")) }, { wallpaperUri = "" }, { configPicker.launch(arrayOf("application/json", "text/plain", "*/*")) })
+                            "Настройки" -> SettingsPanel(engine, { engine = it }, trackers, { trackers = it }, darkSites, { darkSites = it }, animations, { animations = it }, blur, { blur = it }, accentChoice, { accentChoice = it }, desktopMode, { desktopMode = it }, incognitoAccentChoice, { incognitoAccentChoice = it }, homeLayout, { homeLayout = it }, interfaceLanguage, { interfaceLanguage = it }, wallpaperUri, { wallpaperPicker.launch(arrayOf("image/*")) }, { wallpaperUri = "" }, { configPicker.launch(arrayOf("application/json", "text/plain", "*/*")) }, showHomeBranding, { showHomeBranding = it }, showHomeShortcuts, { showHomeShortcuts = it }, showHomeBookmarks, { showHomeBookmarks = it }, themePacks, loadingThemePacks, { scope.launch { loadingThemePacks = true; runCatching { withContext(Dispatchers.IO) { URL("https://raw.githubusercontent.com/def010375-ux/Darknes-brauser1.2/main/themes/catalog.json").openConnection().apply { connectTimeout = 9000; readTimeout = 9000 }.getInputStream().bufferedReader().use { it.readText() } } }.onSuccess { themePacks = parseThemePacks(it); toast = "Загружено тем: ${themePacks.size}" }.onFailure { toast = "Каталог тем недоступен" }; loadingThemePacks = false } }, { pack -> accentChoice = pack.accent; incognitoAccentChoice = pack.incognitoAccent; homeLayout = pack.homeLayout; blur = pack.blur; interfaceLanguage = pack.language; toast = "Тема «${pack.name}» установлена" }, { exportConfigPicker.launch("Darknes-Studio-Config.json") })
                             "Безопасность" -> PrivacyPanel(trackers, { trackers = it }, adBlock, { adBlock = it }, darkSites, { darkSites = it }, nightPages, { nightPages = it }) {
                                 runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))) }
                                     .onFailure { toast = "Не удалось открыть настройки Android" }
@@ -1290,6 +1335,9 @@ private fun HomeScreen(
     bookmarks: List<SavedPage>,
     wallpaperUri: String,
     homeLayout: String,
+    showBranding: Boolean,
+    showShortcuts: Boolean,
+    showBookmarks: Boolean,
     onSecretSettings: () -> Unit,
     onSearch: () -> Unit,
     onShortcut: (String) -> Unit
@@ -1298,6 +1346,7 @@ private fun HomeScreen(
     var lastTitleTapAt by remember { mutableLongStateOf(0L) }
     val wallpaperContext = LocalContext.current
     Column(Modifier.fillMaxSize().background(Ink).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
+        if (showBranding) {
         Spacer(Modifier.height(18.dp))
         Box(Modifier.fillMaxWidth().height(220.dp), contentAlignment = Alignment.Center) {
             val wallpaperBitmap = remember(wallpaperUri) {
@@ -1315,7 +1364,7 @@ private fun HomeScreen(
                     modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(24.dp)).blur(blur.dp))
                 Box(Modifier.fillMaxSize().padding(horizontal = 12.dp).clip(RoundedCornerShape(24.dp)).background(Color.Black.copy(alpha = .28f)))
             }
-            BlackHoleScene(iconBurst = 0f, modifier = Modifier.width(270.dp).height(205.dp).blur(if (wallpaperBitmap == null) blur.dp else (blur / 2f).dp),
+            BlackHoleScene(iconBurst = 0f, modifier = Modifier.width(270.dp).height(205.dp),
                 accent = accent, showOrbitIcons = false, showParticles = false)
         }
         Spacer(Modifier.height(4.dp))
@@ -1350,6 +1399,7 @@ private fun HomeScreen(
             Text("БЕЗ АККАУНТА", color = Paper.copy(alpha = .78f), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = .7.sp)
         }
         Spacer(Modifier.height(20.dp))
+        }
         HomeSearchBar(
             value = searchText,
             onValueChange = onSearchTextChange,
@@ -1358,6 +1408,7 @@ private fun HomeScreen(
             accent = accent,
             onSearch = onSearch
         )
+        if (showShortcuts) {
         Spacer(Modifier.height(24.dp))
         Row(
             Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 10.dp),
@@ -1400,8 +1451,9 @@ private fun HomeScreen(
                 }
             }
         }
+        }
         AnimatedVisibility(
-            visible = bookmarks.isNotEmpty(),
+            visible = showBookmarks && bookmarks.isNotEmpty(),
             enter = if (animations) fadeIn(tween(220)) + expandVertically(tween(260)) else EnterTransition.None,
             exit = if (animations) fadeOut(tween(140)) + shrinkVertically(tween(180)) else ExitTransition.None
         ) {
@@ -1782,7 +1834,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     Text("Выбор версии открывает загрузку APK. Установка подтверждается Android. Для обновления поверх текущей версии подпись APK должна совпадать.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
 }
 
-@Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit, accentChoice:String, setAccentChoice:(String)->Unit, desktopMode:Boolean, setDesktopMode:(Boolean)->Unit, incognitoAccent:String, setIncognitoAccent:(String)->Unit, homeLayout:String, setHomeLayout:(String)->Unit, language:String, setLanguage:(String)->Unit, wallpaperUri:String, chooseWallpaper:()->Unit, clearWallpaper:()->Unit, importConfig:()->Unit) {
+@Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit, accentChoice:String, setAccentChoice:(String)->Unit, desktopMode:Boolean, setDesktopMode:(Boolean)->Unit, incognitoAccent:String, setIncognitoAccent:(String)->Unit, homeLayout:String, setHomeLayout:(String)->Unit, language:String, setLanguage:(String)->Unit, wallpaperUri:String, chooseWallpaper:()->Unit, clearWallpaper:()->Unit, importConfig:()->Unit, showBranding:Boolean, setShowBranding:(Boolean)->Unit, showShortcuts:Boolean, setShowShortcuts:(Boolean)->Unit, showBookmarks:Boolean, setShowBookmarks:(Boolean)->Unit, themePacks:List<ThemePack>, loadingThemePacks:Boolean, refreshThemePacks:()->Unit, applyThemePack:(ThemePack)->Unit, exportConfig:()->Unit) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
     PanelTitle("Настройки", "Персонализация и управление Darknes Tor")
     val engines = listOf("DuckDuckGo", "Google", "Bing", "Brave")
@@ -1848,16 +1900,34 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     Text("Размытие фона: ${blur.toInt()} px", color = Paper, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
     Slider(value = blur, onValueChange = setBlur, valueRange = 0f..32f)
     Spacer(Modifier.height(12.dp))
-    Text("РАСКЛАДКА СТАРТОВОЙ СТРАНИЦЫ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    Text("ЭЛЕМЕНТЫ СТАРТОВОЙ СТРАНИЦЫ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    SettingSwitch("3D-сцена и логотип", showBranding, setShowBranding)
+    SettingSwitch("Быстрые сайты", showShortcuts, setShowShortcuts)
+    SettingSwitch("Показывать закладки", showBookmarks, setShowBookmarks)
+    Text("РАСКЛАДКА СТАРТОВОЙ СТРАНИЦЫ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) { listOf("grid" to "Сетка", "list" to "Список", "compact" to "Компактная").forEach { (key, label) -> FilterChip(selected = homeLayout == key, onClick = { setHomeLayout(key) }, label = { Text(label, fontSize = 10.sp) }) } }
     Spacer(Modifier.height(12.dp))
     Text("ЯЗЫК ИНТЕРФЕЙСА", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(selected = language == "ru", onClick = { setLanguage("ru") }, label = { Text("Русский") }); FilterChip(selected = language == "en", onClick = { setLanguage("en") }, label = { Text("English") }) }
     Text("Язык сохраняется. Полный перевод всех экранов подключается отдельно.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
     Spacer(Modifier.height(14.dp))
+    Text("КАТАЛОГ ПОЛЬЗОВАТЕЛЬСКИХ GUI", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    Text("Загрузи готовые пакеты оформления Darknes из онлайн-каталога. Пакет меняет только разрешённые параметры интерфейса.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+    OutlinedButton(onClick = refreshThemePacks, enabled = !loadingThemePacks, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.CloudDownload, null); Spacer(Modifier.width(7.dp)); Text(if (loadingThemePacks) "Загрузка каталога…" else "Загрузить каталог тем") }
+    themePacks.forEach { pack ->
+        Surface(Modifier.fillMaxWidth().padding(top = 6.dp).clickable { applyThemePack(pack) }, color = Color(0xFF121C32), shape = RoundedCornerShape(13.dp), border = BorderStroke(1.dp, Border)) {
+            Row(Modifier.padding(11.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(32.dp).clip(CircleShape).background(when(pack.accent) { "blue" -> Color(0xFF55A8FF); "purple" -> Color(0xFFB28AFF); "green" -> Color(0xFF65D69A); else -> Orange }))
+                Column(Modifier.weight(1f).padding(start = 10.dp)) { Text(pack.name, color = Paper, fontSize = 12.sp, fontWeight = FontWeight.SemiBold); Text("${pack.homeLayout} · ${pack.language.uppercase()}", color = Muted, fontSize = 9.sp) }
+                Text("УСТАНОВИТЬ", color = Orange, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+    Spacer(Modifier.height(10.dp))
     Text("ТЕМЫ И КОНФИГУРАЦИИ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
     Text("Импорт JSON-конфигурации Darknes Studio. Применяются только безопасные параметры оформления.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
     OutlinedButton(onClick = importConfig, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.FileOpen, null); Spacer(Modifier.width(7.dp)); Text("Импортировать конфигурацию") }
+    OutlinedButton(onClick = exportConfig, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.FileDownload, null); Spacer(Modifier.width(7.dp)); Text("Экспортировать мою тему") }
     Text("Поддерживаются accent, incognitoAccent, homeLayout, language, blur и wallpaperUri. Скрипты и исполняемый код не запускаются.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
     Text("Дополнительные параметры защиты находятся в Центре безопасности.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 12.dp))
     Spacer(Modifier.height(22.dp))
