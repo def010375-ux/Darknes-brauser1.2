@@ -703,6 +703,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var showHomeBookmarks by remember { mutableStateOf(settingsPrefs.getBoolean("showHomeBookmarks", true)) }
     var themePacks by remember { mutableStateOf<List<ThemePack>>(emptyList()) }
     var loadingThemePacks by remember { mutableStateOf(false) }
+    val customHomeSites = remember(settingsPrefs) { mutableStateListOf<SavedPage>().apply { addAll(readSavedPages(settingsPrefs.getString("customHomeSites", null))) } }
     var animations by remember { mutableStateOf(settingsPrefs.getBoolean("animations", true)) }
     var trackers by remember { mutableStateOf(settingsPrefs.getBoolean("trackers", true)) }
     var darkSites by remember { mutableStateOf(settingsPrefs.getBoolean("darkSites", true)) }
@@ -755,9 +756,18 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             if (config.has("showHomeBranding")) showHomeBranding = config.optBoolean("showHomeBranding")
             if (config.has("showHomeShortcuts")) showHomeShortcuts = config.optBoolean("showHomeShortcuts")
             if (config.has("showHomeBookmarks")) showHomeBookmarks = config.optBoolean("showHomeBookmarks")
+            config.optJSONArray("customSites")?.let { array ->
+                customHomeSites.clear()
+                for (i in 0 until minOf(array.length(), 24)) {
+                    val item = array.optJSONObject(i) ?: continue
+                    val siteUrl = item.optString("url")
+                    if (siteUrl.startsWith("https://") || siteUrl.startsWith("http://")) customHomeSites.add(SavedPage(item.optString("title").ifBlank { siteUrl }, siteUrl))
+                }
+            }
             toast = "Конфигурация применена"
         }.onFailure { toast = "Не удалось прочитать конфигурацию JSON" }
     }
+    LaunchedEffect(customHomeSites.toList()) { settingsPrefs.edit().putString("customHomeSites", encodeSavedPages(customHomeSites.toList())).apply() }
     val exportConfigPicker = androidx.activity.compose.rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) runCatching {
             val config = org.json.JSONObject().put("format", "darknes-studio-v1")
@@ -765,6 +775,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 .put("homeLayout", homeLayout).put("language", interfaceLanguage).put("blur", blur)
                 .put("wallpaperUri", wallpaperUri).put("showHomeBranding", showHomeBranding)
                 .put("showHomeShortcuts", showHomeShortcuts).put("showHomeBookmarks", showHomeBookmarks)
+                .put("customSites", JSONArray().apply { customHomeSites.forEach { put(org.json.JSONObject().put("title", it.title).put("url", it.url)) } })
             context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(config.toString(2)) } ?: error("Cannot write file")
             toast = "Конфигурация экспортирована"
         }.onFailure { toast = "Ошибка экспорта конфигурации" }
@@ -1099,6 +1110,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 showBranding = showHomeBranding,
                 showShortcuts = showHomeShortcuts,
                 showBookmarks = showHomeBookmarks,
+                customSites = customHomeSites.toList(),
                 onSecretSettings = { panel = "Настройки" },
                 onSearch = {
                     runSearch(query)
@@ -1169,7 +1181,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                     else -> action
                                 }
                             }
-                            "Настройки" -> SettingsPanel(engine, { engine = it }, trackers, { trackers = it }, darkSites, { darkSites = it }, animations, { animations = it }, blur, { blur = it }, accentChoice, { accentChoice = it }, desktopMode, { desktopMode = it }, incognitoAccentChoice, { incognitoAccentChoice = it }, homeLayout, { homeLayout = it }, interfaceLanguage, { interfaceLanguage = it }, wallpaperUri, { wallpaperPicker.launch(arrayOf("image/*")) }, { wallpaperUri = "" }, { configPicker.launch(arrayOf("application/json", "text/plain", "*/*")) }, showHomeBranding, { showHomeBranding = it }, showHomeShortcuts, { showHomeShortcuts = it }, showHomeBookmarks, { showHomeBookmarks = it }, themePacks, loadingThemePacks, { scope.launch { loadingThemePacks = true; runCatching { withContext(Dispatchers.IO) { URL("https://raw.githubusercontent.com/def010375-ux/Darknes-brauser1.2/main/themes/catalog.json").openConnection().apply { connectTimeout = 9000; readTimeout = 9000 }.getInputStream().bufferedReader().use { it.readText() } } }.onSuccess { themePacks = parseThemePacks(it); toast = "Загружено тем: ${themePacks.size}" }.onFailure { toast = "Каталог тем недоступен" }; loadingThemePacks = false } }, { pack -> accentChoice = pack.accent; incognitoAccentChoice = pack.incognitoAccent; homeLayout = pack.homeLayout; blur = pack.blur; interfaceLanguage = pack.language; toast = "Тема «${pack.name}» установлена" }, { exportConfigPicker.launch("Darknes-Studio-Config.json") })
+                            "Настройки" -> SettingsPanel(engine, { engine = it }, trackers, { trackers = it }, darkSites, { darkSites = it }, animations, { animations = it }, blur, { blur = it }, accentChoice, { accentChoice = it }, desktopMode, { desktopMode = it }, incognitoAccentChoice, { incognitoAccentChoice = it }, homeLayout, { homeLayout = it }, interfaceLanguage, { interfaceLanguage = it }, wallpaperUri, { wallpaperPicker.launch(arrayOf("image/*")) }, { wallpaperUri = "" }, { configPicker.launch(arrayOf("application/json", "text/plain", "*/*")) }, showHomeBranding, { showHomeBranding = it }, showHomeShortcuts, { showHomeShortcuts = it }, showHomeBookmarks, { showHomeBookmarks = it }, customHomeSites.toList(), { title, rawUrl -> val clean = rawUrl.trim(); val normalized = if (clean.startsWith("http://") || clean.startsWith("https://")) clean else "https://$clean"; if (title.isBlank() || Uri.parse(normalized).host.isNullOrBlank()) toast = "Проверь название и адрес сайта" else if (customHomeSites.any { it.url == normalized }) toast = "Этот сайт уже добавлен" else { customHomeSites.add(SavedPage(title.trim(), normalized)); toast = "Сайт добавлен на главную" } }, { index, direction -> val target = index + direction; if (target in customHomeSites.indices) { val item = customHomeSites.removeAt(index); customHomeSites.add(target, item) } }, { site -> customHomeSites.removeAll { it.url == site.url } }, themePacks, loadingThemePacks, { scope.launch { loadingThemePacks = true; runCatching { withContext(Dispatchers.IO) { URL("https://raw.githubusercontent.com/def010375-ux/Darknes-brauser1.2/main/themes/catalog.json").openConnection().apply { connectTimeout = 9000; readTimeout = 9000 }.getInputStream().bufferedReader().use { it.readText() } } }.onSuccess { themePacks = parseThemePacks(it); toast = "Загружено тем: ${themePacks.size}" }.onFailure { toast = "Каталог тем недоступен" }; loadingThemePacks = false } }, { pack -> accentChoice = pack.accent; incognitoAccentChoice = pack.incognitoAccent; homeLayout = pack.homeLayout; blur = pack.blur; interfaceLanguage = pack.language; toast = "Тема «${pack.name}» установлена" }, { exportConfigPicker.launch("Darknes-Studio-Config.json") })
                             "Безопасность" -> PrivacyPanel(trackers, { trackers = it }, adBlock, { adBlock = it }, darkSites, { darkSites = it }, nightPages, { nightPages = it }) {
                                 runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))) }
                                     .onFailure { toast = "Не удалось открыть настройки Android" }
@@ -1338,6 +1350,7 @@ private fun HomeScreen(
     showBranding: Boolean,
     showShortcuts: Boolean,
     showBookmarks: Boolean,
+    customSites: List<SavedPage>,
     onSecretSettings: () -> Unit,
     onSearch: () -> Unit,
     onShortcut: (String) -> Unit
@@ -1418,7 +1431,7 @@ private fun HomeScreen(
                 Text("ТВОЁ ПРОСТРАНСТВО", color = Paper, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
                 Text("Быстрый доступ к любимым сайтам", color = Muted, fontSize = 10.sp)
             }
-            Text("07 САЙТОВ", color = accent, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = .8.sp)
+            Text("${7 + customSites.size} САЙТОВ", color = accent, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = .8.sp)
         }
         val sites = listOf(
             Triple("YouTube", Icons.Default.PlayCircleFilled, "https://youtube.com"),
@@ -1428,7 +1441,7 @@ private fun HomeScreen(
             Triple("Telegram", Icons.Default.Send, "https://telegram.org"),
             Triple("Reddit", Icons.Default.Forum, "https://reddit.com"),
             Triple("Twitch", Icons.Default.LiveTv, "https://twitch.tv")
-        )
+        ) + customSites.map { Triple(it.title, Icons.Default.Public, it.url) }
         val siteColumns = when (homeLayout) { "compact" -> 5; "list" -> 1; else -> 4 }
         LazyVerticalGrid(columns = GridCells.Fixed(siteColumns), modifier = Modifier.fillMaxWidth().height(if (homeLayout == "list") 420.dp else 204.dp).padding(horizontal = 14.dp), userScrollEnabled = false) {
             items(sites) { (name, icon, url) ->
@@ -1834,7 +1847,9 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     Text("Выбор версии открывает загрузку APK. Установка подтверждается Android. Для обновления поверх текущей версии подпись APK должна совпадать.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
 }
 
-@Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit, accentChoice:String, setAccentChoice:(String)->Unit, desktopMode:Boolean, setDesktopMode:(Boolean)->Unit, incognitoAccent:String, setIncognitoAccent:(String)->Unit, homeLayout:String, setHomeLayout:(String)->Unit, language:String, setLanguage:(String)->Unit, wallpaperUri:String, chooseWallpaper:()->Unit, clearWallpaper:()->Unit, importConfig:()->Unit, showBranding:Boolean, setShowBranding:(Boolean)->Unit, showShortcuts:Boolean, setShowShortcuts:(Boolean)->Unit, showBookmarks:Boolean, setShowBookmarks:(Boolean)->Unit, themePacks:List<ThemePack>, loadingThemePacks:Boolean, refreshThemePacks:()->Unit, applyThemePack:(ThemePack)->Unit, exportConfig:()->Unit) {
+@Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit, accentChoice:String, setAccentChoice:(String)->Unit, desktopMode:Boolean, setDesktopMode:(Boolean)->Unit, incognitoAccent:String, setIncognitoAccent:(String)->Unit, homeLayout:String, setHomeLayout:(String)->Unit, language:String, setLanguage:(String)->Unit, wallpaperUri:String, chooseWallpaper:()->Unit, clearWallpaper:()->Unit, importConfig:()->Unit, showBranding:Boolean, setShowBranding:(Boolean)->Unit, showShortcuts:Boolean, setShowShortcuts:(Boolean)->Unit, showBookmarks:Boolean, setShowBookmarks:(Boolean)->Unit, customSites:List<SavedPage>, addCustomSite:(String,String)->Unit, moveCustomSite:(Int,Int)->Unit, removeCustomSite:(SavedPage)->Unit, themePacks:List<ThemePack>, loadingThemePacks:Boolean, refreshThemePacks:()->Unit, applyThemePack:(ThemePack)->Unit, exportConfig:()->Unit) {
+    var customSiteName by remember { mutableStateOf("") }
+    var customSiteUrl by remember { mutableStateOf("") }
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
     PanelTitle("Настройки", "Персонализация и управление Darknes Tor")
     val engines = listOf("DuckDuckGo", "Google", "Bing", "Brave")
@@ -1924,6 +1939,19 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
         }
     }
     Spacer(Modifier.height(10.dp))
+    Text("МОИ БЫСТРЫЕ САЙТЫ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    OutlinedTextField(value = customSiteName, onValueChange = { customSiteName = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Название сайта") })
+    OutlinedTextField(value = customSiteUrl, onValueChange = { customSiteUrl = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Адрес сайта") }, placeholder = { Text("example.com") })
+    Button(onClick = { addCustomSite(customSiteName, customSiteUrl); if (customSiteName.isNotBlank() && customSiteUrl.isNotBlank()) { customSiteName = ""; customSiteUrl = "" } }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Ink), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(6.dp)); Text("Добавить на стартовую страницу") }
+    customSites.forEachIndexed { index, site ->
+        Row(Modifier.fillMaxWidth().padding(top = 5.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF121C32)).padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) { Text(site.title, color = Paper, fontSize = 11.sp, maxLines = 1); Text(site.url, color = Muted, fontSize = 9.sp, maxLines = 1) }
+            IconButton(onClick = { moveCustomSite(index, -1) }, enabled = index > 0) { Icon(Icons.Default.KeyboardArrowUp, null, tint = Orange) }
+            IconButton(onClick = { moveCustomSite(index, 1) }, enabled = index < customSites.lastIndex) { Icon(Icons.Default.KeyboardArrowDown, null, tint = Orange) }
+            IconButton(onClick = { removeCustomSite(site) }) { Icon(Icons.Default.DeleteOutline, null, tint = Peach) }
+        }
+    }
+    Spacer(Modifier.height(12.dp))
     Text("ТЕМЫ И КОНФИГУРАЦИИ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
     Text("Импорт JSON-конфигурации Darknes Studio. Применяются только безопасные параметры оформления.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
     OutlinedButton(onClick = importConfig, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.FileOpen, null); Spacer(Modifier.width(7.dp)); Text("Импортировать конфигурацию") }
