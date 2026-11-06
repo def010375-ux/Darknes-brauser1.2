@@ -1548,7 +1548,7 @@ private fun HomeSearchBar(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(6.dp).background(Color(0xFF62E6C2), CircleShape))
             Spacer(Modifier.width(7.dp))
-            Text(uiLabel(language, "ПОИСКОВАЯ СИСТЕМА", "SEARCH ENGINE"), color = Muted, fontSize = 9.sp, letterSpacing = 1.1.sp)
+            Text("ПОИСКОВАЯ СИСТЕМА", color = Muted, fontSize = 9.sp, letterSpacing = 1.1.sp)
             Spacer(Modifier.weight(1f))
             Row(
                 Modifier.clip(RoundedCornerShape(50)).background(Color(0xFF25365A)).padding(horizontal = 11.dp, vertical = 6.dp),
@@ -1853,7 +1853,6 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
 @Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit, accentChoice:String, setAccentChoice:(String)->Unit, desktopMode:Boolean, setDesktopMode:(Boolean)->Unit, incognitoAccent:String, setIncognitoAccent:(String)->Unit, homeLayout:String, setHomeLayout:(String)->Unit, language:String, setLanguage:(String)->Unit, wallpaperUri:String, chooseWallpaper:()->Unit, clearWallpaper:()->Unit, importConfig:()->Unit, showBranding:Boolean, setShowBranding:(Boolean)->Unit, showShortcuts:Boolean, setShowShortcuts:(Boolean)->Unit, showBookmarks:Boolean, setShowBookmarks:(Boolean)->Unit, customSites:List<SavedPage>, addCustomSite:(String,String)->Unit, moveCustomSite:(Int,Int)->Unit, removeCustomSite:(SavedPage)->Unit, themePacks:List<ThemePack>, loadingThemePacks:Boolean, refreshThemePacks:()->Unit, applyThemePack:(ThemePack)->Unit, exportConfig:()->Unit) {
     var customSiteName by remember { mutableStateOf("") }
     var customSiteUrl by remember { mutableStateOf("") }
-    val en = language == "en"
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
     PanelTitle(uiLabel(language, "Настройки", "Settings"), uiLabel(language, "Персонализация и управление Darknes Tor", "Personalization and Darknes Tor controls"))
     val engines = listOf("DuckDuckGo", "Google", "Bing", "Brave")
@@ -1866,7 +1865,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
             }
             Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
-                Text("ПОИСКОВАЯ СИСТЕМА", color = Muted, fontSize = 9.sp, letterSpacing = 1.2.sp)
+                Text(uiLabel(language, "ПОИСКОВАЯ СИСТЕМА", "SEARCH ENGINE"), color = Muted, fontSize = 9.sp, letterSpacing = 1.2.sp)
                 Text(engine, color = Paper, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
             Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF62E6C2), modifier = Modifier.size(20.dp))
