@@ -88,6 +88,30 @@ private fun encodeDownloadRecords(records: List<DownloadRecord>): String = JSONA
     }
 }.toString()
 
+
+private data class LinkRiskReport(val host: String, val warnings: List<String>) {
+    val isSuspicious: Boolean get() = warnings.isNotEmpty()
+}
+
+private fun analyzeLinkRisk(raw: String): LinkRiskReport? {
+    val candidate = raw.trim()
+    if (candidate.isBlank()) return null
+    val normalized = if (candidate.contains("://")) candidate else "https://$candidate"
+    val uri = runCatching { Uri.parse(normalized) }.getOrNull() ?: return LinkRiskReport("неизвестен", listOf("Не удалось разобрать адрес"))
+    val scheme = uri.scheme?.lowercase().orEmpty()
+    val host = uri.host?.lowercase()?.trimEnd('.') ?: return LinkRiskReport("неизвестен", listOf("В адресе отсутствует корректное доменное имя"))
+    val warnings = mutableListOf<String>()
+    if (scheme != "https") warnings += "Соединение не использует HTTPS"
+    if (uri.userInfo != null || candidate.contains("@")) warnings += "В адресе есть символ @ или данные пользователя — возможна маскировка настоящего адреса"
+    if (host.startsWith("xn--") || host.split('.').any { it.startsWith("xn--") }) warnings += "Домен использует Punycode — проверь похожие символы и подмену букв"
+    if (host.matches(Regex("^\\\\d{1,3}(\\\\.\\\\d{1,3}){3}$"))) warnings += "Используется IP-адрес вместо обычного домена"
+    if (host.split('.').size >= 5) warnings += "Необычно много поддоменов"
+    val suspiciousWords = listOf("login", "verify", "secure", "account", "wallet", "password", "update", "bonus", "free", "support")
+    if (suspiciousWords.any { it in host }) warnings += "В домене встречаются слова, часто используемые в приманках (login/verify/secure и т. п.)"
+    if (host.contains("--")) warnings += "В домене есть двойной дефис"
+    return LinkRiskReport(host, warnings.distinct())
+}
+
 private data class SavedPage(val title: String, val url: String, val time: Long = System.currentTimeMillis())
 private data class OfflinePage(val title: String, val url: String, val content: String, val time: Long = System.currentTimeMillis())
 
@@ -2315,6 +2339,8 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
 }
 
 @Composable private fun PrivacyPanel(trackers:Boolean, setTrackers:(Boolean)->Unit, ad:Boolean, setAd:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, night:Boolean, setNight:(Boolean)->Unit, openAndroidSettings:()->Unit) {
+    var linkInput by remember { mutableStateOf("") }
+    var linkReport by remember { mutableStateOf<LinkRiskReport?>(null) }
     val protectionAccent = if (trackers && ad) Color(0xFF65D69A) else Color(0xFFFFC46B)
     val protectionLabel = if (trackers && ad) "ЗАЩИТА ВКЛЮЧЕНА" else "ТРЕБУЕТ ВНИМАНИЯ"
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(13.dp)) {
@@ -2400,6 +2426,60 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
                 SettingSwitch("Тёмная схема сайтов", dark, setDark)
                 HorizontalDivider(color = Border.copy(alpha = .55f))
                 SettingSwitch("Ночной режим страниц", night, setNight)
+            }
+        }
+
+        SecuritySectionTitle("ПРОВЕРКА ССЫЛОК", Icons.Default.Link)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color(0xCC101D31),
+            shape = RoundedCornerShape(20.dp),
+            border = BorderStroke(1.dp, Border)
+        ) {
+            Column(Modifier.padding(14.dp)) {
+                Text("Локальный анализ адреса", color = Paper, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("Проверь подозрительную ссылку до открытия. Адрес анализируется на устройстве и не отправляется на сторонний сервис.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 5.dp))
+                OutlinedTextField(
+                    value = linkInput,
+                    onValueChange = { linkInput = it; linkReport = null },
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                    singleLine = true,
+                    placeholder = { Text("https://example.com", color = Muted) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Paper, unfocusedTextColor = Paper,
+                        focusedBorderColor = Orange, unfocusedBorderColor = Border,
+                        cursorColor = Orange, focusedPlaceholderColor = Muted, unfocusedPlaceholderColor = Muted
+                    )
+                )
+                Button(
+                    onClick = { linkReport = analyzeLinkRisk(linkInput) },
+                    enabled = linkInput.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Ink)
+                ) {
+                    Icon(Icons.Default.TravelExplore, contentDescription = null)
+                    Spacer(Modifier.width(7.dp))
+                    Text("Проверить адрес", fontWeight = FontWeight.Bold)
+                }
+                linkReport?.let { report ->
+                    val tint = if (report.isSuspicious) Color(0xFFFFC46B) else Color(0xFF65D69A)
+                    HorizontalDivider(color = Border, modifier = Modifier.padding(vertical = 10.dp))
+                    Text(if (report.isSuspicious) "ЕСТЬ ПРИЗНАКИ РИСКА" else "ЯВНЫХ ПРИЗНАКОВ РИСКА НЕ НАЙДЕНО",
+                        color = tint, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                    Text("Домен: ${report.host}", color = Paper, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
+                    if (report.warnings.isEmpty()) {
+                        Text("Базовые проверки не выявили подозрительных признаков.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+                    } else {
+                        report.warnings.forEach { warning ->
+                            Row(modifier = Modifier.padding(top = 6.dp), verticalAlignment = Alignment.Top) {
+                                Icon(Icons.Default.WarningAmber, contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
+                                Spacer(Modifier.width(7.dp))
+                                Text(warning, color = Paper, fontSize = 11.sp, lineHeight = 15.sp)
+                            }
+                        }
+                    }
+                }
+                Text("Важно: это эвристическая проверка, а не база известных фишинговых сайтов. Отсутствие предупреждений не означает, что ссылка безопасна.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 10.dp))
             }
         }
 
