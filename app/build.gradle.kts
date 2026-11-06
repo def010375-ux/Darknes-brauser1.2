@@ -16,6 +16,8 @@ android {
         targetSdk = 36
         versionCode = 6
         versionName = "1.5-beta"
+        buildConfigField("String", "SUPABASE_URL", "\\"https://qlaqcdwsksborsuzrvkt.supabase.co\\"")
+        buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\\"sb_publishable_1zlopUtwI3Et8iDC0Dp4Jg_TZXLjAX6\\"")
     }
 
     signingConfigs {
