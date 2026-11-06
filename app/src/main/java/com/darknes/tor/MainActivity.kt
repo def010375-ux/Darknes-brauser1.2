@@ -1365,7 +1365,7 @@ private fun HomeScreen(
                 Box(Modifier.fillMaxSize().padding(horizontal = 12.dp).clip(RoundedCornerShape(24.dp)).background(Color.Black.copy(alpha = .28f)))
             }
             BlackHoleScene(iconBurst = 0f, modifier = Modifier.width(270.dp).height(205.dp),
-                accent = accent, showOrbitIcons = false, showParticles = false)
+                accent = accent, showOrbitIcons = false, showParticles = true)
         }
         Spacer(Modifier.height(4.dp))
         Text(
