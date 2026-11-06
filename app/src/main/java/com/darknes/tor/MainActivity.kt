@@ -96,6 +96,12 @@ private fun encodeDownloadRecords(records: List<DownloadRecord>): String = JSONA
 
 
 
+private object VaultSessionCache {
+    @Volatile var entries: List<VaultEntry> = emptyList()
+    @Volatile var isUnlocked: Boolean = false
+    fun set(value: List<VaultEntry>) { entries = value; isUnlocked = true }
+    fun clear() { entries = emptyList(); isUnlocked = false }
+}
 private data class VaultEntry(
     val id: String,
     val title: String,
@@ -247,6 +253,7 @@ private fun DarknesVaultPanel() {
             if (event == Lifecycle.Event.ON_STOP) {
                 unlocked = false
                 entries = emptyList()
+                VaultSessionCache.clear()
                 revealIds = emptySet()
                 masterPassword = ""
                 vaultPassphrase = ""
@@ -295,7 +302,7 @@ private fun DarknesVaultPanel() {
                         override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                             val pass = runCatching { result.cryptoObject?.cipher?.doFinal(encrypted)?.toString(Charsets.UTF_8) }.getOrNull()
                             val json = pass?.let { DarknesVaultCrypto.unlock(context, it.toCharArray()) }
-                            if (pass != null && json != null) { vaultPassphrase = pass; entries = decodeVaultEntries(json); unlocked = true; error = "" }
+                            if (pass != null && json != null) { vaultPassphrase = pass; entries = decodeVaultEntries(json); VaultSessionCache.set(entries); unlocked = true; error = "" }
                             else error = "Не удалось открыть Vault. Введи мастер-пароль."
                         }
                     })
@@ -324,7 +331,7 @@ private fun DarknesVaultPanel() {
                     error = "Используй не менее 10 символов."
                 } else if (!created) {
                     val ok = DarknesVaultCrypto.create(context, masterPassword.toCharArray())
-                    if (ok) { created = true; entries = emptyList(); vaultPassphrase = masterPassword; unlocked = true; masterPassword = "" }
+                    if (ok) { created = true; entries = emptyList(); VaultSessionCache.set(entries); vaultPassphrase = masterPassword; unlocked = true; masterPassword = "" }
                     else error = "Не удалось создать хранилище."
                 } else {
                     val json = DarknesVaultCrypto.unlock(context, masterPassword.toCharArray())
@@ -365,7 +372,7 @@ private fun DarknesVaultPanel() {
                 Text("Сохранённые записи", color = Paper, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text("${entries.size} записей · хранятся только на этом устройстве", color = Muted, fontSize = 10.sp)
             }
-            TextButton(onClick = { unlocked = false; entries = emptyList(); revealIds = emptySet(); masterPassword = ""; vaultPassphrase = "" }) {
+            TextButton(onClick = { unlocked = false; entries = emptyList(); VaultSessionCache.clear(); revealIds = emptySet(); masterPassword = ""; vaultPassphrase = "" }) {
                 Text("Заблокировать", color = Color(0xFF65DFFF), fontSize = 11.sp)
             }
         }
@@ -381,7 +388,7 @@ private fun DarknesVaultPanel() {
                     else {
                         val updated = entries + VaultEntry(java.util.UUID.randomUUID().toString(), title.trim(), username, secret, website)
                         if (DarknesVaultCrypto.save(context, vaultPassphrase.toCharArray(), encodeVaultEntries(updated))) {
-                            entries = updated; title = ""; username = ""; secret = ""; website = ""; addMode = false; error = ""
+                            entries = updated; VaultSessionCache.set(updated); title = ""; username = ""; secret = ""; website = ""; addMode = false; error = ""
                         } else error = "Не удалось зашифровать и сохранить запись."
                     }
                 }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF42BFE8))) { Text("Сохранить", color = Color(0xFF071321)) }
@@ -406,7 +413,7 @@ private fun DarknesVaultPanel() {
                         }
                         IconButton(onClick = {
                             val updated = entries.filterNot { it.id == item.id }
-                            if (DarknesVaultCrypto.save(context, vaultPassphrase.toCharArray(), encodeVaultEntries(updated))) entries = updated
+                            if (DarknesVaultCrypto.save(context, vaultPassphrase.toCharArray(), encodeVaultEntries(updated))) { entries = updated; VaultSessionCache.set(updated) }
                             else error = "Не удалось сохранить изменения."
                         }) { Icon(Icons.Default.DeleteOutline, contentDescription = "Удалить", tint = Color(0xFFFF9B86)) }
                     }
