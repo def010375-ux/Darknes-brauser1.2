@@ -5,7 +5,10 @@ import android.content.Intent
 import android.os.SystemClock
 import android.net.Uri
 import android.widget.Toast
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.lifecycle.Lifecycle
@@ -222,6 +225,11 @@ private fun encodeVaultEntries(entries: List<VaultEntry>): String = JSONArray().
 private fun DarknesVaultPanel() {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val activity = remember(context) {
+        var current: android.content.Context? = context
+        while (current is android.content.ContextWrapper && current !is FragmentActivity) current = current.baseContext
+        current as? FragmentActivity
+    }
     var created by remember(context) { mutableStateOf(DarknesVaultCrypto.isCreated(context)) }
     var unlocked by remember { mutableStateOf(false) }
     var masterPassword by remember { mutableStateOf("") }
@@ -276,6 +284,31 @@ private fun DarknesVaultPanel() {
     Spacer(Modifier.height(12.dp))
 
     if (!unlocked) {
+        if (created && DarknesVaultCrypto.hasBiometric(context)) {
+            OutlinedButton(onClick = {
+                val host = activity
+                val cipher = DarknesVaultCrypto.biometricDecryptCipher(context)
+                val encrypted = DarknesVaultCrypto.biometricEncryptedPassphrase(context)
+                if (host == null || cipher == null || encrypted == null) {
+                    error = "Биометрический ключ недоступен. Используй мастер-пароль."
+                } else {
+                    val prompt = BiometricPrompt(host, ContextCompat.getMainExecutor(context), object : BiometricPrompt.AuthenticationCallback() {
+                        override fun onAuthenticationError(code: Int, message: CharSequence) { error = "Биометрия: $message" }
+                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                            val pass = runCatching { result.cryptoObject?.cipher?.doFinal(encrypted)?.toString(Charsets.UTF_8) }.getOrNull()
+                            val json = pass?.let { DarknesVaultCrypto.unlock(context, it.toCharArray()) }
+                            if (pass != null && json != null) { vaultPassphrase = pass; entries = decodeVaultEntries(json); unlocked = true; error = "" }
+                            else error = "Не удалось открыть Vault. Введи мастер-пароль."
+                        }
+                    })
+                    val info = BiometricPrompt.PromptInfo.Builder().setTitle("Darknes Vault")
+                        .setSubtitle("Подтверди личность для разблокировки").setNegativeButtonText("Отмена").build()
+                    prompt.authenticate(info, BiometricPrompt.CryptoObject(cipher))
+                }
+            }, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Fingerprint, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Разблокировать биометрией")
+            }
+        }
         Text(if (created) "Введи мастер-пароль, чтобы открыть хранилище." else "Создай мастер-пароль. Он понадобится при каждом открытии Vault.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
         OutlinedTextField(
             value = masterPassword, onValueChange = { masterPassword = it; error = "" },
@@ -306,6 +339,16 @@ private fun DarknesVaultPanel() {
         ) { Text(if (created) "Разблокировать" else "Создать защищённое хранилище", color = Color(0xFF071321), fontWeight = FontWeight.Bold) }
         Text("Если мастер-пароль потерян, восстановить данные будет невозможно. Vault автоматически блокируется при сворачивании приложения.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 12.dp))
     } else {
+        if (!DarknesVaultCrypto.hasBiometric(context)) {
+            OutlinedButton(onClick = {
+                val available = BiometricManager.from(context).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                if (available != BiometricManager.BIOMETRIC_SUCCESS) error = "На устройстве не настроена доступная биометрия. Настрой её в Android."
+                else if (DarknesVaultCrypto.enableBiometric(context, vaultPassphrase)) error = "Биометрическая разблокировка включена."
+                else error = "Не удалось подключить биометрию. Мастер-пароль по-прежнему работает."
+            }, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Fingerprint, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Включить биометрическую защиту")
+            }
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Сохранённые записи", color = Paper, fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -457,7 +500,7 @@ private fun encodeSavedPages(pages: List<SavedPage>): String = JSONArray().apply
     }
 }.toString()
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     private lateinit var runtime: GeckoRuntime
     private lateinit var session: GeckoSession
     private lateinit var saveDownloadLauncher: ActivityResultLauncher<String>
