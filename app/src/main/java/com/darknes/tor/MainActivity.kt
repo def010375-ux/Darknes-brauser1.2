@@ -1286,7 +1286,23 @@ private fun HomeScreen(
             style = TextStyle(brush = Brush.linearGradient(listOf(Paper, Orange, Violet)), fontSize = 39.sp, fontWeight = FontWeight.Bold)
         )
         Text("Поиск без входа и слежки", color = Muted, fontSize = 14.sp)
-        Spacer(Modifier.height(22.dp))
+        Spacer(Modifier.height(13.dp))
+        Row(
+            Modifier.clip(RoundedCornerShape(50.dp))
+                .background(Color(0xFF102B31).copy(alpha = .72f))
+                .border(1.dp, Color(0xFF62E6C2).copy(alpha = .28f), RoundedCornerShape(50.dp))
+                .padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(6.dp).background(Color(0xFF62E6C2), CircleShape))
+            Spacer(Modifier.width(7.dp))
+            Text("ЗАЩИТА ВКЛЮЧЕНА", color = Color(0xFF9AF2D9), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Spacer(Modifier.width(10.dp))
+            Text("·", color = Muted, fontSize = 10.sp)
+            Spacer(Modifier.width(8.dp))
+            Text("БЕЗ АККАУНТА", color = Paper.copy(alpha = .78f), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = .7.sp)
+        }
+        Spacer(Modifier.height(20.dp))
         HomeSearchBar(
             value = searchText,
             onValueChange = onSearchTextChange,
@@ -1296,7 +1312,16 @@ private fun HomeScreen(
             onSearch = onSearch
         )
         Spacer(Modifier.height(24.dp))
-        Text("БЫСТРЫЙ ДОСТУП", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp, modifier = Modifier.align(Alignment.Start).padding(start = 24.dp, bottom = 10.dp))
+        Row(
+            Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("ТВОЁ ПРОСТРАНСТВО", color = Paper, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
+                Text("Быстрый доступ к любимым сайтам", color = Muted, fontSize = 10.sp)
+            }
+            Text("07 САЙТОВ", color = accent, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = .8.sp)
+        }
         val sites = listOf(
             Triple("YouTube", Icons.Default.PlayCircleFilled, "https://youtube.com"),
             Triple("DuckDuckGo", Icons.Default.Search, "https://duckduckgo.com"),
@@ -1310,12 +1335,16 @@ private fun HomeScreen(
             items(sites) { (name, icon, url) ->
                 Column(
                     Modifier.padding(5.dp).clip(RoundedCornerShape(19.dp))
-                        .background(Brush.linearGradient(listOf(Color(0xFF1A2B49), Color(0xFF10172B))))
-                        .border(1.dp, Border, RoundedCornerShape(19.dp))
-                        .clickable { onShortcut(url) }.padding(vertical = 13.dp, horizontal = 3.dp),
+                        .background(Brush.linearGradient(listOf(Color(0xFF1D3455), Color(0xFF10172B))))
+                        .border(1.dp, accent.copy(alpha = .20f), RoundedCornerShape(19.dp))
+                        .clickable { onShortcut(url) }
+                        .animateContentSize(spring(dampingRatio = .72f, stiffness = 420f))
+                        .padding(vertical = 13.dp, horizontal = 3.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(accent.copy(alpha = .13f)), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
+                        .background(Brush.linearGradient(listOf(accent.copy(alpha = .23f), Violet.copy(alpha = .13f))))
+                        .border(1.dp, accent.copy(alpha = .22f), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
                         Icon(icon, contentDescription = name, tint = accent, modifier = Modifier.size(23.dp))
                     }
                     Spacer(Modifier.height(8.dp))
@@ -1323,7 +1352,12 @@ private fun HomeScreen(
                 }
             }
         }
-        if (bookmarks.isNotEmpty()) {
+        AnimatedVisibility(
+            visible = bookmarks.isNotEmpty(),
+            enter = if (animations) fadeIn(tween(220)) + expandVertically(tween(260)) else EnterTransition.None,
+            exit = if (animations) fadeOut(tween(140)) + shrinkVertically(tween(180)) else ExitTransition.None
+        ) {
+            Column {
             Text("ТВОИ ЗАКЛАДКИ", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp, modifier = Modifier.align(Alignment.Start).padding(start = 24.dp, top = 20.dp, bottom = 8.dp))
             LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = Modifier.fillMaxWidth().heightIn(max = 190.dp).padding(horizontal = 12.dp), userScrollEnabled = false) {
                 items(bookmarks.take(6)) { page ->
@@ -1332,6 +1366,7 @@ private fun HomeScreen(
                         Spacer(Modifier.height(5.dp)); Text(page.title, color = Paper, fontSize = 10.sp, maxLines = 1)
                     }
                 }
+            }
             }
         }
         Spacer(Modifier.height(18.dp))
