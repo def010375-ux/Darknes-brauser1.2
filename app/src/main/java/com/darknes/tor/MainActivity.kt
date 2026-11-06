@@ -102,7 +102,7 @@ private fun analyzeLinkRisk(raw: String): LinkRiskReport? {
     val host = uri.host?.lowercase()?.trimEnd('.') ?: return LinkRiskReport("неизвестен", listOf("В адресе отсутствует корректное доменное имя"))
     val warnings = mutableListOf<String>()
     if (scheme != "https") warnings += "Соединение не использует HTTPS"
-    if (uri.userInfo != null || candidate.contains("@")) warnings += "В адресе есть символ @ или данные пользователя — возможна маскировка настоящего адреса"
+    if (candidate.contains("@")) warnings += "В адресе есть символ @ или данные пользователя — возможна маскировка настоящего адреса"
     if (host.startsWith("xn--") || host.split('.').any { it.startsWith("xn--") }) warnings += "Домен использует Punycode — проверь похожие символы и подмену букв"
     if (host.matches(Regex("^\\\\d{1,3}(\\\\.\\\\d{1,3}){3}$"))) warnings += "Используется IP-адрес вместо обычного домена"
     if (host.split('.').size >= 5) warnings += "Необычно много поддоменов"
