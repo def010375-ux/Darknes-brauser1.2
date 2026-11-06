@@ -20,6 +20,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -37,6 +38,8 @@ private const val DarknesMuted = 0xFFB8AAA0
 
 @Composable
 fun DarknesIdPanel(onAuthenticated: (() -> Unit)? = null) {
+    val context = LocalContext.current
+    var currentSession by remember { mutableStateOf(DarknesSessionStore.load(context)) }
     var isSignUp by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -45,93 +48,106 @@ fun DarknesIdPanel(onAuthenticated: (() -> Unit)? = null) {
     val scope = rememberCoroutineScope()
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-        Text(
-            if (isSignUp) "Создать Darknes ID" else "Войти в Darknes ID",
-            color = Color.White,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            "Единый аккаунт для приложений экосистемы Darknes",
-            color = Color(DarknesMuted),
-            fontSize = 13.sp
-        )
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it.trim() },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            label = { Text("Электронная почта") }
-        )
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            label = { Text("Пароль") }
-        )
-        if (message.isNotBlank()) {
-            Text(message, color = Color(DarknesMuted), fontSize = 12.sp)
-        }
-        Button(
-            onClick = {
-                if (email.isBlank() || !email.contains("@") || password.length < 6) {
-                    message = "Укажи корректную почту и пароль не короче 6 символов."
-                } else {
-                    busy = true
-                    message = ""
-                    scope.launch {
-                        val result = withContext(Dispatchers.IO) {
-                            requestDarknesAuth(email, password, isSignUp)
-                        }
-                        busy = false
-                        message = result.message
-                        if (result.authenticated) onAuthenticated?.invoke()
-                    }
-                }
-            },
-            enabled = !busy,
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(DarknesOrange),
-                contentColor = Color(DarknesInk)
-            )
-        ) {
+        if (currentSession != null) {
+            Text("Darknes ID подключён", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text(currentSession?.email.orEmpty(), color = Color(DarknesMuted), fontSize = 14.sp)
+            Text("Сессия хранится в зашифрованном виде на этом устройстве.", color = Color(DarknesMuted), fontSize = 12.sp)
+            Button(
+                onClick = {
+                    DarknesSessionStore.clear(context)
+                    currentSession = null
+                    message = "Вы вышли из аккаунта на этом устройстве."
+                },
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(DarknesOrange), contentColor = Color(DarknesInk))
+            ) { Text("Выйти из аккаунта", fontWeight = FontWeight.Bold) }
+            if (message.isNotBlank()) Text(message, color = Color(DarknesMuted), fontSize = 12.sp)
+        } else {
             Text(
-                when {
+                if (isSignUp) "Создать Darknes ID" else "Войти в Darknes ID",
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text("Единый аккаунт для приложений экосистемы Darknes", color = Color(DarknesMuted), fontSize = 13.sp)
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it.trim() },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Электронная почта") }
+            )
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                label = { Text("Пароль") }
+            )
+            if (message.isNotBlank()) Text(message, color = Color(DarknesMuted), fontSize = 12.sp)
+            Button(
+                onClick = {
+                    if (email.isBlank() || !email.contains("@") || password.length < 6) {
+                        message = "Укажи корректную почту и пароль не короче 6 символов."
+                    } else {
+                        busy = true
+                        message = ""
+                        scope.launch {
+                            val result = withContext(Dispatchers.IO) {
+                                requestDarknesAuth(context, email, password, isSignUp)
+                            }
+                            busy = false
+                            message = result.message
+                            result.session?.let {
+                                currentSession = it
+                                onAuthenticated?.invoke()
+                            }
+                        }
+                    }
+                },
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(DarknesOrange), contentColor = Color(DarknesInk))
+            ) {
+                Text(when {
                     busy -> "Подключение..."
                     isSignUp -> "Создать аккаунт"
                     else -> "Войти"
-                },
-                fontWeight = FontWeight.Bold
-            )
-        }
-        TextButton(
-            onClick = {
-                isSignUp = !isSignUp
-                message = ""
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
+                }, fontWeight = FontWeight.Bold)
+            }
+            TextButton(
+                onClick = { isSignUp = !isSignUp; message = "" },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    if (isSignUp) "Уже есть аккаунт? Войти" else "Нет аккаунта? Зарегистрироваться",
+                    color = Color(DarknesOrange)
+                )
+            }
+            Spacer(Modifier.height(2.dp))
             Text(
-                if (isSignUp) "Уже есть аккаунт? Войти" else "Нет аккаунта? Зарегистрироваться",
-                color = Color(DarknesOrange)
+                "Пароль отправляется напрямую в Supabase Auth и не сохраняется приложением.",
+                color = Color(DarknesMuted),
+                fontSize = 10.sp
             )
         }
-        Spacer(Modifier.height(2.dp))
-        Text(
-            "Пароль обрабатывается сервисом Supabase Auth и не сохраняется приложением.",
-            color = Color(DarknesMuted),
-            fontSize = 10.sp
-        )
     }
 }
 
-private data class DarknesAuthResult(val authenticated: Boolean, val message: String)
+private data class DarknesAuthResult(
+    val session: DarknesSession? = null,
+    val message: String
+)
 
-private fun requestDarknesAuth(email: String, password: String, signUp: Boolean): DarknesAuthResult {
+private fun requestDarknesAuth(
+    context: android.content.Context,
+    email: String,
+    password: String,
+    signUp: Boolean
+): DarknesAuthResult {
     val endpoint = if (signUp) {
         "${BuildConfig.SUPABASE_URL}/auth/v1/signup"
     } else {
@@ -157,26 +173,36 @@ private fun requestDarknesAuth(email: String, password: String, signUp: Boolean)
 
         if (code in 200..299) {
             val accessToken = json?.optString("access_token").orEmpty()
-            if (accessToken.isNotBlank()) {
-                DarknesAuthResult(true, "Вход выполнен. Darknes ID подключён.")
+            val refreshToken = json?.optString("refresh_token").orEmpty()
+            if (accessToken.isNotBlank() && refreshToken.isNotBlank()) {
+                val user = json?.optJSONObject("user")
+                val session = DarknesSession(
+                    accessToken = accessToken,
+                    refreshToken = refreshToken,
+                    email = user?.optString("email").orEmpty().ifBlank { email },
+                    userId = user?.optString("id").orEmpty(),
+                    expiresAt = System.currentTimeMillis() / 1000L + (json?.optLong("expires_in", 3600L) ?: 3600L)
+                )
+                DarknesSessionStore.save(context, session)
+                DarknesAuthResult(session, "Вход выполнен. Darknes ID подключён.")
             } else if (signUp) {
-                DarknesAuthResult(false, "Аккаунт создан. Проверь почту и подтверди адрес, затем войди.")
+                DarknesAuthResult(message = "Аккаунт создан. Проверь почту и подтверди адрес, затем войди.")
             } else {
-                DarknesAuthResult(false, "Ответ сервера получен, но сессия не выдана. Попробуй ещё раз.")
+                DarknesAuthResult(message = "Сервер не выдал сессию. Попробуй ещё раз.")
             }
         } else {
             val detail = json?.optString("msg")?.takeIf { it.isNotBlank() }
                 ?: json?.optString("message")?.takeIf { it.isNotBlank() }
                 ?: "HTTP $code"
-            DarknesAuthResult(false, when {
+            DarknesAuthResult(message = when {
                 detail.contains("Invalid login credentials", ignoreCase = true) -> "Неверная почта или пароль."
                 detail.contains("already registered", ignoreCase = true) -> "Этот адрес уже зарегистрирован. Попробуй войти."
                 detail.contains("Email not confirmed", ignoreCase = true) -> "Сначала подтверди почту по ссылке из письма."
                 else -> "Не удалось выполнить запрос: $detail"
             })
         }
-    } catch (e: Exception) {
-        DarknesAuthResult(false, "Не удалось связаться с сервером. Проверь интернет и Project URL.")
+    } catch (_: Exception) {
+        DarknesAuthResult(message = "Не удалось связаться с сервером. Проверь интернет и Project URL.")
     } finally {
         connection?.disconnect()
     }
