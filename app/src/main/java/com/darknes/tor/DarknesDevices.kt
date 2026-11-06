@@ -41,7 +41,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.TimeZone
 
-private data class DarknesDevice(
+internal data class DarknesDevice(
     val deviceId: String,
     val deviceName: String,
     val platform: String,
