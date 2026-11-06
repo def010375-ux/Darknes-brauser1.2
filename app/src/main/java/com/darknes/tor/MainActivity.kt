@@ -1368,8 +1368,14 @@ private fun HomeSearchBar(
     }
 }
 @Composable private fun NavCircle(icon: ImageVector, accent: Color, enabled: Boolean = true, action: () -> Unit) {
-    Box(Modifier.size(42.dp).clip(CircleShape).clickable(enabled = enabled) { action() }, contentAlignment = Alignment.Center) {
-        Icon(icon, contentDescription = null, tint = if (enabled) Paper else Muted.copy(alpha = .35f), modifier = Modifier.size(22.dp))
+    Box(
+        Modifier.size(44.dp).clip(RoundedCornerShape(15.dp))
+            .background(if (enabled) accent.copy(alpha = .10f) else Color.Transparent)
+            .border(1.dp, if (enabled) accent.copy(alpha = .20f) else Color.Transparent, RoundedCornerShape(15.dp))
+            .clickable(enabled = enabled) { action() },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = null, tint = if (enabled) Paper else Muted.copy(alpha = .35f), modifier = Modifier.size(21.dp))
     }
 }
 @Composable private fun PanelTitle(title: String, subtitle: String = "") {
@@ -1399,10 +1405,23 @@ private fun HomeSearchBar(
     )
     LazyVerticalGrid(columns = GridCells.Fixed(3), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         items(items) { (icon, name) ->
-            Column(Modifier.aspectRatio(1f).clip(RoundedCornerShape(20.dp)).background(Color(0xFF1A2948)).border(1.dp, Border, RoundedCornerShape(20.dp)).clickable { onAction(name) }.padding(10.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(icon, contentDescription = name, tint = accent, modifier = Modifier.size(28.dp))
-                Spacer(Modifier.height(8.dp))
-                Text(name, color = Paper, fontSize = 11.sp)
+            Column(
+                Modifier.aspectRatio(1f).clip(RoundedCornerShape(21.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFF1C2D50), Color(0xFF10182D))))
+                    .border(1.dp, Border, RoundedCornerShape(21.dp))
+                    .clickable { onAction(name) }.padding(10.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    Modifier.size(44.dp).clip(RoundedCornerShape(15.dp))
+                        .background(Brush.linearGradient(listOf(accent.copy(alpha = .22f), Violet.copy(alpha = .13f)))),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, contentDescription = name, tint = accent, modifier = Modifier.size(25.dp))
+                }
+                Spacer(Modifier.height(9.dp))
+                Text(name, color = Paper, fontSize = 10.sp, fontWeight = FontWeight.Medium, textAlign = androidx.compose.ui.text.style.TextAlign.Center, lineHeight = 13.sp, maxLines = 2)
             }
         }
     }
