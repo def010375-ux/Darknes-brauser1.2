@@ -2166,21 +2166,159 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
 }
 
 @Composable private fun PrivacyPanel(trackers:Boolean, setTrackers:(Boolean)->Unit, ad:Boolean, setAd:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, night:Boolean, setNight:(Boolean)->Unit, openAndroidSettings:()->Unit) {
-    PanelTitle("Центр безопасности", "Контроль защиты и разрешений сайтов")
-    Surface(Modifier.fillMaxWidth(), color = Color(0xFF111E32), shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, Border)) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Shield, contentDescription = null, tint = Orange, modifier = Modifier.size(25.dp)); Spacer(Modifier.width(9.dp))
-            Column { Text("Защита GeckoView", color = Paper, fontWeight = FontWeight.SemiBold); Text("Enhanced Tracking Protection", color = Muted, fontSize = 10.sp) }
+    val protectionAccent = if (trackers && ad) Color(0xFF65D69A) else Color(0xFFFFC46B)
+    val protectionLabel = if (trackers && ad) "ЗАЩИТА ВКЛЮЧЕНА" else "ТРЕБУЕТ ВНИМАНИЯ"
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+        PanelTitle("Центр безопасности", "Управление приватностью и защитой браузера")
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color(0xFF10243A),
+            shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.dp, protectionAccent.copy(alpha = .48f)),
+            shadowElevation = 8.dp
+        ) {
+            Row(
+                Modifier.fillMaxWidth().background(
+                    Brush.horizontalGradient(listOf(protectionAccent.copy(alpha = .13f), Color.Transparent))
+                ).padding(17.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.size(58.dp).clip(RoundedCornerShape(19.dp))
+                        .background(protectionAccent.copy(alpha = .13f))
+                        .border(1.dp, protectionAccent.copy(alpha = .4f), RoundedCornerShape(19.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Shield, contentDescription = null, tint = protectionAccent, modifier = Modifier.size(31.dp))
+                }
+                Spacer(Modifier.width(13.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("DARKNES DEFENSE", color = Paper, fontSize = 14.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+                    Text(protectionLabel, color = protectionAccent, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = .8.sp,
+                        modifier = Modifier.padding(top = 4.dp))
+                    Text("Состояние по текущим настройкам браузера", color = Muted, fontSize = 10.sp,
+                        modifier = Modifier.padding(top = 4.dp))
+                }
+                Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = protectionAccent, modifier = Modifier.size(23.dp))
+            }
+        }
+
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            SecurityStatusCard(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Default.TrackChanges,
+                title = "Трекеры",
+                value = if (trackers) "Блокировка" else "Отключено",
+                enabled = trackers
+            )
+            SecurityStatusCard(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Default.Cookie,
+                title = "ETP",
+                value = if (ad) "Строгий режим" else "Стандартный",
+                enabled = ad
+            )
+        }
+
+        SecuritySectionTitle("ЗАЩИТА ОТСЛЕЖИВАНИЯ", Icons.Default.Security)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color(0xCC101D31),
+            shape = RoundedCornerShape(20.dp),
+            border = BorderStroke(1.dp, Border)
+        ) {
+            Column(Modifier.padding(horizontal = 14.dp, vertical = 5.dp)) {
+                SettingSwitch("Блокировать известные трекеры", trackers, setTrackers)
+                HorizontalDivider(color = Border.copy(alpha = .55f))
+                SettingSwitch("Усиленная защита GeckoView", ad, setAd)
+            }
+        }
+        Text(
+            "Усиленная защита включает строгий уровень Enhanced Tracking Protection GeckoView. Это не гарантирует блокировку всей рекламы или всех способов отслеживания.",
+            color = Muted, fontSize = 10.sp, lineHeight = 15.sp,
+            modifier = Modifier.padding(horizontal = 3.dp)
+        )
+
+        SecuritySectionTitle("ВНЕШНИЙ ВИД САЙТОВ", Icons.Default.DarkMode)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color(0xCC101D31),
+            shape = RoundedCornerShape(20.dp),
+            border = BorderStroke(1.dp, Border)
+        ) {
+            Column(Modifier.padding(horizontal = 14.dp, vertical = 5.dp)) {
+                SettingSwitch("Тёмная схема сайтов", dark, setDark)
+                HorizontalDivider(color = Border.copy(alpha = .55f))
+                SettingSwitch("Ночной режим страниц", night, setNight)
+            }
+        }
+
+        SecuritySectionTitle("РАЗРЕШЕНИЯ ANDROID", Icons.Default.PhonelinkLock)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color(0xCC101D31),
+            shape = RoundedCornerShape(20.dp),
+            border = BorderStroke(1.dp, Border)
+        ) {
+            Column(Modifier.padding(14.dp)) {
+                Text(
+                    "Камера, микрофон, геолокация и уведомления регулируются разрешениями Android и запросами сайтов. Здесь можно открыть системные настройки приложения.",
+                    color = Muted, fontSize = 11.sp, lineHeight = 17.sp
+                )
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = openAndroidSettings,
+                    modifier = Modifier.fillMaxWidth().height(49.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Ink),
+                    shape = RoundedCornerShape(15.dp)
+                ) {
+                    Icon(Icons.Default.Tune, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Открыть разрешения Android", fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
-    SettingSwitch("Блокировать известные трекеры", trackers, setTrackers)
-    SettingSwitch("Усиленная защита от отслеживания", ad, setAd)
-    SettingSwitch("Тёмная схема сайтов", dark, setDark)
-    SettingSwitch("Ночной режим страниц", night, setNight)
-    Spacer(Modifier.height(10.dp))
-    Text("Камера, микрофон, геолокация и уведомления управляются разрешениями Android и запросами самих сайтов.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
-    Spacer(Modifier.height(12.dp))
-    Button(onClick = openAndroidSettings, modifier = Modifier.fillMaxWidth().height(50.dp), colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Ink), shape = RoundedCornerShape(16.dp)) { Text("Разрешения приложения Android", fontWeight = FontWeight.Bold) }
+}
+
+@Composable
+private fun SecuritySectionTitle(title: String, icon: ImageVector) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 3.dp, top = 3.dp)) {
+        Icon(icon, contentDescription = null, tint = Orange, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(title, color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 1.1.sp)
+    }
+}
+
+@Composable
+private fun SecurityStatusCard(
+    modifier: Modifier = Modifier,
+    icon: ImageVector,
+    title: String,
+    value: String,
+    enabled: Boolean
+) {
+    val tint = if (enabled) Color(0xFF65D69A) else Color(0xFFFFC46B)
+    Surface(
+        modifier = modifier,
+        color = Color(0xCC101D31),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, tint.copy(alpha = .3f))
+    ) {
+        Column(Modifier.padding(13.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(17.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(title, color = Muted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Text(value, color = Paper, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 9.dp))
+            Text(if (enabled) "АКТИВНО" else "НЕ АКТИВНО", color = tint, fontSize = 8.sp,
+                fontWeight = FontWeight.Black, letterSpacing = .8.sp,
+                modifier = Modifier.padding(top = 3.dp))
+        }
+    }
 }
 
 @Composable private fun ReaderPanel(source:String, content:String, loading:Boolean, error:String, onRetry:()->Unit) {
