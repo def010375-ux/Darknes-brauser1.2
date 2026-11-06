@@ -1698,64 +1698,179 @@ private fun SavedPagesPanel(
     }
 }
 @Composable
-private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> Unit, onOpen: (DownloadRecord) -> Unit) {
+private fun DownloadsPanel(
+    downloads: List<DownloadRecord>,
+    onRemove: (Long) -> Unit,
+    onOpen: (DownloadRecord) -> Unit
+) {
+    fun formatBytes(bytes: Long): String {
+        if (bytes < 1024L) return "$bytes B"
+        val kb = bytes / 1024.0
+        if (kb < 1024.0) return String.format(java.util.Locale.getDefault(), "%.1f KB", kb)
+        val mb = kb / 1024.0
+        if (mb < 1024.0) return String.format(java.util.Locale.getDefault(), "%.1f MB", mb)
+        return String.format(java.util.Locale.getDefault(), "%.2f GB", mb / 1024.0)
+    }
+
+    val activeCount = downloads.count { it.status == "Скачивается" || it.status == "Ожидает сохранения" }
+    val savedCount = downloads.count { it.status == "Сохранено" }
+
     PanelTitle("Загрузки", "Менеджер загруженных файлов")
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color(0xCC142640),
+        shape = RoundedCornerShape(21.dp),
+        border = BorderStroke(1.dp, Border)
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier.size(43.dp).clip(RoundedCornerShape(15.dp))
+                    .background(Brush.linearGradient(listOf(Orange.copy(alpha = .25f), Violet.copy(alpha = .18f)))),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Downloading, contentDescription = null, tint = Orange, modifier = Modifier.size(24.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Файловый центр", color = Paper, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("${downloads.size} записей · $savedCount сохранено", color = Muted, fontSize = 10.sp)
+            }
+            if (activeCount > 0) {
+                Text("$activeCount АКТИВНО", color = Orange, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = .7.sp)
+            } else {
+                Text("LOCAL", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            }
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+
     if (downloads.isEmpty()) {
         Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF0D192B)).border(1.dp, Border, RoundedCornerShape(20.dp))
-                .padding(22.dp),
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(21.dp))
+                .background(Color(0xCC101D31))
+                .border(1.dp, Border, RoundedCornerShape(21.dp))
+                .padding(25.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(Icons.Default.Download, contentDescription = null, tint = Orange, modifier = Modifier.size(34.dp))
-            Spacer(Modifier.height(10.dp))
-            Text("Пока ничего не скачано", color = Paper, fontWeight = FontWeight.SemiBold)
-            Text("Сохранённые файлы появятся здесь.", color = Muted, fontSize = 12.sp)
+            Box(
+                Modifier.size(58.dp).clip(RoundedCornerShape(19.dp))
+                    .background(Brush.linearGradient(listOf(Orange.copy(alpha = .20f), Violet.copy(alpha = .15f)))),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Download, contentDescription = null, tint = Orange, modifier = Modifier.size(30.dp))
+            }
+            Spacer(Modifier.height(11.dp))
+            Text("Пока ничего не скачано", color = Paper, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text("Сохранённые файлы появятся здесь.", color = Muted, fontSize = 11.sp)
         }
     } else {
         LazyColumn(
-            modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(max = 490.dp),
+            contentPadding = PaddingValues(bottom = 4.dp),
             verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             items(downloads, key = { it.id }) { item ->
+                val isActive = item.status == "Скачивается"
+                val isSaved = item.status == "Сохранено"
+                val isError = item.status == "Ошибка" || item.status == "Прервано" || item.status == "Отменено"
+                val fraction = if (item.totalBytes > 0L) {
+                    (item.downloadedBytes.toFloat() / item.totalBytes.toFloat()).coerceIn(0f, 1f)
+                } else 0f
+                val statusColor = when {
+                    isSaved -> Color(0xFF65DDA5)
+                    isError -> Color(0xFFFF9B9B)
+                    isActive || item.status == "Ожидает сохранения" -> Orange
+                    else -> Muted
+                }
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xFF111E32),
-                    shape = RoundedCornerShape(17.dp),
-                    border = BorderStroke(1.dp, Border)
+                    color = Color(0xCC101D31),
+                    shape = RoundedCornerShape(19.dp),
+                    border = BorderStroke(1.dp, if (isActive) Orange.copy(alpha = .65f) else Border.copy(alpha = .85f))
                 ) {
-                    Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.InsertDriveFile, contentDescription = null, tint = Orange, modifier = Modifier.size(28.dp))
-                        Spacer(Modifier.width(11.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(item.name, color = Paper, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 2)
-                            Text(item.status, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
-                            if (item.status == "Скачивается") {
-                                if (item.totalBytes > 0L) {
-                                    val fraction = (item.downloadedBytes.toFloat() / item.totalBytes.toFloat()).coerceIn(0f, 1f)
-                                    LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth().padding(top = 7.dp), color = Orange)
-                                    Text("${(fraction * 100).toInt()}% · ${item.downloadedBytes / 1024} KB / ${item.totalBytes / 1024} KB", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
-                                } else {
-                                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 7.dp), color = Orange)
-                                    Text("${item.downloadedBytes / 1024} KB", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
+                    Column(Modifier.fillMaxWidth().padding(13.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                Modifier.size(43.dp).clip(RoundedCornerShape(14.dp))
+                                    .background(Brush.linearGradient(listOf(statusColor.copy(alpha = .22f), Violet.copy(alpha = .12f)))),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    when {
+                                        isSaved -> Icons.Default.TaskAlt
+                                        isError -> Icons.Default.ErrorOutline
+                                        isActive -> Icons.Default.Downloading
+                                        else -> Icons.Default.InsertDriveFile
+                                    },
+                                    contentDescription = null,
+                                    tint = statusColor,
+                                    modifier = Modifier.size(23.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(item.name, color = Paper, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 2)
+                                Text(item.status.uppercase(java.util.Locale.getDefault()), color = statusColor, fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold, letterSpacing = .7.sp, modifier = Modifier.padding(top = 4.dp))
+                            }
+                            if (item.savedUri != null) {
+                                TextButton(onClick = { onOpen(item) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
+                                    Icon(Icons.Default.OpenInNew, contentDescription = null, tint = Orange, modifier = Modifier.size(15.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Открыть", color = Orange, fontSize = 11.sp)
                                 }
                             }
+                            IconButton(onClick = { onRemove(item.id) }, modifier = Modifier.size(34.dp)) {
+                                Icon(Icons.Default.DeleteOutline, contentDescription = "Удалить запись", tint = Muted, modifier = Modifier.size(18.dp))
+                            }
                         }
-                        if (item.savedUri != null) {
-                            TextButton(onClick = { onOpen(item) }) { Text("Открыть", color = Orange, fontSize = 12.sp) }
-                        }
-                        IconButton(onClick = { onRemove(item.id) }) {
-                            Icon(Icons.Default.DeleteOutline, contentDescription = "Удалить запись", tint = Muted, modifier = Modifier.size(18.dp))
+
+                        if (isActive) {
+                            Spacer(Modifier.height(11.dp))
+                            if (item.totalBytes > 0L) {
+                                LinearProgressIndicator(
+                                    progress = { fraction },
+                                    modifier = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape),
+                                    color = Orange,
+                                    trackColor = Color(0xFF263852)
+                                )
+                                Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text("${(fraction * 100).toInt()}%", color = Orange, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Spacer(Modifier.weight(1f))
+                                    Text("${formatBytes(item.downloadedBytes)} / ${formatBytes(item.totalBytes)}", color = Muted, fontSize = 10.sp)
+                                }
+                            } else {
+                                LinearProgressIndicator(
+                                    modifier = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape),
+                                    color = Orange,
+                                    trackColor = Color(0xFF263852)
+                                )
+                                Text("${formatBytes(item.downloadedBytes)} получено", color = Muted, fontSize = 10.sp,
+                                    modifier = Modifier.padding(top = 6.dp))
+                            }
+                        } else if (item.downloadedBytes > 0L || item.totalBytes > 0L) {
+                            Text(
+                                if (item.totalBytes > 0L) "${formatBytes(item.downloadedBytes)} из ${formatBytes(item.totalBytes)}"
+                                else formatBytes(item.downloadedBytes),
+                                color = Muted, fontSize = 10.sp, modifier = Modifier.padding(start = 55.dp, top = 5.dp)
+                            )
                         }
                     }
                 }
             }
         }
     }
-    Spacer(Modifier.height(12.dp))
-    Text("История загрузок сохраняется на устройстве. Незавершённые загрузки после перезапуска отмечаются как прерванные.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
-}
 
+    Spacer(Modifier.height(10.dp))
+    Text(
+        "История загрузок хранится на устройстве. После перезапуска незавершённые загрузки отмечаются как прерванные.",
+        color = Muted, fontSize = 10.sp, lineHeight = 15.sp
+    )
+}
 @Composable
 private fun TesterPanel(onDownload: (String) -> Unit) {
     var versions by remember { mutableStateOf<List<PublishedVersion>>(emptyList()) }
