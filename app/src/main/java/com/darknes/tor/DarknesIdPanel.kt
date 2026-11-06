@@ -52,6 +52,8 @@ fun DarknesIdPanel(onAuthenticated: (() -> Unit)? = null) {
             Text("Darknes ID подключён", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Text(currentSession?.email.orEmpty(), color = Color(DarknesMuted), fontSize = 14.sp)
             Text("Сессия хранится в зашифрованном виде на этом устройстве.", color = Color(DarknesMuted), fontSize = 12.sp)
+            Spacer(Modifier.height(12.dp))
+            DarknesDevicesPanel(session = currentSession!!)
             Button(
                 onClick = {
                     val sessionToRevoke = currentSession
