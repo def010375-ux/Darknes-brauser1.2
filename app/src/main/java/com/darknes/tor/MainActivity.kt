@@ -413,7 +413,10 @@ private fun DarknesLaunchGate(onAuthenticated: () -> Unit) {
                 shadowElevation = 22.dp
             ) {
                 Column(Modifier.padding(18.dp)) {
-                    DarknesIdPanel(onAuthenticated = onAuthenticated)
+                    DarknesIdPanel(
+                        onAuthenticated = onAuthenticated,
+                        onContinueWithoutAccount = onAuthenticated
+                    )
                 }
             }
         }
