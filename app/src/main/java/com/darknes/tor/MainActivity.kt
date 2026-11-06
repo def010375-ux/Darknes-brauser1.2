@@ -2420,13 +2420,149 @@ private fun OfflinePageViewerPanel(page: OfflinePage?, onBack: () -> Unit) {
     Spacer(Modifier.height(18.dp))
     Button(onClick=install, modifier=Modifier.fillMaxWidth().height(52.dp), colors=ButtonDefaults.buttonColors(containerColor=Orange, contentColor=Ink), shape=RoundedCornerShape(18.dp)) { Text("Установить из файла", fontWeight=FontWeight.Bold) }
 }
-@Composable private fun AccountPanel(onLogin:()->Unit) {
-    PanelTitle("Аккаунт", "Darknes ID")
-    Text("Вы без входа", color=Paper, fontSize=20.sp, fontWeight=FontWeight.Bold)
-    Spacer(Modifier.height(10.dp))
-    Text("Браузер работает без аккаунта. Вход в Darknes понадобится для синхронизации вкладок и закладок.", color=Muted, fontSize=14.sp, lineHeight=21.sp)
-    Spacer(Modifier.height(24.dp))
-    Button(onClick=onLogin, modifier=Modifier.fillMaxWidth().height(52.dp), colors=ButtonDefaults.buttonColors(containerColor=Orange, contentColor=Ink), shape=RoundedCornerShape(18.dp)) { Text("Войти в Darknes", fontWeight=FontWeight.Bold) }
+@Composable
+private fun DarknesIdPanel(onAuthenticated: (() -> Unit)? = null) {
+    val context = LocalContext.current
+    val prefs = remember(context) {
+        context.getSharedPreferences("darknes_id_profile", android.content.Context.MODE_PRIVATE)
+    }
+    var displayName by remember(prefs) {
+        mutableStateOf(prefs.getString("display_name", "Пользователь") ?: "Пользователь")
+    }
+    var editing by remember { mutableStateOf(false) }
+    var savedMessage by remember { mutableStateOf(false) }
+    val avatarLetter = displayName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "D"
+
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("DARKNES ID", color = Paper, fontSize = 22.sp, fontWeight = FontWeight.Black, letterSpacing = 1.4.sp)
+                Text("Единый профиль экосистемы Darknes", color = Muted, fontSize = 11.sp)
+            }
+            Surface(shape = CircleShape, color = Orange.copy(alpha = .13f),
+                border = BorderStroke(1.dp, Border)) {
+                Text("ID", color = Orange, fontSize = 10.sp, fontWeight = FontWeight.Black,
+                    modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp))
+            }
+        }
+
+        Surface(
+            Modifier.fillMaxWidth(),
+            color = Color(0xCC10213A),
+            shape = RoundedCornerShape(22.dp),
+            border = BorderStroke(1.dp, Border)
+        ) {
+            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(58.dp).clip(CircleShape)
+                        .background(Brush.linearGradient(listOf(Color(0xFF1B6A83), Color(0xFF5545A2))))
+                        .border(1.dp, Orange.copy(alpha = .65f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(avatarLetter, color = Paper, fontSize = 25.sp, fontWeight = FontWeight.Black)
+                }
+                Spacer(Modifier.width(13.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(displayName.ifBlank { "Пользователь" }, color = Paper,
+                        fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text("Локальный профиль", color = Color(0xFF65D69A),
+                        fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text("Darknes ID · не выполнен вход на сервер", color = Muted, fontSize = 9.sp)
+                }
+                Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = Orange, modifier = Modifier.size(20.dp))
+            }
+        }
+
+        Surface(Modifier.fillMaxWidth(), color = Color(0x99101B2D),
+            shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, Border)) {
+            Column(Modifier.padding(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.PersonOutline, contentDescription = null, tint = Orange)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Имя профиля", color = Paper, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = { editing = !editing; savedMessage = false }) {
+                        Text(if (editing) "Отмена" else "Изменить", color = Orange)
+                    }
+                }
+                if (editing) {
+                    BasicTextField(
+                        value = displayName,
+                        onValueChange = { displayName = it.take(32); savedMessage = false },
+                        singleLine = true,
+                        textStyle = TextStyle(color = Paper, fontSize = 15.sp),
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF081426)).border(1.dp, Border, RoundedCornerShape(12.dp))
+                            .padding(13.dp)
+                    )
+                    Button(
+                        onClick = {
+                            val cleanName = displayName.trim().ifBlank { "Пользователь" }
+                            displayName = cleanName
+                            prefs.edit().putString("display_name", cleanName).apply()
+                            editing = false
+                            savedMessage = true
+                        },
+                        modifier = Modifier.fillMaxWidth().height(45.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Ink),
+                        shape = RoundedCornerShape(14.dp)
+                    ) { Text("Сохранить профиль", fontWeight = FontWeight.Bold) }
+                } else if (savedMessage) {
+                    Text("Изменения сохранены на этом устройстве.", color = Color(0xFF65D69A), fontSize = 10.sp)
+                }
+            }
+        }
+
+        Surface(Modifier.fillMaxWidth(), color = Color(0x99101B2D),
+            shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, Border)) {
+            Column(Modifier.padding(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CloudSync, contentDescription = null, tint = Violet)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Синхронизация", color = Paper, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Spacer(Modifier.weight(1f))
+                    Text("СКОРО", color = Violet, fontSize = 9.sp, fontWeight = FontWeight.Black)
+                }
+                Text("Облачный сервер и авторизация Darknes ID ещё не подключены. Закладки и вкладки пока хранятся локально.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp,
+                    modifier = Modifier.padding(top = 7.dp))
+            }
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("ЭКОСИСТЕМА DARKNES", color = Muted, fontSize = 9.sp,
+                fontWeight = FontWeight.Black, letterSpacing = 1.2.sp)
+            listOf(
+                "Darknes Tor" to "Браузер · сейчас",
+                "Darknes OS" to "Мобильная оболочка",
+                "Darknes Store" to "Магазин приложений",
+                "Darknes Cloud" to "Облачное хранилище · скоро"
+            ).forEach { item ->
+                Surface(Modifier.fillMaxWidth(), color = Color(0x77101D31),
+                    shape = RoundedCornerShape(13.dp), border = BorderStroke(1.dp, Border.copy(alpha = .65f))) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Apps, contentDescription = null, tint = Orange, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(item.first, color = Paper, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text(item.second, color = Muted, fontSize = 9.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        if (onAuthenticated != null) {
+            Button(
+                onClick = onAuthenticated,
+                modifier = Modifier.fillMaxWidth().height(49.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Ink),
+                shape = RoundedCornerShape(15.dp)
+            ) { Text("Продолжить в Darknes Tor", fontWeight = FontWeight.Bold) }
+            Text("Это локальный профиль, а не регистрация или вход в облачный аккаунт.",
+                color = Muted, fontSize = 9.sp, lineHeight = 13.sp)
+        }
+    }
 }
 @Composable private fun ChatPanel(onOpenAi:()->Unit) {
     PanelTitle("Darknes AI", "Приватный ИИ-помощник")
