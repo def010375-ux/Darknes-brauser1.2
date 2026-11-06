@@ -37,7 +37,7 @@ private const val DarknesInk = 0xFF17110D
 private const val DarknesMuted = 0xFFB8AAA0
 
 @Composable
-fun DarknesIdPanel(onAuthenticated: (() -> Unit)? = null) {
+fun DarknesIdPanel(onAuthenticated: (() -> Unit)? = null, onContinueWithoutAccount: (() -> Unit)? = null) {
     val context = LocalContext.current
     var currentSession by remember { mutableStateOf(DarknesSessionStore.load(context)) }
     var isSignUp by remember { mutableStateOf(false) }
@@ -139,6 +139,19 @@ fun DarknesIdPanel(onAuthenticated: (() -> Unit)? = null) {
                 )
             }
             Spacer(Modifier.height(2.dp))
+            if (!isSignUp && onContinueWithoutAccount != null) {
+                TextButton(
+                    onClick = onContinueWithoutAccount,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Продолжить без аккаунта", color = Color(DarknesOrange), fontWeight = FontWeight.Bold)
+                }
+                Text(
+                    "Можно пользоваться браузером без регистрации. Darknes ID подключается по желанию.",
+                    color = Color(DarknesMuted),
+                    fontSize = 11.sp
+                )
+            }
             Text(
                 "Пароль отправляется напрямую в Supabase Auth и не сохраняется приложением.",
                 color = Color(DarknesMuted),
