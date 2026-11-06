@@ -2191,12 +2191,23 @@ private fun TabsPanel(
     done: () -> Unit
 ) {
     val tabAccent = if (incognito) Violet else Orange
+    val activeCount = titles.size
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Вкладки", color = Paper, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                Text("${titles.size} открыто", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                Text("Твоя рабочая среда · $activeCount открыто", color = Muted, fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 3.dp))
             }
+            Surface(
+                shape = CircleShape,
+                color = tabAccent.copy(alpha = .13f),
+                border = BorderStroke(1.dp, tabAccent.copy(alpha = .45f))
+            ) {
+                Text("$activeCount", color = tabAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp))
+            }
+            Spacer(Modifier.width(5.dp))
             TextButton(onClick = addTab) {
                 Icon(Icons.Default.Add, contentDescription = null, tint = tabAccent, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(4.dp))
@@ -2204,89 +2215,150 @@ private fun TabsPanel(
             }
             TextButton(onClick = done) { Text("Готово", color = Paper) }
         }
-        Spacer(Modifier.height(12.dp))
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xFF0D192B)).padding(5.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+
+        Spacer(Modifier.height(13.dp))
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color(0xCC0D192B),
+            shape = RoundedCornerShape(18.dp),
+            border = BorderStroke(1.dp, Border)
         ) {
-            FilterChip(
-                selected = !incognito,
-                onClick = { setIncognito(false) },
-                label = { Text("Обычные") },
-                modifier = Modifier.weight(1f),
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Orange.copy(alpha = .18f),
-                    selectedLabelColor = Peach,
-                    labelColor = Muted
+            Row(Modifier.padding(5.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FilterChip(
+                    selected = !incognito,
+                    onClick = { setIncognito(false) },
+                    label = { Text("Обычные") },
+                    leadingIcon = { Icon(Icons.Default.Public, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                    modifier = Modifier.weight(1f),
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Orange.copy(alpha = .18f),
+                        selectedLabelColor = Peach,
+                        selectedLeadingIconColor = Orange,
+                        labelColor = Muted
+                    )
                 )
-            )
-            FilterChip(
-                selected = incognito,
-                onClick = { setIncognito(true) },
-                label = { Text("Инкогнито") },
-                modifier = Modifier.weight(1f),
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Violet.copy(alpha = .2f),
-                    selectedLabelColor = Color(0xFFD9CCFF),
-                    labelColor = Muted
+                FilterChip(
+                    selected = incognito,
+                    onClick = { setIncognito(true) },
+                    label = { Text("Инкогнито") },
+                    leadingIcon = { Icon(Icons.Default.VisibilityOff, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                    modifier = Modifier.weight(1f),
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Violet.copy(alpha = .2f),
+                        selectedLabelColor = Color(0xFFD9CCFF),
+                        selectedLeadingIconColor = Violet,
+                        labelColor = Muted
+                    )
                 )
-            )
+            }
         }
-        Spacer(Modifier.height(14.dp))
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp),
-            contentPadding = PaddingValues(bottom = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items(titles.size) { index ->
-                val isActive = index == activeIndex
-                val pageUrl = urls.getOrNull(index).orEmpty()
-                val host = runCatching { java.net.URI(pageUrl).host.orEmpty().removePrefix("www.") }.getOrDefault("")
-                Surface(
-                    modifier = Modifier.fillMaxWidth().height(112.dp).clickable { selectTab(index) },
-                    color = if (isActive) Color(0xDD17334C) else Color(0xCC101D31),
-                    shape = RoundedCornerShape(23.dp),
-                    border = BorderStroke(if (isActive) 2.dp else 1.dp, if (isActive) tabAccent else Border),
-                    shadowElevation = if (isActive) 12.dp else 4.dp
-                ) {
-                    Row(Modifier.fillMaxSize().padding(start = 14.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.width(5.dp).fillMaxHeight().clip(CircleShape)
-                            .background(if (isActive) tabAccent else tabAccent.copy(alpha = .28f)))
-                        Spacer(Modifier.width(13.dp))
-                        Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp))
-                            .background(Brush.linearGradient(listOf(tabAccent.copy(alpha = .25f), Color(0x331B3E67)))),
-                            contentAlignment = Alignment.Center) {
-                            Icon(if (incognito) Icons.Default.VisibilityOff else Icons.Default.Public,
-                                contentDescription = null, tint = tabAccent, modifier = Modifier.size(25.dp))
-                        }
-                        Spacer(Modifier.width(13.dp))
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-                            if (isActive) Text("АКТИВНАЯ ВКЛАДКА", color = tabAccent, fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-                            Text(titles[index].ifBlank { "Вкладка ${index + 1}" }, color = Paper,
-                                fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
-                            Text(host.ifBlank { if (pageUrl.isBlank()) "Стартовая страница" else pageUrl },
-                                color = Muted, fontSize = 10.sp, maxLines = 1)
-                            Text("Группа: ${groups.getOrNull(index) ?: "Основная"} · изменить",
-                                color = tabAccent, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.clickable { cycleGroup(index) }.padding(top = 5.dp))
-                        }
-                        IconButton(onClick = { closeTab(index) }, modifier = Modifier.size(38.dp)
-                            .clip(CircleShape).background(Color(0x441D3653))) {
-                            Icon(Icons.Default.Close, contentDescription = "Закрыть вкладку",
-                                tint = Paper, modifier = Modifier.size(18.dp))
+
+        Spacer(Modifier.height(13.dp))
+        if (titles.isEmpty()) {
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+                    .background(Color(0xCC101D31)).border(1.dp, Border, RoundedCornerShape(22.dp))
+                    .padding(25.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(Icons.Default.Tab, contentDescription = null, tint = tabAccent, modifier = Modifier.size(34.dp))
+                Spacer(Modifier.height(9.dp))
+                Text("Нет открытых вкладок", color = Paper, fontWeight = FontWeight.Bold)
+                Text("Создай новую вкладку, чтобы продолжить.", color = Muted, fontSize = 11.sp)
+                TextButton(onClick = addTab) { Text("Создать вкладку", color = tabAccent) }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 540.dp),
+                contentPadding = PaddingValues(bottom = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(11.dp)
+            ) {
+                items(titles.size, key = { it }) { index ->
+                    val isActive = index == activeIndex
+                    val pageUrl = urls.getOrNull(index).orEmpty()
+                    val host = runCatching { java.net.URI(pageUrl).host.orEmpty().removePrefix("www.") }.getOrDefault("")
+                    val cardAccent = if (incognito) Violet else Orange
+                    val animatedBorder by animateColorAsState(
+                        targetValue = if (isActive) cardAccent else Border.copy(alpha = .8f),
+                        animationSpec = tween(durationMillis = 260),
+                        label = "tab-border"
+                    )
+                    val animatedContainer by animateColorAsState(
+                        targetValue = if (isActive) Color(0xFF17334C) else Color(0xCC101D31),
+                        animationSpec = tween(durationMillis = 260),
+                        label = "tab-container"
+                    )
+                    val animatedHeight by animateDpAsState(
+                        targetValue = if (isActive) 126.dp else 108.dp,
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
+                        label = "tab-height"
+                    )
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().height(animatedHeight).clickable { selectTab(index) },
+                        color = animatedContainer,
+                        shape = RoundedCornerShape(if (isActive) 24.dp else 20.dp),
+                        border = BorderStroke(if (isActive) 1.7.dp else 1.dp, animatedBorder),
+                        shadowElevation = if (isActive) 13.dp else 3.dp
+                    ) {
+                        Row(
+                            Modifier.fillMaxSize().padding(start = 12.dp, end = 7.dp, top = 10.dp, bottom = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                Modifier.width(if (isActive) 5.dp else 3.dp).fillMaxHeight().clip(CircleShape)
+                                    .background(if (isActive) cardAccent else cardAccent.copy(alpha = .25f))
+                            )
+                            Spacer(Modifier.width(11.dp))
+                            Box(
+                                Modifier.size(if (isActive) 49.dp else 44.dp).clip(RoundedCornerShape(15.dp))
+                                    .background(Brush.linearGradient(listOf(cardAccent.copy(alpha = .25f), Color(0x331B3E67)))),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    if (incognito) Icons.Default.VisibilityOff else Icons.Default.Public,
+                                    contentDescription = null,
+                                    tint = cardAccent,
+                                    modifier = Modifier.size(if (isActive) 25.dp else 22.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(11.dp))
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                                AnimatedVisibility(
+                                    visible = isActive,
+                                    enter = fadeIn(tween(180)) + slideInVertically(tween(180)) { it / 3 },
+                                    exit = fadeOut(tween(120))
+                                ) {
+                                    Text("АКТИВНАЯ ВКЛАДКА", color = cardAccent, fontSize = 8.sp,
+                                        fontWeight = FontWeight.Black, letterSpacing = 1.1.sp,
+                                        modifier = Modifier.padding(bottom = 3.dp))
+                                }
+                                Text(titles[index].ifBlank { "Вкладка ${index + 1}" }, color = Paper,
+                                    fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
+                                Text(host.ifBlank { if (pageUrl.isBlank()) "Стартовая страница" else pageUrl },
+                                    color = Muted, fontSize = 10.sp, maxLines = 1)
+                                Text(
+                                    "◈  ${groups.getOrNull(index) ?: "Основная"}  ·  изменить",
+                                    color = cardAccent, fontSize = 9.sp, fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.clickable { cycleGroup(index) }.padding(top = 5.dp)
+                                )
+                            }
+                            IconButton(
+                                onClick = { closeTab(index) },
+                                modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0x441D3653))
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Закрыть вкладку",
+                                    tint = Paper, modifier = Modifier.size(17.dp))
+                            }
                         }
                     }
                 }
             }
         }
+
         Text(
-            "Нажми на карточку, чтобы переключиться. Закрыть вкладку можно крестиком.",
-            color = Muted,
-            fontSize = 11.sp,
-            lineHeight = 16.sp,
-            modifier = Modifier.padding(top = 8.dp)
+            "Нажми на карточку для переключения. Группу можно менять нажатием на её название.",
+            color = Muted, fontSize = 10.sp, lineHeight = 15.sp,
+            modifier = Modifier.padding(top = 5.dp)
         )
     }
 }
