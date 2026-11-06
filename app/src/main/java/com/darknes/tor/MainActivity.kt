@@ -1825,98 +1825,50 @@ private fun TabsPanel(
             )
         }
         Spacer(Modifier.height(14.dp))
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
+        LazyColumn(
             modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp),
             contentPadding = PaddingValues(bottom = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(titles.size) { index ->
                 val isActive = index == activeIndex
                 val pageUrl = urls.getOrNull(index).orEmpty()
-                val host = runCatching { java.net.URI(pageUrl).host.orEmpty().removePrefix("www.") }
-                    .getOrDefault("")
-                val cardShape = RoundedCornerShape(21.dp)
-                val cardColors = if (incognito) {
-                    listOf(Color(0xFF30275C), Color(0xFF11172D))
-                } else {
-                    listOf(Color(0xFF17344D), Color(0xFF17110E))
-                }
-                Box(
-                    Modifier.fillMaxWidth().aspectRatio(.91f)
-                        .clip(cardShape)
-                        .background(Brush.linearGradient(cardColors))
-                        .border(
-                            if (isActive) 2.dp else 1.dp,
-                            if (isActive) tabAccent else Border,
-                            cardShape
-                        )
-                        .clickable { selectTab(index) }
-                        .animateContentSize()
-                        .padding(13.dp)
+                val host = runCatching { java.net.URI(pageUrl).host.orEmpty().removePrefix("www.") }.getOrDefault("")
+                Surface(
+                    modifier = Modifier.fillMaxWidth().height(112.dp).clickable { selectTab(index) },
+                    color = if (isActive) Color(0xDD17334C) else Color(0xCC101D31),
+                    shape = RoundedCornerShape(23.dp),
+                    border = BorderStroke(if (isActive) 2.dp else 1.dp, if (isActive) tabAccent else Border),
+                    shadowElevation = if (isActive) 12.dp else 4.dp
                 ) {
-                    Column(Modifier.fillMaxSize()) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                Modifier.size(31.dp).clip(RoundedCornerShape(10.dp))
-                                    .background(tabAccent.copy(alpha = .16f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    if (incognito) Icons.Default.VisibilityOff else Icons.Default.Public,
-                                    contentDescription = null,
-                                    tint = tabAccent,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                            Spacer(Modifier.width(7.dp))
-                            if (isActive) {
-                                Text(
-                                    "АКТИВНА",
-                                    color = tabAccent,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = .7.sp
-                                )
-                            }
+                    Row(Modifier.fillMaxSize().padding(start = 14.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.width(5.dp).fillMaxHeight().clip(CircleShape)
+                            .background(if (isActive) tabAccent else tabAccent.copy(alpha = .28f)))
+                        Spacer(Modifier.width(13.dp))
+                        Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp))
+                            .background(Brush.linearGradient(listOf(tabAccent.copy(alpha = .25f), Color(0x331B3E67)))),
+                            contentAlignment = Alignment.Center) {
+                            Icon(if (incognito) Icons.Default.VisibilityOff else Icons.Default.Public,
+                                contentDescription = null, tint = tabAccent, modifier = Modifier.size(25.dp))
                         }
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            titles[index].ifBlank { "Вкладка ${index + 1}" },
-                            color = Paper,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            maxLines = 2
-                        )
-                        Spacer(Modifier.height(5.dp))
-                        Text(
-                            host.ifBlank {
-                                if (pageUrl.isBlank()) "Стартовая страница" else pageUrl
-                            },
-                            color = Paper.copy(alpha = .62f),
-                            fontSize = 10.sp,
-                            maxLines = 2
-                        )
-                        Text(
-                            "Группа: ${groups.getOrNull(index) ?: "Основная"} · изменить",
-                            color = tabAccent,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.clickable { cycleGroup(index) }.padding(top = 6.dp)
-                        )
-                    }
-                    IconButton(
-                        onClick = { closeTab(index) },
-                        modifier = Modifier.align(Alignment.TopEnd).size(34.dp)
-                            .clip(CircleShape).background(Color(0x55200000))
-                    ) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = "Закрыть вкладку",
-                            tint = Paper,
-                            modifier = Modifier.size(17.dp)
-                        )
+                        Spacer(Modifier.width(13.dp))
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                            if (isActive) Text("АКТИВНАЯ ВКЛАДКА", color = tabAccent, fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                            Text(titles[index].ifBlank { "Вкладка ${index + 1}" }, color = Paper,
+                                fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
+                            Text(host.ifBlank { if (pageUrl.isBlank()) "Стартовая страница" else pageUrl },
+                                color = Muted, fontSize = 10.sp, maxLines = 1)
+                            Text("Группа: ${groups.getOrNull(index) ?: "Основная"} · изменить",
+                                color = tabAccent, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.clickable { cycleGroup(index) }.padding(top = 5.dp))
+                        }
+                        IconButton(onClick = { closeTab(index) }, modifier = Modifier.size(38.dp)
+                            .clip(CircleShape).background(Color(0x441D3653))) {
+                            Icon(Icons.Default.Close, contentDescription = "Закрыть вкладку",
+                                tint = Paper, modifier = Modifier.size(18.dp))
+                        }
                     }
                 }
             }
