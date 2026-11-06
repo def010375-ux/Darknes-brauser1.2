@@ -1149,7 +1149,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         // Floating bottom glass navigation, above Android gesture/navigation area
         Row(
             Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 10.dp)
-                .height(68.dp).clip(RoundedCornerShape(26.dp)).background(Brush.horizontalGradient(listOf(Color(0xE6162038), Color(0xE610172B), Color(0xE61B2040))))
+                .height(68.dp).animateContentSize(spring(dampingRatio = .78f, stiffness = 420f)).clip(RoundedCornerShape(26.dp)).background(Brush.horizontalGradient(listOf(Color(0xE6162038), Color(0xE610172B), Color(0xE61B2040))))
                 .border(1.dp, Border, RoundedCornerShape(26.dp)).padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1159,8 +1159,14 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 if (tabUrls.getOrNull(activeTab).orEmpty().isNotBlank()) session.reload()
             }
             NavCircle(Icons.Default.AutoAwesome, accent) { panel = "ИИ-чат" }
-            Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Brush.linearGradient(listOf(accent.copy(alpha = .28f), Violet.copy(alpha = .20f)))).border(1.dp, accent.copy(alpha = .5f), RoundedCornerShape(14.dp)).clickable { panel = "Вкладки" }, contentAlignment = Alignment.Center) {
-                Text("${sessions.size}", color = Paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Box(Modifier.size(42.dp).animateContentSize(spring(dampingRatio = .7f, stiffness = 500f)).clip(RoundedCornerShape(14.dp)).background(Brush.linearGradient(listOf(accent.copy(alpha = .28f), Violet.copy(alpha = .20f)))).border(1.dp, accent.copy(alpha = .5f), RoundedCornerShape(14.dp)).clickable { panel = "Вкладки" }, contentAlignment = Alignment.Center) {
+                AnimatedContent(
+                    targetState = sessions.size,
+                    transitionSpec = { (fadeIn(tween(140)) + slideInVertically(tween(180)) { it / 2 }).togetherWith(fadeOut(tween(100)) + slideOutVertically(tween(130)) { -it / 2 }) },
+                    label = "tab-count"
+                ) { count ->
+                    Text("$count", color = Paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                }
             }
             NavCircle(Icons.Default.MoreHoriz, accent) { panel = "Меню" }
         }
@@ -1409,7 +1415,8 @@ private fun HomeSearchBar(
         Modifier.size(44.dp).clip(RoundedCornerShape(15.dp))
             .background(if (enabled) accent.copy(alpha = .10f) else Color.Transparent)
             .border(1.dp, if (enabled) accent.copy(alpha = .20f) else Color.Transparent, RoundedCornerShape(15.dp))
-            .clickable(enabled = enabled) { action() },
+            .clickable(enabled = enabled) { action() }
+            .animateContentSize(spring(dampingRatio = .72f, stiffness = 460f)),
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = null, tint = if (enabled) Paper else Muted.copy(alpha = .35f), modifier = Modifier.size(21.dp))
