@@ -622,17 +622,17 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         return
     }
     val context = LocalContext.current
+    val tabsPrefs = remember(context) { context.getSharedPreferences("darknes_tabs", android.content.Context.MODE_PRIVATE) }
+    val restoredTabs = remember(tabsPrefs) {
+        readBrowserTabs(tabsPrefs.getString("tabs", null))
+    }
+    var incognito by remember { mutableStateOf(false) }
     DisposableEffect(incognito, context) {
         val window = (context as? ComponentActivity)?.window
         if (incognito) window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         else window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
         onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
     }
-    val tabsPrefs = remember(context) { context.getSharedPreferences("darknes_tabs", android.content.Context.MODE_PRIVATE) }
-    val restoredTabs = remember(tabsPrefs) {
-        readBrowserTabs(tabsPrefs.getString("tabs", null))
-    }
-    var incognito by remember { mutableStateOf(false) }
     var privateModeUsed by remember { mutableStateOf(false) }
     val sessions = remember {
         mutableStateListOf<GeckoSession>().apply {
