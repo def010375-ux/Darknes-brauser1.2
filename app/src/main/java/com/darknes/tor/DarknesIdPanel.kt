@@ -32,9 +32,9 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-private const val DarknesOrange = 0xFFFF9A43
-private const val DarknesInk = 0xFF17110D
-private const val DarknesMuted = 0xFFB8AAA0
+private const val DarknesOrange = 0xFF38D9FF
+private const val DarknesInk = 0xFF070A14
+private const val DarknesMuted = 0xFF929DB8
 
 @Composable
 fun DarknesIdPanel(onAuthenticated: (() -> Unit)? = null, onContinueWithoutAccount: (() -> Unit)? = null) {
