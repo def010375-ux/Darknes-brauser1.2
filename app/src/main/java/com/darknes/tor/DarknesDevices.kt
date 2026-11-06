@@ -49,7 +49,7 @@ private data class DarknesDevice(
     val lastSeenAt: String
 )
 
-private object DarknesDeviceApi {
+internal object DarknesDeviceApi {
     private const val PREFS = "darknes_device_identity"
     private const val DEVICE_KEY = "device_id"
 
