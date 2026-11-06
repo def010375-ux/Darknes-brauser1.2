@@ -1575,12 +1575,12 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("1.5 Beta Release", color = Paper, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text("1.5 Beta", color = Paper, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
-                Text("СТАРТОВАЯ", color = Violet, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                Text("В РАЗРАБОТКЕ", color = Violet, fontSize = 9.sp, fontWeight = FontWeight.Bold)
             }
-            Text("Группы вкладок, режим сайтов для компьютера и офлайн-чтение сохранённых страниц.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
-            Text("Если эта версия уже установлена, повторная установка не требуется.", color = Peach, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+            Text("Новая футуристическая оболочка, обновлённая иконка и переработанный интерфейс. Версия ещё не опубликована.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+            Text("Это подготовленная версия проекта, а не опубликованный релиз.", color = Peach, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
         }
     }
     Spacer(Modifier.height(16.dp))
@@ -1593,7 +1593,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
             Text("Проверяем доступные релизы…", color = Muted, fontSize = 13.sp)
         }
         error.isNotBlank() -> Text(error, color = Peach, fontSize = 13.sp)
-        versions.isEmpty() -> Text("Пока опубликована только стартовая версия 1.5 Beta Release. Новые версии появятся здесь после публикации APK в GitHub Releases.", color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
+        versions.isEmpty() -> Text("Пока нет опубликованных APK. Darknes Tor 1.5 Beta находится в разработке; готовые сборки появятся здесь после публикации в GitHub Releases.", color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
         else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
             items(versions) { version ->
                 Surface(
