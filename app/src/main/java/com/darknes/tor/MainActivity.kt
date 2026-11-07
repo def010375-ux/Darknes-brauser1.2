@@ -33,6 +33,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.*
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -2345,6 +2348,9 @@ private fun TabsPanel(
     hasRecentlyClosed: Boolean, restoreRecentlyClosed: () -> Unit, done: () -> Unit
 ) {
     val tabAccent = if (incognito) Violet else Orange
+    var draggingTabIndex by remember { mutableIntStateOf(-1) }
+    var dragPointerRoot by remember { mutableStateOf(Offset.Zero) }
+    val groupDropBounds = remember { mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
     var selectedGroup by remember { mutableStateOf("Все") }
     val availableGroups = remember(groups.toList()) { listOf("Все") + groups.filter { it.isNotBlank() }.distinct() }
     val visibleIndices = remember(titles.size, groups.toList(), selectedGroup) {
@@ -2393,10 +2399,11 @@ private fun TabsPanel(
             verticalAlignment = Alignment.CenterVertically
         ) {
             availableGroups.forEach { group ->
-                val selected = selectedGroup == group
+                val selected = selectedGroup == group || (draggingTabIndex >= 0 && groupDropBounds[group]?.contains(dragPointerRoot) == true)
                 FilterChip(
                     selected = selected,
                     onClick = { selectedGroup = group },
+                    modifier = Modifier.onGloballyPositioned { groupDropBounds[group] = it.boundsInRoot() },
                     label = { Text(group, maxLines = 1) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = tabAccent.copy(alpha = .20f),
@@ -2436,6 +2443,7 @@ private fun TabsPanel(
                     var dragOffset by remember(index) { mutableStateOf(Offset.Zero) }
                     val dragScale by animateFloatAsState(if (dragOffset != Offset.Zero) 1.035f else 1f, label = "tab-drag-scale")
                     var groupMenuExpanded by remember(index) { mutableStateOf(false) }
+                    var cardOrigin by remember(index) { mutableStateOf(Offset.Zero) }
                     val previewBitmap = previews.getOrNull(index)
                     Box(Modifier.fillMaxWidth().aspectRatio(.76f).graphicsLayer {
                             translationX = dragOffset.x
@@ -2444,21 +2452,30 @@ private fun TabsPanel(
                             scaleY = dragScale
                         }.clip(cardShape).background(Brush.linearGradient(cardColors))
                         .border(if (isActive) 2.dp else 1.dp, if (isActive) tabAccent else Border, cardShape)
-                        .pointerInput(index, visibleIndices) {
+                        .onGloballyPositioned { cardOrigin = it.positionInRoot() }
+                        .pointerInput(index, visibleIndices, availableGroups) {
                             detectDragGesturesAfterLongPress(
-                                onDragStart = { dragOffset = Offset.Zero },
+                                onDragStart = { start ->
+                                    draggingTabIndex = index
+                                    dragPointerRoot = cardOrigin + start
+                                    dragOffset = Offset.Zero
+                                },
                                 onDragEnd = {
+                                    val targetGroup = groupDropBounds.entries.firstOrNull { it.value.contains(dragPointerRoot) }?.key
                                     val horizontalStep = if (dragOffset.x > 90.dp.toPx()) 1 else if (dragOffset.x < -90.dp.toPx()) -1 else 0
                                     val verticalStep = if (dragOffset.y > 150.dp.toPx()) 2 else if (dragOffset.y < -150.dp.toPx()) -2 else 0
                                     val targetPosition = (visiblePosition + horizontalStep + verticalStep).coerceIn(0, visibleIndices.lastIndex)
                                     val targetIndex = visibleIndices.getOrNull(targetPosition)
                                     dragOffset = Offset.Zero
-                                    if (targetIndex != null && targetIndex != index) moveTab(index, targetIndex)
+                                    draggingTabIndex = -1
+                                    if (targetGroup != null && targetGroup != "Все" && targetGroup != groups.getOrNull(index)) setTabGroup(index, targetGroup)
+                                    else if (targetIndex != null && targetIndex != index) moveTab(index, targetIndex)
                                 },
-                                onDragCancel = { dragOffset = Offset.Zero },
+                                onDragCancel = { dragOffset = Offset.Zero; draggingTabIndex = -1 },
                                 onDrag = { change, amount ->
                                     change.consume()
                                     dragOffset += amount
+                                    dragPointerRoot += amount
                                 }
                             )
                         }
@@ -2540,7 +2557,7 @@ private fun TabsPanel(
                 }
             }
         }
-        Text("Миниатюры создаются камерой из текущей страницы. Удерживай карточку для сортировки; группу можно выбрать через меню рядом с её названием.", color = Muted,
+        Text("Нажми камеру, чтобы сохранить снимок страницы. Удерживай карточку и перетащи её на группу сверху или на соседнюю позицию.", color = Muted,
             fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 7.dp))
     }
 }
