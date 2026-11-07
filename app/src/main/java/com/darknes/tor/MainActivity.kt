@@ -39,6 +39,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -600,7 +601,7 @@ private fun resolveAddress(raw: String, engine: String): String {
     val s = raw.trim()
     if (s.isEmpty()) return "about:blank"
     if (s.startsWith("https://", ignoreCase = true) || s.startsWith("http://", ignoreCase = true)) {
-        return s.replaceFirst(Regex("^https?://", RegexOption.IGNORE_CASE)) { it.value.lowercase() }
+        return Regex("^https?://", RegexOption.IGNORE_CASE).replace(s) { match -> match.value.lowercase() }
     }
     if (s.startsWith("//")) return "https:$s"
     if (s.startsWith("www.", ignoreCase = true) || (s.contains(".") && !s.any { it.isWhitespace() })) return "https://$s"
@@ -777,7 +778,8 @@ private fun BlackHoleScene(
                 // 3D particle field: orbital radius contracts toward the event horizon;
                 // perspective depth changes each particle's apparent size and brightness.
                 if (showParticles) {
-                    // Scale particle density with the rendered scene size to protect slower devices.\n                    val particleCount = if (unit < 300f) 76 else if (unit < 430f) 104 else 132
+                    // Scale particle density with the rendered scene size to protect slower devices.
+                    val particleCount = if (unit < 300f) 76 else if (unit < 430f) 104 else 132
                     for (i in 0 until particleCount) {
                         val seed = i / particleCount.toFloat()
                         val cycle = (seed + infall) % 1f
@@ -1618,7 +1620,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                     srcUri = element.srcUri,
                     title = element.title,
                     altText = element.altText,
-                    textContent = element.textContent,
+                    textContent = null,
                     isImage = element.type == GeckoSession.ContentDelegate.ContextElement.TYPE_IMAGE
                 )
             }
@@ -2098,7 +2100,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                             }, {
                                 runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))) }
                                     .onFailure { toast = "Не удалось открыть настройки Android" }
-                            }
+                            },
                             "Чтение" -> ReaderPanel(readerSource, readerContent, readerLoading, readerError, onRetry = { openReader() })
                             "Офлайн-страницы" -> OfflinePagesPanel(
                                 offlinePages = offlinePages.toList(),
@@ -3652,9 +3654,9 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     }
     if (savedDecisions.isEmpty()) Text("Сохранённых решений нет.", color = Muted, fontSize = 11.sp)
     else Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFF111A2E)).border(1.dp, Border, RoundedCornerShape(16.dp)).padding(horizontal = 11.dp)) {
-        savedDecisions.toList().sortedBy { it.key }.forEachIndexed { index, entry ->
-            val host = entry.key.substringBefore("|")
-            val kind = when (entry.key.substringAfter("|", "")) {
+        savedDecisions.toList().sortedBy { it.first }.forEachIndexed { index, entry ->
+            val host = entry.first.substringBefore("|")
+            val kind = when (entry.first.substringAfter("|", "")) {
                 GeckoSession.PermissionDelegate.PERMISSION_GEOLOCATION.toString() -> "Геолокация"
                 GeckoSession.PermissionDelegate.PERMISSION_DESKTOP_NOTIFICATION.toString() -> "Уведомления"
                 else -> "Разрешение сайта"
@@ -3662,9 +3664,9 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(host, color = Paper, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                    Text(kind + " · " + if (entry.value) "Разрешено" else "Запрещено", color = if (entry.value) Color(0xFF62E6C2) else Peach, fontSize = 10.sp)
+                    Text(kind + " · " + if (entry.second) "Разрешено" else "Запрещено", color = if (entry.value) Color(0xFF62E6C2) else Peach, fontSize = 10.sp)
                 }
-                IconButton(onClick = { clearDecision(entry.key) }) { Icon(Icons.Default.Refresh, contentDescription = "Сбросить решение сайта", tint = Orange) }
+                IconButton(onClick = { clearDecision(entry.first) }) { Icon(Icons.Default.Refresh, contentDescription = "Сбросить решение сайта", tint = Orange) }
             }
             if (index != savedDecisions.size - 1) Divider(color = Border.copy(alpha = .5f))
         }
@@ -4070,6 +4072,8 @@ private fun TabsPanel(
                 textContentColor = Paper
             )
         }
+        val dragThresholdX = with(LocalDensity.current) { 90.dp.toPx() }
+        val dragThresholdY = with(LocalDensity.current) { 150.dp.toPx() }
         Spacer(Modifier.height(12.dp))
         if (titles.isEmpty()) {
             Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color(0xFF10182D))
@@ -4120,8 +4124,8 @@ private fun TabsPanel(
                                 },
                                 onDragEnd = {
                                     val targetGroup = groupDropBounds.entries.firstOrNull { it.value.contains(dragPointerRoot) }?.key
-                                    val horizontalStep = if (dragOffset.x > 90.dp.toPx()) 1 else if (dragOffset.x < -90.dp.toPx()) -1 else 0
-                                    val verticalStep = if (dragOffset.y > 150.dp.toPx()) 2 else if (dragOffset.y < -150.dp.toPx()) -2 else 0
+                                    val horizontalStep = if (dragOffset.x > dragThresholdX) 1 else if (dragOffset.x < -90.dp.toPx()) -1 else 0
+                                    val verticalStep = if (dragOffset.y > dragThresholdY) 2 else if (dragOffset.y < -150.dp.toPx()) -2 else 0
                                     val targetPosition = (visiblePosition + horizontalStep + verticalStep).coerceIn(0, visibleIndices.lastIndex)
                                     val targetIndex = visibleIndices.getOrNull(targetPosition)
                                     dragOffset = Offset.Zero
