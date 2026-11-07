@@ -2647,8 +2647,11 @@ private fun HomeScreen(
     val wallpaperContext = LocalContext.current
     Column(Modifier.fillMaxSize().background(Ink).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
         if (showBranding) {
-        Spacer(Modifier.height(18.dp))
-        Box(Modifier.fillMaxWidth().height(220.dp), contentAlignment = Alignment.Center) {
+        Spacer(Modifier.height(26.dp))
+        Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(242.dp)
+            .clip(RoundedCornerShape(30.dp))
+            .background(Brush.verticalGradient(listOf(Color(0xFF211633), Color(0xFF100D19), Color(0xFF171020))))
+            .border(1.dp, Color(0x667F59B6), RoundedCornerShape(30.dp)), contentAlignment = Alignment.Center) {
             val wallpaperBitmap = remember(wallpaperUri) {
                 if (wallpaperUri.isBlank()) null else runCatching {
                     val uri = Uri.parse(wallpaperUri)
@@ -2665,7 +2668,7 @@ private fun HomeScreen(
                 Box(Modifier.fillMaxSize().padding(horizontal = 12.dp).clip(RoundedCornerShape(24.dp)).background(Color.Black.copy(alpha = .28f)))
             }
             CrownEmblem(
-                modifier = Modifier.width(270.dp).height(205.dp).clickable { orbitExpanded = !orbitExpanded },
+                modifier = Modifier.width(286.dp).height(216.dp).clickable { orbitExpanded = !orbitExpanded },
                 glowColor = Color(0xFF9B63FF),
                 showParticles = true
             )
@@ -2682,24 +2685,24 @@ private fun HomeScreen(
                     onSecretSettings()
                 }
             },
-            style = TextStyle(brush = Brush.linearGradient(listOf(Color.White, Color(0xFFDCCBFF), Color(0xFF9B63FF))), fontSize = 39.sp, fontWeight = FontWeight.Bold)
+            style = TextStyle(brush = Brush.linearGradient(listOf(Color.White, Color(0xFFE6D9FF), Color(0xFFB58CFF))), fontSize = 41.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp)
         )
         Text(uiLabel(language, "Приватность под твоим контролем", "Privacy on your terms"), color = Muted, fontSize = 14.sp)
         Spacer(Modifier.height(13.dp))
         Row(
             Modifier.clip(RoundedCornerShape(50.dp))
-                .background(Color(0xFF102B31).copy(alpha = .72f))
-                .border(1.dp, Color(0xFF62E6C2).copy(alpha = .28f), RoundedCornerShape(50.dp))
+                .background(Color(0xFF281B3B).copy(alpha = .88f))
+                .border(1.dp, Color(0x997F59B6), RoundedCornerShape(50.dp))
                 .padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(Modifier.size(6.dp).background(Color(0xFF62E6C2), CircleShape))
+            Box(Modifier.size(6.dp).background(Color(0xFFB58CFF), CircleShape))
             Spacer(Modifier.width(7.dp))
-            Text(uiLabel(language, "ЗАЩИТА ВКЛЮЧЕНА", "PROTECTION ENABLED"), color = Color(0xFF9AF2D9), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Text(uiLabel(language, "DARKNES PRIVATE SPACE", "DARKNES PRIVATE SPACE"), color = Color(0xFFDCCBFF), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = .8.sp)
             Spacer(Modifier.width(10.dp))
             Text("·", color = Muted, fontSize = 10.sp)
             Spacer(Modifier.width(8.dp))
-            Text(uiLabel(language, "БЕЗ АККАУНТА", "NO ACCOUNT"), color = Paper.copy(alpha = .78f), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = .7.sp)
+            Text(uiLabel(language, "ТВОЙ БРАУЗЕР", "YOUR BROWSER"), color = Paper.copy(alpha = .82f), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = .7.sp)
         }
         Spacer(Modifier.height(20.dp))
         }
@@ -2739,16 +2742,16 @@ private fun HomeScreen(
             items(sites) { (name, icon, url) ->
                 Column(
                     Modifier.padding(5.dp).clip(RoundedCornerShape(19.dp))
-                        .background(Brush.linearGradient(listOf(Color(0xFF1D3455), Color(0xFF10172B))))
-                        .border(1.dp, accent.copy(alpha = .20f), RoundedCornerShape(19.dp))
+                        .background(Brush.linearGradient(listOf(Color(0xFF2A1D3D), Color(0xFF15101F))))
+                        .border(1.dp, Color(0x667F59B6), RoundedCornerShape(19.dp))
                         .clickable { onShortcut(url) }
                         .animateContentSize(spring(dampingRatio = .72f, stiffness = 420f))
                         .padding(vertical = 13.dp, horizontal = 3.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
-                        .background(Brush.linearGradient(listOf(accent.copy(alpha = .23f), Violet.copy(alpha = .13f))))
-                        .border(1.dp, accent.copy(alpha = .22f), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
+                        .background(Brush.linearGradient(listOf(Color(0xFFB58CFF).copy(alpha = .25f), Color(0xFF7045A8).copy(alpha = .16f))))
+                        .border(1.dp, Color(0x667F59B6), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
                         Icon(icon, contentDescription = name, tint = accent, modifier = Modifier.size(23.dp))
                     }
                     Spacer(Modifier.height(8.dp))
@@ -2766,7 +2769,7 @@ private fun HomeScreen(
             Text(uiLabel(language, "ТВОИ ЗАКЛАДКИ", "YOUR BOOKMARKS"), color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp, modifier = Modifier.align(Alignment.Start).padding(start = 24.dp, top = 20.dp, bottom = 8.dp))
             LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = Modifier.fillMaxWidth().heightIn(max = 190.dp).padding(horizontal = 12.dp), userScrollEnabled = false) {
                 items(bookmarks.take(6)) { page ->
-                    Column(Modifier.padding(5.dp).clip(RoundedCornerShape(16.dp)).background(Brush.linearGradient(listOf(Color(0xFF1A2B49), Color(0xFF10172B)))).border(1.dp, Border, RoundedCornerShape(16.dp)).clickable { onShortcut(page.url) }.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(Modifier.padding(5.dp).clip(RoundedCornerShape(16.dp)).background(Brush.linearGradient(listOf(Color(0xFF291D3C), Color(0xFF15101F)))).border(1.dp, Color(0x667F59B6), RoundedCornerShape(16.dp)).clickable { onShortcut(page.url) }.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Default.Bookmark, contentDescription = null, tint = accent, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.height(5.dp)); Text(page.title, color = Paper, fontSize = 10.sp, maxLines = 1)
                     }
@@ -2815,8 +2818,8 @@ private fun HomeSearchBar(
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 18.dp)
             .clip(RoundedCornerShape(DarknesDesignTokens.radiusLarge))
-            .background(Brush.linearGradient(listOf(DarknesDesignTokens.elevatedSurface, DarknesDesignTokens.glass, DarknesDesignTokens.surface)))
-            .border(1.dp, accent.copy(alpha = .48f), RoundedCornerShape(DarknesDesignTokens.radiusLarge))
+            .background(Brush.linearGradient(listOf(Color(0xFF291D3C), Color(0xFF171020), Color(0xFF21172F))))
+            .border(1.dp, Color(0x997F59B6), RoundedCornerShape(DarknesDesignTokens.radiusLarge))
             .padding(horizontal = 16.dp, vertical = 15.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2849,7 +2852,8 @@ private fun HomeSearchBar(
             Spacer(Modifier.width(5.dp))
             Box(
                 Modifier.size(44.dp).clip(RoundedCornerShape(DarknesDesignTokens.radiusMedium))
-                    .background(Brush.linearGradient(listOf(accent, Violet)))
+                    .background(Brush.linearGradient(listOf(Color(0xFFD9C8FF), Color(0xFF9B70E0), Color(0xFF7045A8))))
+                    .border(1.dp, Color(0x99E7D9FF), RoundedCornerShape(DarknesDesignTokens.radiusMedium))
                     .clickable { submitSearch() },
                 contentAlignment = Alignment.Center
             ) {
@@ -2864,7 +2868,7 @@ private fun HomeSearchBar(
             Spacer(Modifier.weight(1f))
             Box {
                 Row(
-                    Modifier.clip(RoundedCornerShape(50)).background(Color(0xFF25365A))
+                    Modifier.clip(RoundedCornerShape(50)).background(Color(0xFF2A1D3D)).border(1.dp, Color(0x667F59B6), RoundedCornerShape(50))
                         .clickable { engineMenuExpanded = true }.padding(horizontal = 11.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
