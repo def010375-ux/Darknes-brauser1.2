@@ -827,7 +827,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var query by remember { mutableStateOf(tabUrls.getOrNull(activeTab).orEmpty()) }
     var islandOpen by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf("") }
-    var engine by remember { mutableStateOf("DuckDuckGo") }
+    var engine by remember(settingsPrefs) { mutableStateOf(settingsPrefs.getString("searchEngine", "DuckDuckGo") ?: "DuckDuckGo") }
     val onLoad: (String) -> Unit = { session.loadUri(resolveAddress(it, engine)) }
     var blur by remember { mutableFloatStateOf(settingsPrefs.getFloat("blur", 8f).coerceIn(0f, 24f)) }
     var wallpaperUri by remember { mutableStateOf(settingsPrefs.getString("wallpaperUri", "") ?: "") }
@@ -997,6 +997,9 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 .putInt("active", activeTab.coerceIn(0, (tabTitles.size - 1).coerceAtLeast(0)))
                 .apply()
         }
+    }
+    LaunchedEffect(engine) {
+        settingsPrefs.edit().putString("searchEngine", engine).apply()
     }
     LaunchedEffect(blur, animations, trackers, darkSites, adBlock, nightPages, accentChoice, desktopMode, wallpaperUri, incognitoAccentChoice, homeLayout, interfaceLanguage, showHomeBranding, showHomeShortcuts, showHomeBookmarks) {
         settingsPrefs.edit()
@@ -1902,7 +1905,7 @@ private fun HomeSearchBar(
                 Text("НЕДАВНИЕ ЗАПРОСЫ", color = Muted, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                 matchingSuggestions.forEach { suggestion ->
                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-                        .clickable { onValueChange(suggestion); onSearch(); keyboard?.hide() }
+                        .clickable { onValueChange(suggestion) }
                         .padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.History, null, tint = Muted, modifier = Modifier.size(15.dp))
                         Spacer(Modifier.width(8.dp))
