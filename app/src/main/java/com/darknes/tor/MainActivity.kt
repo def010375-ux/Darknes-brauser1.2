@@ -666,33 +666,6 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         return
     }
     val context = LocalContext.current
-    val sitePermissionPrefs = remember(context) { context.getSharedPreferences("darknes_site_permissions", android.content.Context.MODE_PRIVATE) }
-    val sitePermissionDecisions = remember(sitePermissionPrefs) {
-        mutableStateMapOf<String, Boolean>().apply {
-            runCatching {
-                val json = org.json.JSONObject(sitePermissionPrefs.getString("decisions", "{}") ?: "{}")
-                json.keys().forEach { key -> put(key, json.optBoolean(key)) }
-            }
-        }
-    }
-    var pendingSitePermission by remember { mutableStateOf<PendingSitePermission?>(null) }
-    var storedSitePermissions by remember { mutableStateOf<List<GeckoSession.PermissionDelegate.ContentPermission>>(emptyList()) }
-    fun refreshSitePermissions() {
-        if (incognito) {
-            storedSitePermissions = emptyList()
-            return
-        }
-        runtime.storageController.getAllPermissions().accept({ permissions ->
-            storedSitePermissions = permissions.orEmpty().filter {
-                !it.privateMode && it.value != GeckoSession.PermissionDelegate.ContentPermission.VALUE_PROMPT
-            }.sortedBy { it.uri }
-        }, {
-            storedSitePermissions = emptyList()
-        })
-    }
-    LaunchedEffect(panel, incognito) {
-        if (panel == "Безопасность") refreshSitePermissions()
-    }
     val tabsPrefs = remember(context) { context.getSharedPreferences("darknes_tabs", android.content.Context.MODE_PRIVATE) }
     val restoredWorkspaceState = remember(tabsPrefs) {
         readWorkspaceTabState(tabsPrefs.getString("workspace_sessions", null))
@@ -857,6 +830,33 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var query by remember { mutableStateOf(tabUrls.getOrNull(activeTab).orEmpty()) }
     var islandOpen by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf("") }
+    val sitePermissionPrefs = remember(context) { context.getSharedPreferences("darknes_site_permissions", android.content.Context.MODE_PRIVATE) }
+    val sitePermissionDecisions = remember(sitePermissionPrefs) {
+        mutableStateMapOf<String, Boolean>().apply {
+            runCatching {
+                val json = org.json.JSONObject(sitePermissionPrefs.getString("decisions", "{}") ?: "{}")
+                json.keys().forEach { key -> put(key, json.optBoolean(key)) }
+            }
+        }
+    }
+    var pendingSitePermission by remember { mutableStateOf<PendingSitePermission?>(null) }
+    var storedSitePermissions by remember { mutableStateOf<List<GeckoSession.PermissionDelegate.ContentPermission>>(emptyList()) }
+    fun refreshSitePermissions() {
+        if (incognito) {
+            storedSitePermissions = emptyList()
+            return
+        }
+        runtime.storageController.getAllPermissions().accept({ permissions ->
+            storedSitePermissions = permissions.orEmpty().filter {
+                !it.privateMode && it.value != GeckoSession.PermissionDelegate.ContentPermission.VALUE_PROMPT
+            }.sortedBy { it.uri }
+        }, {
+            storedSitePermissions = emptyList()
+        })
+    }
+    LaunchedEffect(panel, incognito) {
+        if (panel == "Безопасность") refreshSitePermissions()
+    }
     var engine by remember(settingsPrefs) { mutableStateOf(settingsPrefs.getString("searchEngine", "DuckDuckGo") ?: "DuckDuckGo") }
     val onLoad: (String) -> Unit = { session.loadUri(resolveAddress(it, engine)) }
     var blur by remember { mutableFloatStateOf(settingsPrefs.getFloat("blur", 8f).coerceIn(0f, 24f)) }
