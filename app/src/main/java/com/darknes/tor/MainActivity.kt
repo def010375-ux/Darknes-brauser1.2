@@ -81,6 +81,19 @@ private val Glass = DarknesDesignTokens.glass
 private val Border = DarknesDesignTokens.border
 private fun uiLabel(language: String, russian: String, english: String): String = if (language == "en") english else russian
 
+private data class PermissionAuditEntry(val host: String, val permission: String, val decision: String, val time: Long)
+private fun readPermissionAudit(raw: String?): List<PermissionAuditEntry> = runCatching {
+    val array = JSONArray(raw ?: "[]")
+    (0 until array.length()).mapNotNull { index ->
+        val item = array.optJSONObject(index) ?: return@mapNotNull null
+        val host = item.optString("host")
+        if (host.isBlank()) null else PermissionAuditEntry(host, item.optString("permission", "Доступ к сайту"), item.optString("decision", "Запрос"), item.optLong("time", 0L))
+    }.sortedByDescending { it.time }.take(50)
+}.getOrDefault(emptyList())
+private fun encodePermissionAudit(entries: List<PermissionAuditEntry>): String = JSONArray().apply {
+    entries.take(50).forEach { entry -> put(org.json.JSONObject().put("host", entry.host).put("permission", entry.permission).put("decision", entry.decision).put("time", entry.time)) }
+}.toString()
+
 private data class PendingSitePermission(val permission: GeckoSession.PermissionDelegate.ContentPermission, val result: GeckoResult<Int>, val label: String)
 private data class PendingSiteMediaPermission(
     val uri: String,
@@ -895,6 +908,17 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var islandOpen by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf("") }
     val sitePermissionPrefs = remember(context) { context.getSharedPreferences("darknes_site_permissions", android.content.Context.MODE_PRIVATE) }
+    val permissionAudit = remember(sitePermissionPrefs) { mutableStateListOf<PermissionAuditEntry>().apply { addAll(readPermissionAudit(sitePermissionPrefs.getString("audit", "[]"))) } }
+    fun recordPermissionAudit(host: String, permission: String, decision: String) {
+        permissionAudit.add(0, PermissionAuditEntry(host.ifBlank { "Неизвестный сайт" }.take(180), permission.take(80), decision, System.currentTimeMillis()))
+        while (permissionAudit.size > 50) permissionAudit.removeAt(permissionAudit.lastIndex)
+        sitePermissionPrefs.edit().putString("audit", encodePermissionAudit(permissionAudit.toList())).apply()
+    }
+    fun persistSitePermissionDecisions() {
+        val json = org.json.JSONObject()
+        sitePermissionDecisions.forEach { (key, value) -> json.put(key, value) }
+        sitePermissionPrefs.edit().putString("decisions", json.toString()).apply()
+    }
     val sitePermissionDecisions = remember(sitePermissionPrefs) {
         mutableStateMapOf<String, Boolean>().apply {
             runCatching {
@@ -916,8 +940,12 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 val videoSource = request.video?.firstOrNull { it.source == GeckoSession.PermissionDelegate.MediaSource.SOURCE_CAMERA } ?: request.video?.firstOrNull()
                 val audioSource = request.audio?.firstOrNull { it.source == GeckoSession.PermissionDelegate.MediaSource.SOURCE_MICROPHONE } ?: request.audio?.firstOrNull()
                 request.callback.grant(videoSource, audioSource)
+                val host = runCatching { Uri.parse(request.uri).host.orEmpty() }.getOrDefault("")
+                recordPermissionAudit(host, listOfNotNull(if (needsCamera) "Камера" else null, if (needsMicrophone) "Микрофон" else null).joinToString(" + "), "Разрешено")
             } else {
                 request.callback.reject()
+                val host = runCatching { Uri.parse(request.uri).host.orEmpty() }.getOrDefault("")
+                recordPermissionAudit(host, "Камера / микрофон", "Отклонено системой Android")
                 Toast.makeText(context, "Доступ к камере или микрофону не предоставлен Android", Toast.LENGTH_LONG).show()
             }
             pendingSiteMediaPermission = null
@@ -1297,12 +1325,14 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 val key = "$origin|${perm.permission}"
                 val saved = if (incognito || perm.privateMode) null else sitePermissionDecisions[key]
                 if (saved != null) {
+                    recordPermissionAudit(origin, kind, if (saved) "Разрешено ранее" else "Запрещено ранее")
                     return GeckoResult.fromValue(
                         if (saved) GeckoSession.PermissionDelegate.ContentPermission.VALUE_ALLOW
                         else GeckoSession.PermissionDelegate.ContentPermission.VALUE_DENY
                     )
                 }
                 val result = GeckoResult<Int>()
+                recordPermissionAudit(origin, kind, "Запрос")
                 pendingSitePermission = PendingSitePermission(perm, result, "$kind — $origin")
                 return result
             }
@@ -1330,6 +1360,9 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                     callback.reject()
                     return
                 }
+                pendingSiteMediaPermission?.callback?.reject()
+                val host = runCatching { Uri.parse(uri).host.orEmpty() }.getOrDefault("")
+                recordPermissionAudit(host, listOfNotNull(if (!video.isNullOrEmpty()) "Камера" else null, if (!audio.isNullOrEmpty()) "Микрофон" else null).joinToString(" + "), "Запрос")
                 pendingSiteMediaPermission = PendingSiteMediaPermission(uri, video, audio, callback)
             }
         })
@@ -1591,14 +1624,19 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                             "Безопасность" -> PrivacyPanel(trackers, { trackers = it }, adBlock, { adBlock = it }, darkSites, { darkSites = it }, nightPages, { nightPages = it }, groupNames.toList(), workspaceTracking.toMap(), { group, enabled -> workspaceTracking[group] = enabled }, storedSitePermissions, ::refreshSitePermissions, { permission ->
                                 runtime.storageController.setPermission(permission, GeckoSession.PermissionDelegate.ContentPermission.VALUE_PROMPT)
                                 val origin = runCatching { Uri.parse(permission.uri).host ?: permission.uri }.getOrDefault(permission.uri)
-                                sitePermissionDecisions.remove("$origin|${permission.permission}")
-                                val decisions = org.json.JSONObject()
-                                sitePermissionDecisions.forEach { (key, value) -> decisions.put(key, value) }
-                                sitePermissionPrefs.edit().putString("decisions", decisions.toString()).apply()
-                                storedSitePermissions = storedSitePermissions.filterNot {
-                                    it.uri == permission.uri && it.permission == permission.permission
-                                }
-                            }) {
+                                sitePermissionDecisions.remove("$origin|" + permission.permission)
+                                persistSitePermissionDecisions()
+                                recordPermissionAudit(origin, "Разрешение сайта", "Доступ отозван")
+                                storedSitePermissions = storedSitePermissions.filterNot { it.uri == permission.uri && it.permission == permission.permission }
+                            }, sitePermissionDecisions.toMap(), permissionAudit.toList(), { key ->
+                                sitePermissionDecisions.remove(key)
+                                persistSitePermissionDecisions()
+                                recordPermissionAudit(key.substringBefore("|"), "Разрешение сайта", "Решение сброшено")
+                            }, {
+                                sitePermissionDecisions.clear()
+                                persistSitePermissionDecisions()
+                                recordPermissionAudit("Все сайты", "Разрешения", "Все сохранённые решения сброшены")
+                            }, {
                                 runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))) }
                                     .onFailure { toast = "Не удалось открыть настройки Android" }
                             }
@@ -1654,6 +1692,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 AlertDialog(
                     onDismissRequest = {
                         mediaPrompt.callback.reject()
+                        recordPermissionAudit(host, requestedLabels, "Отклонено пользователем")
                         pendingSiteMediaPermission = null
                     },
                     title = { Text("Доступ к устройствам", color = Paper) },
@@ -1670,6 +1709,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                 val videoSource = mediaPrompt.video?.firstOrNull { it.source == GeckoSession.PermissionDelegate.MediaSource.SOURCE_CAMERA } ?: mediaPrompt.video?.firstOrNull()
                                 val audioSource = mediaPrompt.audio?.firstOrNull { it.source == GeckoSession.PermissionDelegate.MediaSource.SOURCE_MICROPHONE } ?: mediaPrompt.audio?.firstOrNull()
                                 mediaPrompt.callback.grant(videoSource, audioSource)
+                                recordPermissionAudit(host, requestedLabels, "Разрешено")
                                 pendingSiteMediaPermission = null
                             }
                         }) { Text("Разрешить", color = Orange) }
@@ -1689,6 +1729,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 AlertDialog(
                     onDismissRequest = {
                         permissionPrompt.result.complete(GeckoSession.PermissionDelegate.ContentPermission.VALUE_DENY)
+                        recordPermissionAudit(runCatching { Uri.parse(permissionPrompt.permission.uri).host.orEmpty() }.getOrDefault(""), "Разрешение сайта", "Отклонено пользователем")
                         pendingSitePermission = null
                     },
                     title = { Text("Запрос разрешения", color = Paper) },
@@ -1700,11 +1741,10 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                             if (!incognito && !perm.privateMode) {
                                 val key = "$origin|${perm.permission}"
                                 sitePermissionDecisions[key] = true
-                                val json = org.json.JSONObject()
-                                sitePermissionDecisions.forEach { (k, v) -> json.put(k, v) }
-                                sitePermissionPrefs.edit().putString("decisions", json.toString()).apply()
+                                persistSitePermissionDecisions()
                             }
                             permissionPrompt.result.complete(GeckoSession.PermissionDelegate.ContentPermission.VALUE_ALLOW)
+                            recordPermissionAudit(origin, "Разрешение сайта", "Разрешено пользователем")
                             pendingSitePermission = null
                         }) { Text("Разрешить", color = Orange) }
                     },
@@ -1720,6 +1760,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                 sitePermissionPrefs.edit().putString("decisions", json.toString()).apply()
                             }
                             permissionPrompt.result.complete(GeckoSession.PermissionDelegate.ContentPermission.VALUE_DENY)
+                            recordPermissionAudit(origin, "Разрешение сайта", "Запрещено пользователем")
                             pendingSitePermission = null
                         }) { Text("Запретить", color = Peach) }
                     },
@@ -2646,7 +2687,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     Spacer(Modifier.height(22.dp))
     }
 }
-@Composable private fun PrivacyPanel(trackers:Boolean, setTrackers:(Boolean)->Unit, ad:Boolean, setAd:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, night:Boolean, setNight:(Boolean)->Unit, workspaces:List<String>, workspaceProtection:Map<String, Boolean>, setWorkspaceProtection:(String, Boolean)->Unit, sitePermissions:List<GeckoSession.PermissionDelegate.ContentPermission>, refreshSitePermissions:()->Unit, revokeSitePermission:(GeckoSession.PermissionDelegate.ContentPermission)->Unit, openAndroidSettings:()->Unit) {
+@Composable private fun PrivacyPanel(trackers:Boolean, setTrackers:(Boolean)->Unit, ad:Boolean, setAd:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, night:Boolean, setNight:(Boolean)->Unit, workspaces:List<String>, workspaceProtection:Map<String, Boolean>, setWorkspaceProtection:(String, Boolean)->Unit, sitePermissions:List<GeckoSession.PermissionDelegate.ContentPermission>, refreshSitePermissions:()->Unit, revokeSitePermission:(GeckoSession.PermissionDelegate.ContentPermission)->Unit, savedDecisions:Map<String, Boolean>, audit:List<PermissionAuditEntry>, clearDecision:(String)->Unit, clearAllDecisions:()->Unit, openAndroidSettings:()->Unit) {
     PanelTitle("Центр безопасности", "Защита браузера и контроль доступа")
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(21.dp))
         .background(Brush.linearGradient(listOf(Color(0xFF1A2D4B), Color(0xFF10172B))))
@@ -2729,6 +2770,48 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
         }
     }
     Spacer(Modifier.height(13.dp))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("ЗАПОМНЕННЫЕ РЕШЕНИЯ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+            Text("Сохранённые разрешения и запреты сайтов", color = Muted, fontSize = 10.sp)
+        }
+        if (savedDecisions.isNotEmpty()) TextButton(onClick = clearAllDecisions) { Text("Сбросить всё", color = Peach, fontSize = 10.sp) }
+    }
+    if (savedDecisions.isEmpty()) Text("Сохранённых решений нет.", color = Muted, fontSize = 11.sp)
+    else Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFF111A2E)).border(1.dp, Border, RoundedCornerShape(16.dp)).padding(horizontal = 11.dp)) {
+        savedDecisions.toList().sortedBy { it.key }.forEachIndexed { index, entry ->
+            val host = entry.key.substringBefore("|")
+            val kind = when (entry.key.substringAfter("|", "")) {
+                GeckoSession.PermissionDelegate.PERMISSION_GEOLOCATION.toString() -> "Геолокация"
+                GeckoSession.PermissionDelegate.PERMISSION_DESKTOP_NOTIFICATION.toString() -> "Уведомления"
+                else -> "Разрешение сайта"
+            }
+            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(host, color = Paper, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    Text(kind + " · " + if (entry.value) "Разрешено" else "Запрещено", color = if (entry.value) Color(0xFF62E6C2) else Peach, fontSize = 10.sp)
+                }
+                IconButton(onClick = { clearDecision(entry.key) }) { Icon(Icons.Default.RestartAlt, contentDescription = "Сбросить решение сайта", tint = Orange) }
+            }
+            if (index != savedDecisions.size - 1) Divider(color = Border.copy(alpha = .5f))
+        }
+    }
+    Spacer(Modifier.height(13.dp))
+    Text("ИСТОРИЯ ЗАПРОСОВ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    if (audit.isEmpty()) Text("История появится после первого запроса сайта.", color = Muted, fontSize = 11.sp)
+    else Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFF111A2E)).border(1.dp, Border, RoundedCornerShape(16.dp)).padding(horizontal = 11.dp)) {
+        audit.take(15).forEachIndexed { index, entry ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(entry.host, color = Paper, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    Text(entry.permission + " · " + entry.decision, color = Muted, fontSize = 10.sp, maxLines = 2)
+                }
+                Text(java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date(entry.time)), color = Muted, fontSize = 9.sp)
+            }
+            if (index != audit.take(15).lastIndex) Divider(color = Border.copy(alpha = .5f))
+        }
+    }
+    Spacer(Modifier.height(13.dp))
     Text("ПРИВАТНОСТЬ И ОТОБРАЖЕНИЕ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
     SettingSwitch("Тёмная схема сайтов", dark, setDark)
     SettingSwitch("Ночной режим страниц", night, setNight)
@@ -2758,7 +2841,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
         }
     }
     Spacer(Modifier.height(10.dp))
-    Text("Приложение не объявляет отдельные разрешения камеры, микрофона и геолокации в AndroidManifest. Системные настройки доступны отдельно.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+    Text("Фактический статус камеры и микрофона определяется Android. Изменять системные разрешения можно в настройках приложения.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
     Spacer(Modifier.height(12.dp))
     Button(onClick = openAndroidSettings, modifier = Modifier.fillMaxWidth().height(52.dp),
         colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Ink), shape = RoundedCornerShape(16.dp)) {
