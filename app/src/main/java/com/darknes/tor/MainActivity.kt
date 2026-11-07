@@ -983,7 +983,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         val json = org.json.JSONObject(); workspaceTracking.forEach { (key, value) -> json.put(key, value) }
         tabsPrefs.edit().putString("workspace_tracking", json.toString()).apply()
     }
-    LaunchedEffect(tabTitles.toList(), tabUrls.toList(), tabGroups.toList(), activeTab, incognito, privateModeUsed) {
+    LaunchedEffect(tabTitles.toList(), tabUrls.toList(), tabGroups.toList(), tabPinned.toList(), activeTab, incognito, privateModeUsed) {
         // Once private browsing has been used in this app session, do not overwrite
         // the last normal-tab snapshot with URLs that may have been opened privately.
         if (!incognito && !privateModeUsed) {
@@ -1662,6 +1662,12 @@ private fun HomeScreen(
 ) {
     var titleTapCount by remember { mutableIntStateOf(0) }
     var lastTitleTapAt by remember { mutableLongStateOf(0L) }
+    var orbitExpanded by remember { mutableStateOf(false) }
+    val orbitProgress by animateFloatAsState(
+        targetValue = if (orbitExpanded) 1f else 0f,
+        animationSpec = spring(dampingRatio = .68f, stiffness = 260f),
+        label = "home-black-hole-orbit"
+    )
     val wallpaperContext = LocalContext.current
     Column(Modifier.fillMaxSize().background(Ink).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
         if (showBranding) {
@@ -1682,8 +1688,9 @@ private fun HomeScreen(
                     modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(24.dp)).blur(blur.dp))
                 Box(Modifier.fillMaxSize().padding(horizontal = 12.dp).clip(RoundedCornerShape(24.dp)).background(Color.Black.copy(alpha = .28f)))
             }
-            BlackHoleScene(iconBurst = 0f, modifier = Modifier.width(270.dp).height(205.dp),
-                accent = accent, showOrbitIcons = false, showParticles = true)
+            BlackHoleScene(iconBurst = orbitProgress,
+                modifier = Modifier.width(270.dp).height(205.dp).clickable { orbitExpanded = !orbitExpanded },
+                accent = accent, showOrbitIcons = true, showParticles = true)
         }
         Spacer(Modifier.height(4.dp))
         Text(
