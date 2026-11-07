@@ -663,6 +663,10 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             addAll(restoredTabs.indices.map { stored.getOrNull(it)?.takeIf { group -> group.isNotBlank() } ?: "Основная" })
         }
     }
+    val groupNames = remember(tabsPrefs) {
+        val stored = runCatching { val array = JSONArray(tabsPrefs.getString("group_names", "[]") ?: "[]"); (0 until array.length()).map { array.optString(it) }.filter { it.isNotBlank() } }.getOrDefault(emptyList())
+        mutableStateListOf<String>().apply { addAll((stored + tabGroups.toList() + "Основная").distinct()) }
+    }
     var activeTab by remember { mutableIntStateOf(tabsPrefs.getInt("active", 0).coerceIn(0, restoredTabs.lastIndex)) }
     val session = sessions[activeTab.coerceIn(0, sessions.lastIndex)]
     fun captureActiveTabPreview() {
@@ -885,6 +889,9 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     }
     LaunchedEffect(offlinePages.toList()) {
         savedPrefs.edit().putString("offline_pages", encodeOfflinePages(offlinePages.toList())).apply()
+    }
+    LaunchedEffect(groupNames.toList()) {
+        tabsPrefs.edit().putString("group_names", JSONArray(groupNames.toList()).toString()).apply()
     }
     LaunchedEffect(tabTitles.toList(), tabUrls.toList(), tabGroups.toList(), activeTab, incognito, privateModeUsed) {
         // Once private browsing has been used in this app session, do not overwrite
@@ -1318,7 +1325,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                 onOpen = { url -> session.loadUri(url); query = url; loaded = true; showSearchResults = false; panel = "" },
                                 onRemove = { page -> history.remove(page) },
                                 onClear = { history.clear() })
-                            "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), tabGroups.toList(), activeTab, incognito, { value -> if (value) { privateModeUsed = true; tabPreviews.clear() }; incognito = value }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { index -> tabGroups[index] = when (tabGroups[index]) { "Основная" -> "Работа"; "Работа" -> "Личное"; else -> "Основная" } }, { from, to -> moveTab(from, to) }, { index, group -> if (index in tabGroups.indices) tabGroups[index] = group }, sessions.map { tabPreviews[it] }, { captureActiveTabPreview() }, recentlyClosedTab != null && !incognito, { restoreRecentlyClosedTab() }, { panel = "" })
+                            "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), tabGroups.toList(), groupNames.toList(), activeTab, incognito, { value -> if (value) { privateModeUsed = true; tabPreviews.clear() }; incognito = value }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { index -> tabGroups[index] = when (tabGroups[index]) { "Основная" -> "Работа"; "Работа" -> "Личное"; else -> "Основная" } }, { from, to -> moveTab(from, to) }, { index, group -> if (index in tabGroups.indices) tabGroups[index] = group }, { name -> if (name.isNotBlank() && name !in groupNames) groupNames.add(name) }, { old, new -> if (old in groupNames && new.isNotBlank() && new !in groupNames) { groupNames[groupNames.indexOf(old)] = new; tabGroups.indices.forEach { if (tabGroups[it] == old) tabGroups[it] = new } } }, { name -> if (name != "Основная" && name in groupNames) { tabGroups.indices.forEach { if (tabGroups[it] == name) tabGroups[it] = "Основная" }; groupNames.remove(name) } }, sessions.map { tabPreviews[it] }, { captureActiveTabPreview() }, recentlyClosedTab != null && !incognito, { restoreRecentlyClosedTab() }, { panel = "" })
                         }
                         }
                     }
@@ -2344,10 +2351,11 @@ private fun OfflinePageViewerPanel(page: OfflinePage?, onBack: () -> Unit) {
 
 @Composable
 private fun TabsPanel(
-    titles: List<String>, urls: List<String>, groups: List<String>, activeIndex: Int,
+    titles: List<String>, urls: List<String>, groups: List<String>, groupNames: List<String>, activeIndex: Int,
     incognito: Boolean, setIncognito: (Boolean) -> Unit, addTab: () -> Unit,
     closeTab: (Int) -> Unit, selectTab: (Int) -> Unit, cycleGroup: (Int) -> Unit, moveTab: (Int, Int) -> Unit,
-    setTabGroup: (Int, String) -> Unit, previews: List<Bitmap?>, capturePreview: () -> Unit,
+    setTabGroup: (Int, String) -> Unit, createGroup: (String) -> Unit, renameGroup: (String, String) -> Unit, deleteGroup: (String) -> Unit,
+    previews: List<Bitmap?>, capturePreview: () -> Unit,
     hasRecentlyClosed: Boolean, restoreRecentlyClosed: () -> Unit, done: () -> Unit
 ) {
     val tabAccent = if (incognito) Violet else Orange
@@ -2355,7 +2363,17 @@ private fun TabsPanel(
     var dragPointerRoot by remember { mutableStateOf(Offset.Zero) }
     val groupDropBounds = remember { mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
     var selectedGroup by remember { mutableStateOf("Все") }
-    val availableGroups = remember(groups.toList()) { listOf("Все") + groups.filter { it.isNotBlank() }.distinct() }
+    val availableGroups = remember(groups.toList(), groupNames) { listOf("Все") + (groupNames + groups).filter { it.isNotBlank() }.distinct() }
+    var manageGroupsOpen by remember { mutableStateOf(false) }
+    var newGroupName by remember { mutableStateOf("") }
+    var editingGroup by remember { mutableStateOf<String?>(null) }
+    var editingGroupName by remember { mutableStateOf("") }
+    val groupColorPrefs = remember { androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("darknes_tabs", android.content.Context.MODE_PRIVATE) }
+    val groupColors = remember { mutableStateMapOf<String, Long>().apply {
+        runCatching { val json = org.json.JSONObject(groupColorPrefs.getString("group_colors", "{}") ?: "{}"); json.keys().forEach { key -> put(key, json.optLong(key)) } }
+    } }
+    val palette = listOf(0xFF35D6E8L, 0xFF8B7CFFL, 0xFFFFA45BL, 0xFF63D69BL, 0xFFFF6F91L)
+    LaunchedEffect(groupColors.toMap()) { val json = org.json.JSONObject(); groupColors.forEach { (key, value) -> json.put(key, value) }; groupColorPrefs.edit().putString("group_colors", json.toString()).apply() }
     val visibleIndices = remember(titles.size, groups.toList(), selectedGroup) {
         titles.indices.filter { selectedGroup == "Все" || groups.getOrNull(it) == selectedGroup }
     }
@@ -2380,6 +2398,7 @@ private fun TabsPanel(
                     Text("Вернуть", color = tabAccent, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
                 }
             }
+            IconButton(onClick = { manageGroupsOpen = true }) { Icon(Icons.Default.FolderSpecial, contentDescription = "Управление группами", tint = tabAccent) }
             if (!incognito) IconButton(onClick = capturePreview) { Icon(Icons.Default.PhotoCamera, contentDescription = "Снять миниатюру текущей страницы", tint = tabAccent) }
             TextButton(onClick = done) { Text("Готово", color = Paper, fontWeight = FontWeight.SemiBold) }
         }
@@ -2409,12 +2428,44 @@ private fun TabsPanel(
                     modifier = Modifier.onGloballyPositioned { groupDropBounds[group] = it.boundsInRoot() },
                     label = { Text(group, maxLines = 1) },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = tabAccent.copy(alpha = .20f),
+                        selectedContainerColor = Color(groupColors[group] ?: tabAccent.value.toLong()).copy(alpha = .24f),
                         selectedLabelColor = Paper,
                         labelColor = Muted
                     )
                 )
             }
+        }
+        if (manageGroupsOpen) {
+            AlertDialog(
+                onDismissRequest = { manageGroupsOpen = false; editingGroup = null },
+                title = { Text("Группы вкладок", color = Paper) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(value = newGroupName, onValueChange = { newGroupName = it.take(24) }, modifier = Modifier.weight(1f), singleLine = true, label = { Text("Новая группа") })
+                            IconButton(onClick = { val name = newGroupName.trim(); if (name.isNotBlank() && name !in groupNames) { createGroup(name); newGroupName = "" } }) { Icon(Icons.Default.AddCircle, contentDescription = "Создать группу", tint = tabAccent) }
+                        }
+                        groupNames.forEach { group ->
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Box(Modifier.size(12.dp).clip(CircleShape).background(Color(groupColors[group] ?: palette[groupNames.indexOf(group) % palette.size])))
+                                if (editingGroup == group) {
+                                    OutlinedTextField(value = editingGroupName, onValueChange = { editingGroupName = it.take(24) }, modifier = Modifier.weight(1f), singleLine = true)
+                                    IconButton(onClick = { val next = editingGroupName.trim(); if (next.isNotBlank() && next !in groupNames) renameGroup(group, next); editingGroup = null }) { Icon(Icons.Default.Check, contentDescription = "Сохранить") }
+                                } else {
+                                    Text(group, color = Paper, modifier = Modifier.weight(1f))
+                                    IconButton(onClick = { val current = palette.indexOf(groupColors[group] ?: palette[groupNames.indexOf(group) % palette.size]); groupColors[group] = palette[(current + 1).mod(palette.size)] }) { Icon(Icons.Default.Palette, contentDescription = "Изменить цвет", tint = tabAccent) }
+                                    IconButton(onClick = { editingGroup = group; editingGroupName = group }) { Icon(Icons.Default.Edit, contentDescription = "Переименовать", tint = Muted) }
+                                    if (group != "Основная") IconButton(onClick = { deleteGroup(group); groupColors.remove(group); if (selectedGroup == group) selectedGroup = "Все" }) { Icon(Icons.Default.DeleteOutline, contentDescription = "Удалить", tint = Color(0xFFFF7188)) }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { manageGroupsOpen = false; editingGroup = null }) { Text("Готово") } },
+                containerColor = Color(0xFF151D31),
+                titleContentColor = Paper,
+                textContentColor = Paper
+            )
         }
         Spacer(Modifier.height(12.dp))
         if (titles.isEmpty()) {
