@@ -2102,7 +2102,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                             }, {
                                 runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))) }
                                     .onFailure { toast = "Не удалось открыть настройки Android" }
-                            }),
+                            })
                             "Чтение" -> ReaderPanel(readerSource, readerContent, readerLoading, readerError, onRetry = { openReader() })
                             "Офлайн-страницы" -> OfflinePagesPanel(
                                 offlinePages = offlinePages.toList(),
@@ -3886,7 +3886,8 @@ private fun TabsPanel(
     var newGroupName by remember { mutableStateOf("") }
     var editingGroup by remember { mutableStateOf<String?>(null) }
     var editingGroupName by remember { mutableStateOf("") }
-    val groupColorPrefs = remember { androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("darknes_tabs", android.content.Context.MODE_PRIVATE) }
+    val tabGridContext = LocalContext.current
+    val groupColorPrefs = remember(tabGridContext) { tabGridContext.getSharedPreferences("darknes_tabs", android.content.Context.MODE_PRIVATE) }
     val groupColors = remember { mutableStateMapOf<String, Long>().apply {
         runCatching { val json = org.json.JSONObject(groupColorPrefs.getString("group_colors", "{}") ?: "{}"); json.keys().forEach { key -> put(key, json.optLong(key)) } }
     } }
