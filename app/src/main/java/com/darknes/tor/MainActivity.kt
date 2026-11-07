@@ -60,14 +60,16 @@ import org.mozilla.geckoview.GeckoSessionSettings
 import org.mozilla.geckoview.GeckoView
 import org.mozilla.geckoview.WebResponse
 
-private val Ink = Color(0xFF070A14)
-private val Paper = Color(0xFFF1F5FF)
-private val Orange = Color(0xFF38D9FF)
-private val Peach = Color(0xFFB69CFF)
-private val Violet = Color(0xFF8B6CFF)
-private val Muted = Color(0xFF929DB8)
-private val Glass = Color(0xD9161D32)
-private val Border = Color(0x5546CFFF)
+// Compatibility aliases: existing screens keep their current appearance while
+// new Remaster components share the centralized design-token source.
+private val Ink = DarknesDesignTokens.ink
+private val Paper = DarknesDesignTokens.paper
+private val Orange = DarknesDesignTokens.cyan
+private val Peach = DarknesDesignTokens.lavender
+private val Violet = DarknesDesignTokens.violet
+private val Muted = DarknesDesignTokens.muted
+private val Glass = DarknesDesignTokens.glass
+private val Border = DarknesDesignTokens.border
 private fun uiLabel(language: String, russian: String, english: String): String = if (language == "en") english else russian
 
 private data class ThemePack(val id: String, val name: String, val accent: String, val incognitoAccent: String, val homeLayout: String, val blur: Float, val language: String)
