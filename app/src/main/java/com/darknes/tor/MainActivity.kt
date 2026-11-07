@@ -3129,10 +3129,10 @@ private fun SavedPagesPanel(
     onRemove: (SavedPage) -> Unit, onClear: (() -> Unit)? = null
 ) {
     var filter by remember(title) { mutableStateOf("") }
-    val accent = Orange
+    val accent = Color(0xFFB58CFF)
     PanelTitle(title, subtitle)
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp))
-        .background(Brush.horizontalGradient(listOf(Color(0xFF172641), Color(0xFF11182D))))
+        .background(Brush.horizontalGradient(listOf(Color(0xFF281A3D), Color(0xFF120F1D))))
         .border(1.dp, accent.copy(alpha = .35f), RoundedCornerShape(17.dp))
         .padding(horizontal = 13.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Default.Search, contentDescription = null, tint = accent)
@@ -3152,7 +3152,7 @@ private fun SavedPagesPanel(
     }
     val visiblePages = pages.filter { it.title.contains(filter, true) || it.url.contains(filter, true) }
     if (visiblePages.isEmpty()) {
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF10182D))
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF171020))
             .border(1.dp, Border, RoundedCornerShape(20.dp)).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(if (title == "История") Icons.Default.History else Icons.Default.BookmarkBorder, contentDescription = null, tint = accent, modifier = Modifier.size(34.dp))
             Spacer(Modifier.height(9.dp))
@@ -3165,7 +3165,7 @@ private fun SavedPagesPanel(
                 val host = runCatching { java.net.URI(page.url).host?.removePrefix("www.") ?: page.url }.getOrDefault(page.url)
                 Surface(Modifier.fillMaxWidth(), color = Color.Transparent, shape = RoundedCornerShape(18.dp),
                     border = BorderStroke(1.dp, Border.copy(alpha = .85f))) {
-                    Row(Modifier.background(Brush.horizontalGradient(listOf(Color(0xFF182944), Color(0xFF100D1B))))
+                    Row(Modifier.background(Brush.horizontalGradient(listOf(Color(0xFF291B3D), Color(0xFF120F1D))))
                         .clickable { onOpen(page.url) }.padding(start = 12.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
                         verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(accent.copy(alpha = .13f))
@@ -3214,6 +3214,7 @@ private fun SavedPagesPanel(
 }
 @Composable
 private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> Unit, onCancel: (Long) -> Unit, onRetry: (Long) -> Unit, onRefresh: () -> Unit, onOpen: (DownloadRecord) -> Unit) {
+    val accent = Color(0xFFB58CFF)
     var filter by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("Все") }
     var sortNewestFirst by remember { mutableStateOf(true) }
@@ -3234,8 +3235,8 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
     val categories = listOf("Все", "Изображения", "Видео", "Аудио", "Документы", "Архивы и приложения", "Другие")
     PanelTitle("Загрузки", "Менеджер загруженных файлов")
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp))
-        .background(Brush.horizontalGradient(listOf(Color(0xFF172641), Color(0xFF11182D))))
-        .border(1.dp, Orange.copy(alpha = .35f), RoundedCornerShape(17.dp)).padding(horizontal = 13.dp, vertical = 10.dp),
+        .background(Brush.horizontalGradient(listOf(Color(0xFF281A3D), Color(0xFF120F1D))))
+        .border(1.dp, accent.copy(alpha = .35f), RoundedCornerShape(17.dp)).padding(horizontal = 13.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Default.Search, contentDescription = null, tint = Orange)
         Spacer(Modifier.width(9.dp))
@@ -3250,7 +3251,7 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
     androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
         items(categories) { item ->
             val selected = category == item
-            Box(Modifier.clip(RoundedCornerShape(50)).background(if (selected) Orange.copy(alpha = .20f) else Color(0xFF17233A))
+            Box(Modifier.clip(RoundedCornerShape(50)).background(if (selected) Orange.copy(alpha = .20f) else Color(0xFF1C1428))
                 .border(1.dp, if (selected) Orange.copy(alpha = .75f) else Border, RoundedCornerShape(50))
                 .clickable { category = item }.padding(horizontal = 11.dp, vertical = 8.dp)) {
                 Text(item, color = if (selected) Orange else Paper, fontSize = 10.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
@@ -3274,7 +3275,7 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
     }
     Spacer(Modifier.height(8.dp))
     if (visible.isEmpty()) {
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF10182D))
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF171020))
             .border(1.dp, Border, RoundedCornerShape(20.dp)).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(Icons.Default.Download, contentDescription = null, tint = Orange, modifier = Modifier.size(36.dp))
             Spacer(Modifier.height(9.dp))
@@ -3287,7 +3288,7 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
                 val completed = item.savedUri != null
                 val shape = RoundedCornerShape(18.dp)
                 Surface(Modifier.fillMaxWidth(), color = Color.Transparent, shape = shape, border = BorderStroke(1.dp, Border)) {
-                    Row(Modifier.background(Brush.horizontalGradient(listOf(Color(0xFF182944), Color(0xFF10182B))))
+                    Row(Modifier.background(Brush.horizontalGradient(listOf(Color(0xFF291B3D), Color(0xFF120F1D))))
                         .padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Orange.copy(alpha = .14f))
                             .border(1.dp, Orange.copy(alpha = .28f), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
@@ -3668,11 +3669,11 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
 @Composable private fun PrivacyPanel(trackers:Boolean, setTrackers:(Boolean)->Unit, ad:Boolean, setAd:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, night:Boolean, setNight:(Boolean)->Unit, workspaces:List<String>, workspaceProtection:Map<String, Boolean>, setWorkspaceProtection:(String, Boolean)->Unit, sitePermissions:List<GeckoSession.PermissionDelegate.ContentPermission>, refreshSitePermissions:()->Unit, revokeSitePermission:(GeckoSession.PermissionDelegate.ContentPermission)->Unit, savedDecisions:Map<String, Boolean>, audit:List<PermissionAuditEntry>, clearDecision:(String)->Unit, clearAllDecisions:()->Unit, clearAudit:()->Unit, openAndroidSettings:()->Unit) {
     PanelTitle("Центр безопасности", "Защита браузера и контроль доступа")
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(21.dp))
-        .background(Brush.linearGradient(listOf(Color(0xFF1A2D4B), Color(0xFF10172B))))
-        .border(1.dp, Orange.copy(alpha = .42f), RoundedCornerShape(21.dp)).padding(15.dp)) {
+        .background(Brush.linearGradient(listOf(Color(0xFF291B3D), Color(0xFF120F1D))))
+        .border(1.dp, Color(0xFFB58CFF).copy(alpha = .42f), RoundedCornerShape(21.dp)).padding(15.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(46.dp).clip(RoundedCornerShape(15.dp)).background(Color(0xFF62E6C2).copy(alpha = .14f))
-                .border(1.dp, Color(0xFF62E6C2).copy(alpha = .35f), RoundedCornerShape(15.dp)), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(46.dp).clip(RoundedCornerShape(15.dp)).background(Color(0xFFB58CFF).copy(alpha = .16f))
+                .border(1.dp, Color(0xFFB58CFF).copy(alpha = .42f), RoundedCornerShape(15.dp)), contentAlignment = Alignment.Center) {
                 Icon(Icons.Default.Shield, contentDescription = null, tint = Color(0xFF62E6C2), modifier = Modifier.size(25.dp))
             }
             Spacer(Modifier.width(11.dp))
@@ -3693,7 +3694,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     Text("ЗАЩИТА РАБОЧИХ ПРОСТРАНСТВ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
     Text("Для каждого пространства можно отдельно включить или отключить защиту от отслеживания. Если настройка не задана, используется общий переключатель выше.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
     Spacer(Modifier.height(7.dp))
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xFF111A2E))
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xFF171020))
         .border(1.dp, Border, RoundedCornerShape(18.dp)).padding(horizontal = 12.dp)) {
         workspaces.distinct().forEachIndexed { index, name ->
             val override = workspaceProtection[name]
@@ -3933,12 +3934,42 @@ private fun OfflinePageViewerPanel(page: OfflinePage?, onBack: () -> Unit) {
     Button(onClick=install, modifier=Modifier.fillMaxWidth().height(52.dp), colors=ButtonDefaults.buttonColors(containerColor=Orange, contentColor=Ink), shape=RoundedCornerShape(18.dp)) { Text("Установить из файла", fontWeight=FontWeight.Bold) }
 }
 @Composable private fun AccountPanel(onLogin:()->Unit) {
-    PanelTitle("Аккаунт", "Darknes ID")
-    Text("Вы без входа", color=Paper, fontSize=20.sp, fontWeight=FontWeight.Bold)
-    Spacer(Modifier.height(10.dp))
-    Text("Браузер работает без аккаунта. Вход в Darknes понадобится для синхронизации вкладок и закладок.", color=Muted, fontSize=14.sp, lineHeight=21.sp)
-    Spacer(Modifier.height(24.dp))
-    Button(onClick=onLogin, modifier=Modifier.fillMaxWidth().height(52.dp), colors=ButtonDefaults.buttonColors(containerColor=Orange, contentColor=Ink), shape=RoundedCornerShape(18.dp)) { Text("Войти в Darknes", fontWeight=FontWeight.Bold) }
+    PanelTitle("Darknes ID", "Единый аккаунт экосистемы Darknes")
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(25.dp))
+        .background(Brush.linearGradient(listOf(Color(0xFF30204A), Color(0xFF120F1D))))
+        .border(1.dp, Color(0x997F59B6), RoundedCornerShape(25.dp)).padding(19.dp)) {
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(104.dp).clip(RoundedCornerShape(32.dp))
+                .background(Brush.radialGradient(listOf(Color(0xFFBFA0FF).copy(alpha=.42f), Color(0xFF6D45A8).copy(alpha=.08f), Color.Transparent))),
+                contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.AccountCircle, contentDescription = null, tint = Color(0xFFEDE5FF), modifier = Modifier.size(67.dp))
+            }
+        }
+        Spacer(Modifier.height(13.dp))
+        Text("ТВОЯ УЧЁТНАЯ ЗАПИСЬ", color=Color(0xFFC7A8FF), fontSize=9.sp, letterSpacing=1.6.sp, fontWeight=FontWeight.Black)
+        Spacer(Modifier.height(5.dp))
+        Text("Вы пока не вошли", color=Paper, fontSize=21.sp, fontWeight=FontWeight.ExtraBold)
+        Spacer(Modifier.height(8.dp))
+        Text("Браузер продолжит работать без аккаунта. Вход в Darknes ID предназначен для доступа к возможностям экосистемы и будущей синхронизации поддерживаемых данных.", color=Muted, fontSize=12.sp, lineHeight=18.sp)
+        Spacer(Modifier.height(17.dp))
+        Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            listOf("Единый профиль", "Экосистема Darknes").forEach { label ->
+                Box(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Color(0xFF21172F))
+                    .border(1.dp, Color(0x667F59B6), RoundedCornerShape(12.dp)).padding(vertical=10.dp, horizontal=8.dp),
+                    contentAlignment=Alignment.Center) {
+                    Text(label, color=Color(0xFFE3D7FF), fontSize=10.sp, fontWeight=FontWeight.SemiBold)
+                }
+            }
+        }
+        Spacer(Modifier.height(18.dp))
+        Button(onClick=onLogin, modifier=Modifier.fillMaxWidth().height(53.dp),
+            colors=ButtonDefaults.buttonColors(containerColor=Color(0xFFB58CFF), contentColor=Color(0xFF160F20)),
+            shape=RoundedCornerShape(17.dp)) {
+            Icon(Icons.Default.Login, contentDescription=null)
+            Spacer(Modifier.width(8.dp))
+            Text("Войти в Darknes ID", fontWeight=FontWeight.Bold)
+        }
+    }
 }
 @Composable private fun ChatPanel(onOpenAi:()->Unit) {
     PanelTitle("Darknes AI", "Приватный ИИ-помощник")
