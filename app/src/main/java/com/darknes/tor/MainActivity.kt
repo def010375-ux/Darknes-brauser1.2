@@ -1069,6 +1069,12 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             onLoad(text)
             return
         }
+        if (engine != "DuckDuckGo") {
+            showSearchResults = false
+            loaded = true
+            onLoad(text)
+            return
+        }
         activeSearchText = text
         searchSource = engine
         query = text
@@ -1808,6 +1814,14 @@ private fun HomeSearchBar(
     onSearch: () -> Unit
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
+    var engineMenuExpanded by remember { mutableStateOf(false) }
+    var recentQueries by remember { mutableStateOf(listOf<String>()) }
+    val matchingSuggestions = recentQueries.filter { it.contains(value, ignoreCase = true) }.take(4)
+    fun submitSearch() {
+        if (value.isNotBlank()) recentQueries = (listOf(value.trim()) + recentQueries.filterNot { it.equals(value.trim(), true) }).take(6)
+        onSearch()
+        keyboard?.hide()
+    }
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 18.dp)
             .clip(RoundedCornerShape(DarknesDesignTokens.radiusLarge))
@@ -1828,8 +1842,7 @@ private fun HomeSearchBar(
                 textStyle = TextStyle(color = Paper, fontSize = 15.sp),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = {
-                    onSearch()
-                    keyboard?.hide()
+                    submitSearch()
                 }),
                 decorationBox = { inner ->
                     Box {
@@ -1847,7 +1860,7 @@ private fun HomeSearchBar(
             Box(
                 Modifier.size(44.dp).clip(RoundedCornerShape(DarknesDesignTokens.radiusMedium))
                     .background(Brush.linearGradient(listOf(accent, Violet)))
-                    .clickable { onSearch(); keyboard?.hide() },
+                    .clickable { submitSearch() },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Default.ArrowUpward, contentDescription = "Искать", tint = Ink, modifier = Modifier.size(22.dp))
@@ -1859,13 +1872,43 @@ private fun HomeSearchBar(
             Spacer(Modifier.width(7.dp))
             Text("ПОИСКОВАЯ СИСТЕМА", color = Muted, fontSize = 9.sp, letterSpacing = 1.1.sp)
             Spacer(Modifier.weight(1f))
-            Row(
-                Modifier.clip(RoundedCornerShape(50)).background(Color(0xFF25365A)).padding(horizontal = 11.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Default.Shield, contentDescription = null, tint = accent, modifier = Modifier.size(13.dp))
-                Spacer(Modifier.width(5.dp))
-                Text(engine, color = Paper, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            Box {
+                Row(
+                    Modifier.clip(RoundedCornerShape(50)).background(Color(0xFF25365A))
+                        .clickable { engineMenuExpanded = true }.padding(horizontal = 11.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Shield, contentDescription = null, tint = accent, modifier = Modifier.size(13.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text(engine, color = Paper, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.width(4.dp))
+                    Icon(Icons.Default.ExpandMore, contentDescription = "Выбрать поисковик", tint = accent, modifier = Modifier.size(15.dp))
+                }
+                DropdownMenu(expanded = engineMenuExpanded, onDismissRequest = { engineMenuExpanded = false }) {
+                    listOf("DuckDuckGo", "Google", "Bing", "Brave").forEach { provider ->
+                        DropdownMenuItem(
+                            text = { Text(provider) },
+                            leadingIcon = { Icon(if (provider == engine) Icons.Default.CheckCircle else Icons.Default.Search, null) },
+                            onClick = { onEngineChange(provider); engineMenuExpanded = false }
+                        )
+                    }
+                }
+            }
+        }
+        AnimatedVisibility(visible = value.isNotBlank() && matchingSuggestions.isNotEmpty(),
+            enter = fadeIn(tween(140)) + expandVertically(tween(180)),
+            exit = fadeOut(tween(100)) + shrinkVertically(tween(120))) {
+            Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
+                Text("НЕДАВНИЕ ЗАПРОСЫ", color = Muted, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                matchingSuggestions.forEach { suggestion ->
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                        .clickable { onValueChange(suggestion); onSearch(); keyboard?.hide() }
+                        .padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.History, null, tint = Muted, modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(suggestion, color = Paper, fontSize = 11.sp, maxLines = 1)
+                    }
+                }
             }
         }
     }
