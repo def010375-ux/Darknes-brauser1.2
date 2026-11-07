@@ -790,6 +790,9 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var darkSites by remember { mutableStateOf(settingsPrefs.getBoolean("darkSites", true)) }
     var adBlock by remember { mutableStateOf(settingsPrefs.getBoolean("adBlock", true)) }
     var nightPages by remember { mutableStateOf(settingsPrefs.getBoolean("nightPages", true)) }
+    val activeWorkspace = tabGroups.getOrNull(activeTab).orEmpty().ifBlank { "Основная" }
+    val effectiveTrackers = workspaceTracking[activeWorkspace] ?: trackers
+    val effectiveWallpaper = workspaceWallpapers[activeWorkspace]?.takeIf { it.isNotBlank() } ?: wallpaperUri
     var model by remember { mutableStateOf("Darknes AI") }
     var chatInput by remember { mutableStateOf("") }
     var sent by remember { mutableStateOf("") }
@@ -925,9 +928,6 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         val json = org.json.JSONObject(); workspaceTracking.forEach { (key, value) -> json.put(key, value) }
         tabsPrefs.edit().putString("workspace_tracking", json.toString()).apply()
     }
-    val activeWorkspace = tabGroups.getOrNull(activeTab).orEmpty().ifBlank { "Основная" }
-    val effectiveTrackers = workspaceTracking[activeWorkspace] ?: trackers
-    val effectiveWallpaper = workspaceWallpapers[activeWorkspace]?.takeIf { it.isNotBlank() } ?: wallpaperUri
     LaunchedEffect(tabTitles.toList(), tabUrls.toList(), tabGroups.toList(), activeTab, incognito, privateModeUsed) {
         // Once private browsing has been used in this app session, do not overwrite
         // the last normal-tab snapshot with URLs that may have been opened privately.
@@ -2408,7 +2408,7 @@ private fun TabsPanel(
     var workspaceGroup by remember { mutableStateOf(groupNames.firstOrNull() ?: "Основная") }
     var workspaceWallpaperDraft by remember { mutableStateOf("") }
     var workspaceTrackingDraft by remember { mutableStateOf(true) }
-    LaunchedEffect(workspaceGroup, workspaceWallpapers, workspaceTracking) {
+    LaunchedEffect(workspaceGroup, workspaceWallpapers.toMap(), workspaceTracking.toMap()) {
         workspaceWallpaperDraft = workspaceWallpapers[workspaceGroup].orEmpty()
         workspaceTrackingDraft = workspaceTracking[workspaceGroup] ?: true
     }
