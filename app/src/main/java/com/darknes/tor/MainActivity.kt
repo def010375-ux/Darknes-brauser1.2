@@ -1268,20 +1268,37 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             }
         }
 
-        // Floating bottom glass navigation, above Android gesture/navigation area
+        // Remaster floating navigation dock: compact, thumb-friendly and always available.
         Row(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 10.dp)
-                .height(68.dp).animateContentSize(spring(dampingRatio = .78f, stiffness = 420f)).clip(RoundedCornerShape(26.dp)).background(Brush.horizontalGradient(listOf(Color(0xE6162038), Color(0xE610172B), Color(0xE61B2040))))
-                .border(1.dp, Border, RoundedCornerShape(26.dp)).padding(horizontal = 8.dp),
+            Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 10.dp)
+                .height(70.dp).animateContentSize(spring(dampingRatio = .78f, stiffness = 420f))
+                .clip(RoundedCornerShape(DarknesDesignTokens.radiusLarge))
+                .background(Brush.horizontalGradient(listOf(Color(0xF01A2944), Color(0xF00D1528), Color(0xF01B2040))))
+                .border(1.dp, DarknesDesignTokens.border.copy(alpha = .9f), RoundedCornerShape(DarknesDesignTokens.radiusLarge))
+                .padding(horizontal = 5.dp),
             horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically
         ) {
-            NavCircle(Icons.Default.ArrowBack, accent, enabled = canGoBack) { if (canGoBack) session.goBack() }
-            NavCircle(Icons.Default.ArrowForward, accent, enabled = canGoForward) { if (canGoForward) session.goForward() }
-            NavCircle(Icons.Default.Refresh, accent, enabled = tabUrls.getOrNull(activeTab).orEmpty().isNotBlank()) {
+            NavCircle(Icons.Default.ArrowBack, accent, enabled = canGoBack, description = "Назад") { if (canGoBack) session.goBack() }
+            NavCircle(Icons.Default.ArrowForward, accent, enabled = canGoForward, description = "Вперёд") { if (canGoForward) session.goForward() }
+            NavCircle(Icons.Default.Refresh, accent, enabled = tabUrls.getOrNull(activeTab).orEmpty().isNotBlank(), description = "Обновить") {
                 if (tabUrls.getOrNull(activeTab).orEmpty().isNotBlank()) session.reload()
             }
-            NavCircle(Icons.Default.AutoAwesome, accent) { panel = "ИИ-чат" }
-            Box(Modifier.size(42.dp).animateContentSize(spring(dampingRatio = .7f, stiffness = 500f)).clip(RoundedCornerShape(14.dp)).background(Brush.linearGradient(listOf(accent.copy(alpha = .28f), Violet.copy(alpha = .20f)))).border(1.dp, accent.copy(alpha = .5f), RoundedCornerShape(14.dp)).clickable { panel = "Вкладки" }, contentAlignment = Alignment.Center) {
+            NavCircle(Icons.Default.Home, accent, description = "Главная") {
+                panel = ""
+                showSearchResults = false
+                loaded = false
+                query = ""
+                islandOpen = false
+            }
+            NavCircle(Icons.Default.AutoAwesome, accent, description = "Darknes AI") { panel = "ИИ-чат" }
+            Box(
+                Modifier.size(42.dp).animateContentSize(spring(dampingRatio = .7f, stiffness = 500f))
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Brush.linearGradient(listOf(accent.copy(alpha = .28f), Violet.copy(alpha = .20f))))
+                    .border(1.dp, accent.copy(alpha = .5f), RoundedCornerShape(14.dp))
+                    .clickable { panel = "Вкладки" },
+                contentAlignment = Alignment.Center
+            ) {
                 AnimatedContent(
                     targetState = sessions.size,
                     transitionSpec = { (fadeIn(tween(140)) + slideInVertically(tween(180)) { it / 2 }).togetherWith(fadeOut(tween(100)) + slideOutVertically(tween(130)) { -it / 2 }) },
@@ -1290,7 +1307,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                     Text("$count", color = Paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
-            NavCircle(if (incognito) Icons.Default.Close else Icons.Default.MoreHoriz, accent) {
+            NavCircle(if (incognito) Icons.Default.Close else Icons.Default.MoreHoriz, accent, description = if (incognito) "Завершить приватный режим" else "Меню") {
                 if (incognito) exitPrivateSession() else panel = "Меню"
             }
         }
@@ -1677,16 +1694,22 @@ private fun HomeSearchBar(
         }
     }
 }
-@Composable private fun NavCircle(icon: ImageVector, accent: Color, enabled: Boolean = true, action: () -> Unit) {
+@Composable private fun NavCircle(
+    icon: ImageVector,
+    accent: Color,
+    enabled: Boolean = true,
+    description: String,
+    action: () -> Unit
+) {
     Box(
-        Modifier.size(44.dp).clip(RoundedCornerShape(15.dp))
-            .background(if (enabled) accent.copy(alpha = .10f) else Color.Transparent)
-            .border(1.dp, if (enabled) accent.copy(alpha = .20f) else Color.Transparent, RoundedCornerShape(15.dp))
-            .clickable(enabled = enabled) { action() }
+        Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
+            .background(if (enabled) accent.copy(alpha = .11f) else Color.Transparent)
+            .border(1.dp, if (enabled) accent.copy(alpha = .22f) else Color.Transparent, RoundedCornerShape(14.dp))
+            .clickable(enabled = enabled, onClickLabel = description) { action() }
             .animateContentSize(spring(dampingRatio = .72f, stiffness = 460f)),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, contentDescription = null, tint = if (enabled) Paper else Muted.copy(alpha = .35f), modifier = Modifier.size(21.dp))
+        Icon(icon, contentDescription = description, tint = if (enabled) Paper else Muted.copy(alpha = .35f), modifier = Modifier.size(20.dp))
     }
 }
 @Composable private fun PanelTitle(title: String, subtitle: String = "") {
