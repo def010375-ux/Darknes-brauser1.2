@@ -3080,25 +3080,24 @@ private fun DarknesStudioPanel(
         Icons.Default.Download to "Сохранить офлайн",
         Icons.Default.Bookmarks to "Офлайн-страницы"
     )
-    LazyVerticalGrid(columns = GridCells.Fixed(3), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyVerticalGrid(columns = GridCells.Fixed(2), verticalArrangement = Arrangement.spacedBy(11.dp), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
         items(items) { (icon, name) ->
-            Column(
-                Modifier.aspectRatio(1f).clip(RoundedCornerShape(21.dp))
-                    .background(Brush.linearGradient(listOf(Color(0xFF1C2D50), Color(0xFF10182D))))
-                    .border(1.dp, Border, RoundedCornerShape(21.dp))
-                    .clickable { onAction(name) }.padding(10.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
+            Row(
+                Modifier.fillMaxWidth().height(82.dp).clip(RoundedCornerShape(22.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFF24183A), Color(0xFF100D1B), Color(0xFF171126))))
+                    .border(1.dp, Color(0xFF805BB5).copy(alpha = .65f), RoundedCornerShape(22.dp))
+                    .clickable { onAction(name) }.padding(horizontal = 13.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
-                    Modifier.size(44.dp).clip(RoundedCornerShape(15.dp))
+                    Modifier.size(48.dp).clip(RoundedCornerShape(16.dp))
                         .background(Brush.linearGradient(listOf(accent.copy(alpha = .22f), Violet.copy(alpha = .13f)))),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(icon, contentDescription = name, tint = accent, modifier = Modifier.size(25.dp))
                 }
-                Spacer(Modifier.height(9.dp))
-                Text(name, color = Paper, fontSize = 10.sp, fontWeight = FontWeight.Medium, textAlign = androidx.compose.ui.text.style.TextAlign.Center, lineHeight = 13.sp, maxLines = 2)
+                Spacer(Modifier.width(12.dp))
+                Text(name, color = Paper, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, lineHeight = 15.sp, maxLines = 2)
             }
         }
     }
@@ -3145,7 +3144,7 @@ private fun SavedPagesPanel(
                 val host = runCatching { java.net.URI(page.url).host?.removePrefix("www.") ?: page.url }.getOrDefault(page.url)
                 Surface(Modifier.fillMaxWidth(), color = Color.Transparent, shape = RoundedCornerShape(18.dp),
                     border = BorderStroke(1.dp, Border.copy(alpha = .85f))) {
-                    Row(Modifier.background(Brush.horizontalGradient(listOf(Color(0xFF182944), Color(0xFF10182B))))
+                    Row(Modifier.background(Brush.horizontalGradient(listOf(Color(0xFF182944), Color(0xFF100D1B))))
                         .clickable { onOpen(page.url) }.padding(start = 12.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
                         verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(accent.copy(alpha = .13f))
@@ -3981,8 +3980,8 @@ private fun TabsPanel(
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Вкладки", color = Paper, fontSize = 26.sp, fontWeight = FontWeight.Black, letterSpacing = (-.5).sp)
-                Text("ТВОЁ ПРОСТРАНСТВО · DARKNES", color = Muted, fontSize = 9.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 3.dp))
+                Text("Вкладки", color = Paper, fontSize = 29.sp, fontWeight = FontWeight.Black, letterSpacing = (-.8).sp)
+                Text("DARKNES  /  ТВОЁ ЦИФРОВОЕ ПРОСТРАНСТВО", color = Color(0xFFBDA9E8), fontSize = 8.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
                 Text("${titles.size} вкладок · ${groups.distinct().size} групп", color = tabAccent, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 5.dp))
             }
             TextButton(onClick = { tabGridColumns = if (tabGridColumns == 2) 3 else 2 }) {
@@ -4013,8 +4012,8 @@ private fun TabsPanel(
         }
         Spacer(Modifier.height(14.dp))
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
-            .background(Brush.horizontalGradient(listOf(Color(0xFF101A30), Color(0xFF17172F))))
-            .border(1.dp, Border.copy(alpha = .75f), RoundedCornerShape(18.dp)).padding(5.dp),
+            .background(Brush.horizontalGradient(listOf(Color(0xFF211632), Color(0xFF120E1D), Color(0xFF1B1430))))
+            .border(1.dp, Color(0xFF805BB5).copy(alpha = .65f), RoundedCornerShape(18.dp)).padding(5.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             FilterChip(selected = !incognito, onClick = { setIncognito(false) }, label = { Text("Обычные") },
                 modifier = Modifier.weight(1f), colors = FilterChipDefaults.filterChipColors(
@@ -4033,7 +4032,7 @@ private fun TabsPanel(
                 val groupTint = Color(groupColors[group] ?: palette[groupIndex % palette.size])
                 val isWorkspaceActive = selectedGroup == group
                 Column(
-                    Modifier.width(142.dp).clip(RoundedCornerShape(17.dp))
+                    Modifier.width(150.dp).clip(RoundedCornerShape(20.dp))
                         .background(Brush.linearGradient(listOf(groupTint.copy(alpha = if (isWorkspaceActive) .30f else .16f), Color(0xFF10182B))))
                         .border(if (isWorkspaceActive) 2.dp else 1.dp, groupTint.copy(alpha = if (isWorkspaceActive) .95f else .38f), RoundedCornerShape(17.dp))
                         .clickable { selectedGroup = group; activateWorkspace(group) }
