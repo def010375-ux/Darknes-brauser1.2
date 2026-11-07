@@ -11,6 +11,7 @@ import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -78,6 +79,12 @@ private val Border = DarknesDesignTokens.border
 private fun uiLabel(language: String, russian: String, english: String): String = if (language == "en") english else russian
 
 private data class PendingSitePermission(val permission: GeckoSession.PermissionDelegate.ContentPermission, val result: GeckoResult<Int>, val label: String)
+private data class PendingSiteMediaPermission(
+    val uri: String,
+    val video: Array<GeckoSession.PermissionDelegate.MediaSource>?,
+    val audio: Array<GeckoSession.PermissionDelegate.MediaSource>?,
+    val callback: GeckoSession.PermissionDelegate.MediaCallback
+)
 
 private data class ThemePack(val id: String, val name: String, val accent: String, val incognitoAccent: String, val homeLayout: String, val blur: Float, val language: String)
 
@@ -840,6 +847,25 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         }
     }
     var pendingSitePermission by remember { mutableStateOf<PendingSitePermission?>(null) }
+    var pendingSiteMediaPermission by remember { mutableStateOf<PendingSiteMediaPermission?>(null) }
+    val mediaPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
+        val request = pendingSiteMediaPermission
+        if (request != null) {
+            val needsCamera = request.video?.any { it.source == GeckoSession.PermissionDelegate.MediaSource.SOURCE_CAMERA } == true
+            val needsMicrophone = request.audio?.any { it.source == GeckoSession.PermissionDelegate.MediaSource.SOURCE_MICROPHONE } == true
+            val cameraGranted = !needsCamera || androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            val microphoneGranted = !needsMicrophone || androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (cameraGranted && microphoneGranted) {
+                val videoSource = request.video?.firstOrNull { it.source == GeckoSession.PermissionDelegate.MediaSource.SOURCE_CAMERA } ?: request.video?.firstOrNull()
+                val audioSource = request.audio?.firstOrNull { it.source == GeckoSession.PermissionDelegate.MediaSource.SOURCE_MICROPHONE } ?: request.audio?.firstOrNull()
+                request.callback.grant(videoSource, audioSource)
+            } else {
+                request.callback.reject()
+                Toast.makeText(context, "Доступ к камере или микрофону не предоставлен Android", Toast.LENGTH_LONG).show()
+            }
+            pendingSiteMediaPermission = null
+        }
+    }
     var storedSitePermissions by remember { mutableStateOf<List<GeckoSession.PermissionDelegate.ContentPermission>>(emptyList()) }
     fun refreshSitePermissions() {
         if (incognito) {
@@ -1235,6 +1261,28 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 }
                 if (granted) callback.grant() else callback.reject()
             }
+
+            override fun onMediaPermissionRequest(
+                session: GeckoSession,
+                uri: String,
+                video: Array<GeckoSession.PermissionDelegate.MediaSource>?,
+                audio: Array<GeckoSession.PermissionDelegate.MediaSource>?,
+                callback: GeckoSession.PermissionDelegate.MediaCallback
+            ) {
+                val needsCamera = video?.any { it.source == GeckoSession.PermissionDelegate.MediaSource.SOURCE_CAMERA } == true
+                val needsMicrophone = audio?.any { it.source == GeckoSession.PermissionDelegate.MediaSource.SOURCE_MICROPHONE } == true
+                val cameraGranted = !needsCamera || androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                val microphoneGranted = !needsMicrophone || androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                if ((video.isNullOrEmpty() && audio.isNullOrEmpty()) || (!needsCamera && !needsMicrophone && video.isNullOrEmpty() && audio.isNullOrEmpty())) {
+                    callback.reject()
+                    return
+                }
+                if ((needsCamera && !cameraGranted) || (needsMicrophone && !microphoneGranted)) {
+                    callback.reject()
+                    return
+                }
+                pendingSiteMediaPermission = PendingSiteMediaPermission(uri, video, audio, callback)
+            }
         })
         session.setContentDelegate(object : GeckoSession.ContentDelegate {
             override fun onExternalResponse(session: GeckoSession, response: WebResponse) {
@@ -1544,6 +1592,47 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                         }
                     }
                 }
+            }
+            val mediaPrompt = pendingSiteMediaPermission
+            if (mediaPrompt != null && pendingSitePermission == null) {
+                val host = runCatching { Uri.parse(mediaPrompt.uri).host ?: mediaPrompt.uri }.getOrDefault(mediaPrompt.uri)
+                val asksCamera = mediaPrompt.video?.any { it.source == GeckoSession.PermissionDelegate.MediaSource.SOURCE_CAMERA } == true
+                val asksMicrophone = mediaPrompt.audio?.any { it.source == GeckoSession.PermissionDelegate.MediaSource.SOURCE_MICROPHONE } == true
+                val requestedLabels = listOfNotNull(
+                    if (asksCamera) "камера" else null,
+                    if (asksMicrophone) "микрофон" else null
+                ).joinToString(" и ")
+                AlertDialog(
+                    onDismissRequest = {
+                        mediaPrompt.callback.reject()
+                        pendingSiteMediaPermission = null
+                    },
+                    title = { Text("Доступ к устройствам", color = Paper) },
+                    text = { Text("Сайт $host запрашивает доступ: $requestedLabels. После согласия Android отдельно запросит системное разрешение, если оно ещё не выдано.", color = Muted) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val missing = buildList {
+                                if (asksCamera && androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) add(android.Manifest.permission.CAMERA)
+                                if (asksMicrophone && androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) add(android.Manifest.permission.RECORD_AUDIO)
+                            }
+                            if (missing.isNotEmpty()) {
+                                mediaPermissionLauncher.launch(missing.toTypedArray())
+                            } else {
+                                val videoSource = mediaPrompt.video?.firstOrNull { it.source == GeckoSession.PermissionDelegate.MediaSource.SOURCE_CAMERA } ?: mediaPrompt.video?.firstOrNull()
+                                val audioSource = mediaPrompt.audio?.firstOrNull { it.source == GeckoSession.PermissionDelegate.MediaSource.SOURCE_MICROPHONE } ?: mediaPrompt.audio?.firstOrNull()
+                                mediaPrompt.callback.grant(videoSource, audioSource)
+                                pendingSiteMediaPermission = null
+                            }
+                        }) { Text("Разрешить", color = Orange) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = {
+                            mediaPrompt.callback.reject()
+                            pendingSiteMediaPermission = null
+                        }) { Text("Запретить", color = Peach) }
+                    },
+                    containerColor = Color(0xFF17233A)
+                )
             }
             val permissionPrompt = pendingSitePermission
             if (permissionPrompt != null) {
