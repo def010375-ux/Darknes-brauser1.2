@@ -7,8 +7,8 @@
     <application
         android:allowBackup="false"
         android:label="Darknes Tor"
-        android:icon="@android:drawable/sym_def_app_icon"
-        android:roundIcon="@android:drawable/sym_def_app_icon"
+        android:icon="@drawable/ic_darknes_crown"
+        android:roundIcon="@drawable/ic_darknes_crown"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:usesCleartextTraffic="false">
         <activity
