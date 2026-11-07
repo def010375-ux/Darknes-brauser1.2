@@ -478,8 +478,12 @@ private suspend fun fetchFallbackResults(query: String): List<SearchResult> = wi
 
 private fun resolveAddress(raw: String, engine: String): String {
     val s = raw.trim()
-    if (s.startsWith("https://") || s.startsWith("http://")) return s
-    if (s.contains(".") && !s.contains(" ")) return "https://$s"
+    if (s.isEmpty()) return "about:blank"
+    if (s.startsWith("https://", ignoreCase = true) || s.startsWith("http://", ignoreCase = true)) {
+        return s.replaceFirst(Regex("^https?://", RegexOption.IGNORE_CASE)) { it.value.lowercase() }
+    }
+    if (s.startsWith("//")) return "https:$s"
+    if (s.startsWith("www.", ignoreCase = true) || (s.contains(".") && !s.any { it.isWhitespace() })) return "https://$s"
     val q = java.net.URLEncoder.encode(s, "UTF-8")
     val base = when (engine) {
         "Google" -> "https://www.google.com/search?q="
@@ -1346,7 +1350,11 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             toast = "Неизвестная команда. Введи !help"
             return
         }
-        if (text.startsWith("https://") || text.startsWith("http://") || (text.contains(".") && !text.contains(" "))) {
+        val isWebAddress = text.startsWith("https://", ignoreCase = true) ||
+            text.startsWith("http://", ignoreCase = true) || text.startsWith("//") ||
+            text.startsWith("www.", ignoreCase = true) ||
+            (text.contains(".") && !text.any { it.isWhitespace() })
+        if (isWebAddress) {
             showSearchResults = false
             loaded = true
             onLoad(text)
@@ -1649,6 +1657,57 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                             Icon(Icons.Default.ArrowForward, contentDescription = "Перейти", tint = Ink, modifier = Modifier.size(21.dp))
                         }
                     }
+                }
+            }
+        }
+
+        val addressSuggestions = remember(query, islandOpen, engine) {
+            val typed = query.trim()
+            if (!islandOpen || typed.isBlank()) emptyList()
+            else if (typed.startsWith("!")) {
+                listOf("!tabs", "!history", "!bookmarks", "!settings", "!security", "!reader", "!offline", "!ai", "!menu", "!help")
+                    .filter { it.startsWith(typed.substringBefore(" "), ignoreCase = true) }
+                    .take(4)
+                    .map { it to "Команда " + it }
+            } else {
+                val suggestions = mutableListOf<Pair<String, String>>()
+                suggestions.add(typed to ("Искать «" + typed.take(42) + "» · " + engine))
+                if (typed.startsWith("www.", ignoreCase = true) || (typed.contains(".") && !typed.any { it.isWhitespace() }) || typed.startsWith("http", ignoreCase = true)) {
+                    suggestions.add(0, (if (typed.startsWith("//")) "https:$typed" else typed) to ("Открыть сайт · " + typed.take(42)))
+                }
+                suggestions.take(3)
+            }
+        }
+        AnimatedVisibility(
+            visible = addressSuggestions.isNotEmpty(),
+            enter = fadeIn(tween(130)) + expandVertically(tween(170)),
+            exit = fadeOut(tween(90)) + shrinkVertically(tween(120))
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 2.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xF018243B))
+                    .border(1.dp, Border.copy(alpha = .8f), RoundedCornerShape(18.dp))
+                    .padding(vertical = 5.dp)
+            ) {
+                addressSuggestions.forEachIndexed { index, suggestion ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable {
+                            query = suggestion.first
+                            runSearch(suggestion.first)
+                            keyboard?.hide()
+                            islandOpen = false
+                        }.padding(horizontal = 15.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            if (suggestion.second.startsWith("Открыть сайт")) Icons.Default.Language else if (suggestion.first.startsWith("!")) Icons.Default.Terminal else Icons.Default.Search,
+                            contentDescription = null, tint = accent, modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(11.dp))
+                        Text(suggestion.second, color = Paper, fontSize = 12.sp, maxLines = 1)
+                    }
+                    if (index != addressSuggestions.lastIndex) Divider(color = Border.copy(alpha = .45f), thickness = 0.5.dp)
                 }
             }
         }
