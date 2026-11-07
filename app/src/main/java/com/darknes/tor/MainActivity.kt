@@ -391,6 +391,11 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         pendingDownload?.body?.close()
         pendingDownload = null
+        activeDownloads.values.forEach { task ->
+            task.cancelled.set(true)
+            runCatching { task.body.close() }
+        }
+        activeDownloads.clear()
         if (::session.isInitialized) session.close()
         super.onDestroy()
     }
