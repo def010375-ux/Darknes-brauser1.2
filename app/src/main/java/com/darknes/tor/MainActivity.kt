@@ -1530,7 +1530,7 @@ private fun HomeScreen(
             },
             style = TextStyle(brush = Brush.linearGradient(listOf(Paper, Orange, Violet)), fontSize = 39.sp, fontWeight = FontWeight.Bold)
         )
-        Text(uiLabel(language, "Поиск без входа и слежки", "Search without sign-in or tracking"), color = Muted, fontSize = 14.sp)
+        Text(uiLabel(language, "Приватность под твоим контролем", "Privacy on your terms"), color = Muted, fontSize = 14.sp)
         Spacer(Modifier.height(13.dp))
         Row(
             Modifier.clip(RoundedCornerShape(50.dp))
@@ -1634,13 +1634,13 @@ private fun HomeSearchBar(
     val keyboard = LocalSoftwareKeyboardController.current
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 18.dp)
-            .clip(RoundedCornerShape(27.dp))
-            .background(Brush.linearGradient(listOf(Color(0xE61B2947), Color(0xF00E162B), Color(0xE61A2040))))
-            .border(1.dp, accent.copy(alpha = .55f), RoundedCornerShape(27.dp))
-            .padding(horizontal = 15.dp, vertical = 14.dp)
+            .clip(RoundedCornerShape(DarknesDesignTokens.radiusLarge))
+            .background(Brush.linearGradient(listOf(DarknesDesignTokens.elevatedSurface, DarknesDesignTokens.glass, DarknesDesignTokens.surface)))
+            .border(1.dp, accent.copy(alpha = .48f), RoundedCornerShape(DarknesDesignTokens.radiusLarge))
+            .padding(horizontal = 16.dp, vertical = 15.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(accent.copy(alpha = .14f)), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(40.dp).clip(RoundedCornerShape(DarknesDesignTokens.radiusSmall)).background(accent.copy(alpha = .15f)), contentAlignment = Alignment.Center) {
                 Icon(Icons.Default.Search, contentDescription = "Поиск", tint = accent, modifier = Modifier.size(21.dp))
             }
             Spacer(Modifier.width(11.dp))
@@ -1669,7 +1669,7 @@ private fun HomeSearchBar(
             }
             Spacer(Modifier.width(5.dp))
             Box(
-                Modifier.size(42.dp).clip(RoundedCornerShape(15.dp))
+                Modifier.size(44.dp).clip(RoundedCornerShape(DarknesDesignTokens.radiusMedium))
                     .background(Brush.linearGradient(listOf(accent, Violet)))
                     .clickable { onSearch(); keyboard?.hide() },
                 contentAlignment = Alignment.Center
