@@ -2963,9 +2963,30 @@ private fun HomeSearchBar(
     }
 }
 @Composable private fun PanelTitle(title: String, subtitle: String = "") {
-    Text(title, color = Paper, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-    if (subtitle.isNotEmpty()) { Spacer(Modifier.height(4.dp)); Text(subtitle, color = Muted, fontSize = 13.sp) }
-    Spacer(Modifier.height(20.dp))
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+            .background(Brush.linearGradient(listOf(Color(0xFF24163A), Color(0xFF10101D))))
+            .border(1.dp, Color(0x777F55B8), RoundedCornerShape(22.dp))
+            .padding(horizontal = 17.dp, vertical = 16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("DARKNES / CONTROL CENTER", color = Color(0xFFC7A8FF), fontSize = 8.sp, fontWeight = FontWeight.Black, letterSpacing = 1.8.sp)
+                Spacer(Modifier.height(5.dp))
+                Text(title, color = Paper, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+                if (subtitle.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(subtitle, color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+                }
+            }
+            Box(Modifier.size(42.dp).clip(RoundedCornerShape(15.dp))
+                .background(Brush.linearGradient(listOf(Color(0xFFBFA0FF), Color(0xFF6940A8)))),
+                contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Tune, contentDescription = null, tint = Color(0xFF100B19), modifier = Modifier.size(22.dp))
+            }
+        }
+    }
+    Spacer(Modifier.height(15.dp))
 }
 
 @Composable
@@ -2976,7 +2997,7 @@ private fun DarknesStudioPanel(
     animations: Boolean, onAnimationsChange: (Boolean) -> Unit,
     onChooseWallpaper: () -> Unit, onResetWallpaper: () -> Unit, wallpaperSelected: Boolean
 ) {
-    val swatches = listOf("cyan" to Color(0xFF38D9E8), "blue" to Color(0xFF5798FF), "purple" to Color(0xFFAC83FF), "green" to Color(0xFF55D6A2))
+    val swatches = listOf("cyan" to Color(0xFFD9C8FF), "blue" to Color(0xFF9B7BE8), "purple" to Color(0xFFB58CFF), "green" to Color(0xFFEEE7FF))
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -2985,7 +3006,7 @@ private fun DarknesStudioPanel(
             }
             Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = accent, modifier = Modifier.size(25.dp))
         }
-        Surface(Modifier.fillMaxWidth(), color = Color(0xFF111A2D), shape = RoundedCornerShape(22.dp), border = BorderStroke(1.dp, accent.copy(alpha = .38f))) {
+        Surface(Modifier.fillMaxWidth(), color = Color(0xFF171020), shape = RoundedCornerShape(22.dp), border = BorderStroke(1.dp, Color(0x997E58B8))) {
             Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 Text("ПРЕДПРОСМОТР", color = Muted, fontSize = 9.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -3177,13 +3198,13 @@ private fun SavedPagesPanel(
     }
     Row(
         Modifier.fillMaxWidth().padding(vertical = 4.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(Brush.linearGradient(listOf(Color(0xFF1B2A48), Color(0xFF10172B))))
-            .border(1.dp, Border, RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(19.dp))
+            .background(Brush.linearGradient(listOf(Color(0xFF281A3C), Color(0xFF110E1B))))
+            .border(1.dp, Color(0x777F5AB2), RoundedCornerShape(19.dp))
             .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(Orange.copy(alpha = .13f)), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(40.dp).clip(RoundedCornerShape(14.dp)).background(Brush.linearGradient(listOf(Color(0xFFB58CFF).copy(alpha = .28f), Color(0xFF7045A8).copy(alpha = .18f)))).border(1.dp, Color(0x668E69C7), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
             Icon(settingIcon, contentDescription = null, tint = Orange, modifier = Modifier.size(19.dp))
         }
         Spacer(Modifier.width(11.dp))
@@ -3533,12 +3554,12 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
 @Composable private fun SettingsPanel(engine: String, setEngine: (String)->Unit, trackers:Boolean, setTrackers:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, anim:Boolean, setAnim:(Boolean)->Unit, blur:Float, setBlur:(Float)->Unit, accentChoice:String, setAccentChoice:(String)->Unit, desktopMode:Boolean, setDesktopMode:(Boolean)->Unit, incognitoAccent:String, setIncognitoAccent:(String)->Unit, homeLayout:String, setHomeLayout:(String)->Unit, language:String, setLanguage:(String)->Unit, wallpaperUri:String, chooseWallpaper:()->Unit, clearWallpaper:()->Unit, importConfig:()->Unit, showBranding:Boolean, setShowBranding:(Boolean)->Unit, showShortcuts:Boolean, setShowShortcuts:(Boolean)->Unit, showBookmarks:Boolean, setShowBookmarks:(Boolean)->Unit, customSites:List<SavedPage>, addCustomSite:(String,String)->Unit, moveCustomSite:(Int,Int)->Unit, removeCustomSite:(SavedPage)->Unit, themePacks:List<ThemePack>, loadingThemePacks:Boolean, refreshThemePacks:()->Unit, applyThemePack:(ThemePack)->Unit, exportConfig:()->Unit) {
     var customSiteName by remember { mutableStateOf("") }
     var customSiteUrl by remember { mutableStateOf("") }
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 2.dp)) {
     PanelTitle(uiLabel(language, "Настройки", "Settings"), uiLabel(language, "Персонализация и управление Darknes Tor", "Personalization and Darknes Tor controls"))
     val engines = listOf("DuckDuckGo", "Google", "Bing", "Brave")
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
-        .background(Brush.linearGradient(listOf(Color(0xFF1A2B49), Color(0xFF10172B))))
-        .border(1.dp, Orange.copy(alpha = .38f), RoundedCornerShape(20.dp)).padding(15.dp)) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+        .background(Brush.linearGradient(listOf(Color(0xFF291A40), Color(0xFF100D19))))
+        .border(1.dp, Color(0x887F59B6), RoundedCornerShape(22.dp)).padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Orange.copy(alpha = .15f)), contentAlignment = Alignment.Center) {
                 Icon(Icons.Default.TravelExplore, contentDescription = null, tint = Orange, modifier = Modifier.size(22.dp))
