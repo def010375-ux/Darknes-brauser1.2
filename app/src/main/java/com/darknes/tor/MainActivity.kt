@@ -1014,6 +1014,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     val settingsPrefs = remember(context) { context.getSharedPreferences("darknes_settings", android.content.Context.MODE_PRIVATE) }
     var query by remember { mutableStateOf(tabUrls.getOrNull(activeTab).orEmpty()) }
     var islandOpen by remember { mutableStateOf(false) }
+    var showPageActions by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf("") }
     val sitePermissionPrefs = remember(context) { context.getSharedPreferences("darknes_site_permissions", android.content.Context.MODE_PRIVATE) }
     val permissionAudit = remember(sitePermissionPrefs) { mutableStateListOf<PermissionAuditEntry>().apply { addAll(readPermissionAudit(sitePermissionPrefs.getString("audit", "[]"))) } }
@@ -1597,6 +1598,83 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                             )
                         }
                         Icon(Icons.Default.ExpandMore, contentDescription = "Открыть адресную строку", tint = accent, modifier = Modifier.size(20.dp))
+                        Box {
+                            IconButton(onClick = { showPageActions = true }, modifier = Modifier.size(34.dp)) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "Действия страницы", tint = accent)
+                            }
+                            DropdownMenu(
+                                expanded = showPageActions,
+                                onDismissRequest = { showPageActions = false },
+                                modifier = Modifier.background(Color(0xFF17233A))
+                            ) {
+                                val pageUrl = tabUrls.getOrNull(activeTab).orEmpty()
+                                val validPage = pageUrl.startsWith("https://", true) || pageUrl.startsWith("http://", true)
+                                DropdownMenuItem(
+                                    text = { Text("Копировать ссылку", color = Paper) },
+                                    leadingIcon = { Icon(Icons.Default.ContentCopy, null, tint = accent) },
+                                    enabled = validPage,
+                                    onClick = {
+                                        if (validPage) {
+                                            clipboardManager?.setPrimaryClip(android.content.ClipData.newPlainText("Darknes URL", pageUrl))
+                                            toast = "Ссылка скопирована"
+                                        }
+                                        showPageActions = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Открыть в новой вкладке", color = Paper) },
+                                    leadingIcon = { Icon(Icons.Default.Tab, null, tint = accent) },
+                                    enabled = validPage,
+                                    onClick = {
+                                        if (validPage) {
+                                            addTab()
+                                            sessions[activeTab].loadUri(pageUrl)
+                                            query = pageUrl
+                                            loaded = true
+                                        }
+                                        showPageActions = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Добавить в закладки", color = Paper) },
+                                    leadingIcon = { Icon(Icons.Default.BookmarkAdd, null, tint = accent) },
+                                    enabled = validPage && !incognito,
+                                    onClick = {
+                                        if (validPage && !incognito) {
+                                            if (bookmarks.none { it.url == pageUrl }) {
+                                                bookmarks.add(0, SavedPage(tabTitles.getOrNull(activeTab).orEmpty().ifBlank { pageUrl }, pageUrl))
+                                                toast = "Добавлено в закладки"
+                                            } else toast = "Уже в закладках"
+                                        }
+                                        showPageActions = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Поделиться ссылкой", color = Paper) },
+                                    leadingIcon = { Icon(Icons.Default.Share, null, tint = accent) },
+                                    enabled = validPage,
+                                    onClick = {
+                                        if (validPage) {
+                                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                                type = "text/plain"
+                                                putExtra(Intent.EXTRA_TEXT, pageUrl)
+                                            }
+                                            context.startActivity(Intent.createChooser(shareIntent, "Поделиться ссылкой"))
+                                        }
+                                        showPageActions = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Обновить страницу", color = Paper) },
+                                    leadingIcon = { Icon(Icons.Default.Refresh, null, tint = accent) },
+                                    enabled = validPage,
+                                    onClick = {
+                                        if (validPage) session.reload()
+                                        showPageActions = false
+                                    }
+                                )
+                            }
+                        }
                     }
                 } else {
                     Row(Modifier.fillMaxSize().padding(start = 16.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
