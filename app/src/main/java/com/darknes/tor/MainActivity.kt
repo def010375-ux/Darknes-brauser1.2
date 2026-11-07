@@ -1556,6 +1556,20 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                     runSearch(query)
                     keyboard?.hide()
                 },
+                onCategorySearch = { searchText, category ->
+                    val encoded = URLEncoder.encode(searchText, "UTF-8")
+                    val target = when (category) {
+                        "Картинки" -> "https://duckduckgo.com/?q=$encoded&iax=images&ia=images"
+                        "Видео" -> "https://duckduckgo.com/?q=$encoded&iax=videos&ia=videos"
+                        "Новости" -> "https://duckduckgo.com/?q=$encoded&ia=news"
+                        "Карты" -> "https://www.google.com/maps/search/?api=1&query=$encoded"
+                        else -> resolveAddress(searchText, engine)
+                    }
+                    query = target
+                    showSearchResults = false
+                    loaded = true
+                    onLoad(target)
+                },
                 onShortcut = { link ->
                     query = link
                     onLoad(link)
@@ -2002,6 +2016,7 @@ private fun HomeScreen(
     language: String,
     onSecretSettings: () -> Unit,
     onSearch: () -> Unit,
+    onCategorySearch: (String, String) -> Unit,
     onShortcut: (String) -> Unit
 ) {
     var titleTapCount by remember { mutableIntStateOf(0) }
@@ -2076,7 +2091,8 @@ private fun HomeScreen(
             onEngineChange = onEngineChange,
             accent = accent,
             suggestionPages = suggestionPages,
-            onSearch = onSearch
+            onSearch = onSearch,
+            onCategorySearch = onCategorySearch
         )
         if (showShortcuts) {
         Spacer(Modifier.height(24.dp))
@@ -2151,12 +2167,14 @@ private fun HomeSearchBar(
     onEngineChange: (String) -> Unit,
     accent: Color,
     suggestionPages: List<SavedPage>,
-    onSearch: () -> Unit
+    onSearch: () -> Unit,
+    onCategorySearch: (String, String) -> Unit
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
     val searchContext = LocalContext.current
     val searchPrefs = remember(searchContext) { searchContext.getSharedPreferences("darknes_search", android.content.Context.MODE_PRIVATE) }
     var engineMenuExpanded by remember { mutableStateOf(false) }
+    var selectedCategory by remember { mutableStateOf("Все") }
     var recentQueries by remember(searchPrefs) {
         mutableStateOf(runCatching {
             val saved = JSONArray(searchPrefs.getString("recent_queries", "[]") ?: "[]")
@@ -2172,7 +2190,8 @@ private fun HomeSearchBar(
             recentQueries = (listOf(value.trim()) + recentQueries.filterNot { it.equals(value.trim(), true) }).take(6)
             searchPrefs.edit().putString("recent_queries", JSONArray(recentQueries).toString()).apply()
         }
-        onSearch()
+        if (selectedCategory == "Все") onSearch()
+        else onCategorySearch(value.trim(), selectedCategory)
         keyboard?.hide()
     }
     Column(
@@ -2248,6 +2267,34 @@ private fun HomeSearchBar(
                 }
             }
         }
+        Spacer(Modifier.height(13.dp))
+        Text("КАТЕГОРИИ ПОИСКА", color = Muted, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+        Spacer(Modifier.height(7.dp))
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            listOf("Все", "Картинки", "Видео", "Карты", "Новости").forEach { category ->
+                val selected = selectedCategory == category
+                Box(
+                    Modifier.clip(RoundedCornerShape(50))
+                        .background(if (selected) accent.copy(alpha = .22f) else Color(0xFF17233C))
+                        .border(1.dp, if (selected) accent.copy(alpha = .75f) else Border, RoundedCornerShape(50))
+                        .clickable { selectedCategory = category }
+                        .padding(horizontal = 13.dp, vertical = 8.dp)
+                ) {
+                    Text(category, color = if (selected) accent else Paper.copy(alpha = .82f), fontSize = 11.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
+                }
+            }
+        }
+        Spacer(Modifier.height(5.dp))
+        Text(
+            when (selectedCategory) {
+                "Картинки" -> "Поиск изображений"
+                "Видео" -> "Поиск видеороликов"
+                "Карты" -> "Места и маршруты"
+                "Новости" -> "Свежие публикации"
+                else -> "Веб-страницы и сайты"
+            },
+            color = Muted, fontSize = 9.sp
+        )
         AnimatedVisibility(visible = value.isNotBlank() && (matchingSuggestions.isNotEmpty() || matchingPages.isNotEmpty()),
             enter = fadeIn(tween(140)) + expandVertically(tween(180)),
             exit = fadeOut(tween(100)) + shrinkVertically(tween(120))) {
