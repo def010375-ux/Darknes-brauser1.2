@@ -51,12 +51,15 @@ import androidx.compose.ui.unit.*
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.json.JSONArray
 import java.net.URLEncoder
 import java.net.URL
+import java.util.Calendar
+import java.util.TimeZone
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoRuntimeSettings
@@ -666,7 +669,61 @@ private fun BlackHoleScene(
 }
 
 @Composable
+@Composable
+private fun MaintenanceLockScreen(hour: Int, minute: Int) {
+    BackHandler(enabled = true) { }
+    Box(
+        modifier = Modifier.fillMaxSize().background(
+            Brush.verticalGradient(listOf(Color(0xFF080D19), Color(0xFF111B31), Color(0xFF080D19)))
+        ).padding(28.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Box(
+                modifier = Modifier.size(86.dp).clip(CircleShape)
+                    .background(Color(0xFF38D9E8).copy(alpha = .10f))
+                    .border(1.dp, Color(0xFF38D9E8).copy(alpha = .38f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Build, contentDescription = null, tint = Color(0xFF38D9E8), modifier = Modifier.size(39.dp))
+            }
+            Text("ТЕХНИЧЕСКИЕ РАБОТЫ", color = Color(0xFF38D9E8), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
+            Text("Darknes Tor временно недоступен", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Text(
+                "Мы проводим плановое обслуживание. Все функции приложения временно отключены.",
+                color = Color(0xFFB8C4D8), fontSize = 14.sp, lineHeight = 21.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Spacer(Modifier.height(4.dp))
+            Text("ОКНО ОБСЛУЖИВАНИЯ · МОСКВА", color = Color(0xFF8293AD), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Text("17:31 — 17:42 МСК", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
+            Text("Текущее время: %02d:%02d МСК".format(hour, minute), color = Color(0xFF38D9E8), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text("Доступ восстановится автоматически в 17:42", color = Color(0xFF8293AD), fontSize = 11.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
+    }
+}
+
 private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit, downloads: List<DownloadRecord>, onRemoveDownload: (Long) -> Unit) {
+    // Daily maintenance window uses Moscow time regardless of the device's selected timezone.
+    var maintenanceClockTick by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            maintenanceClockTick = System.currentTimeMillis()
+            delay(1000L)
+        }
+    }
+    val moscowClock = Calendar.getInstance(TimeZone.getTimeZone("Europe/Moscow")).apply {
+        timeInMillis = maintenanceClockTick
+    }
+    val moscowMinutes = moscowClock.get(Calendar.HOUR_OF_DAY) * 60 + moscowClock.get(Calendar.MINUTE)
+    val maintenanceActive = moscowMinutes >= (17 * 60 + 31) && moscowMinutes < (17 * 60 + 42)
+    if (maintenanceActive) {
+        MaintenanceLockScreen(
+            hour = moscowClock.get(Calendar.HOUR_OF_DAY),
+            minute = moscowClock.get(Calendar.MINUTE)
+        )
+        return
+    }
+
     var launchAuthenticated by remember { mutableStateOf(false) }
     if (!launchAuthenticated) {
         DarknesLaunchGate(onAuthenticated = { launchAuthenticated = true })
