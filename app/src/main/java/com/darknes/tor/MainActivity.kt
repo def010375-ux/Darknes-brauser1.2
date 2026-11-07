@@ -3238,7 +3238,7 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
         .background(Brush.horizontalGradient(listOf(Color(0xFF281A3D), Color(0xFF120F1D))))
         .border(1.dp, accent.copy(alpha = .35f), RoundedCornerShape(17.dp)).padding(horizontal = 13.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Default.Search, contentDescription = null, tint = Orange)
+        Icon(Icons.Default.Search, contentDescription = null, tint = accent)
         Spacer(Modifier.width(9.dp))
         BasicTextField(value = filter, onValueChange = { filter = it }, modifier = Modifier.weight(1f), singleLine = true,
             textStyle = TextStyle(color = Paper, fontSize = 14.sp),
@@ -3251,10 +3251,10 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
     androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
         items(categories) { item ->
             val selected = category == item
-            Box(Modifier.clip(RoundedCornerShape(50)).background(if (selected) Orange.copy(alpha = .20f) else Color(0xFF1C1428))
-                .border(1.dp, if (selected) Orange.copy(alpha = .75f) else Border, RoundedCornerShape(50))
+            Box(Modifier.clip(RoundedCornerShape(50)).background(if (selected) accent.copy(alpha = .20f) else Color(0xFF1C1428))
+                .border(1.dp, if (selected) accent.copy(alpha = .75f) else Border, RoundedCornerShape(50))
                 .clickable { category = item }.padding(horizontal = 11.dp, vertical = 8.dp)) {
-                Text(item, color = if (selected) Orange else Paper, fontSize = 10.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
+                Text(item, color = if (selected) accent else Paper, fontSize = 10.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
             }
         }
     }
@@ -3267,17 +3267,17 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
         Text("${visible.size} ФАЙЛОВ", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
         TextButton(onClick = { sortNewestFirst = !sortNewestFirst }) {
-            Icon(if (sortNewestFirst) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward, contentDescription = null, tint = Orange, modifier = Modifier.size(14.dp))
+            Icon(if (sortNewestFirst) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward, contentDescription = null, tint = accent, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(4.dp))
-            Text(if (sortNewestFirst) "Новые" else "Старые", color = Orange, fontSize = 10.sp)
+            Text(if (sortNewestFirst) "Новые" else "Старые", color = accent, fontSize = 10.sp)
         }
-        Text("${downloads.count { it.status == "Скачивается" }} активных", color = Orange, fontSize = 10.sp)
+        Text("${downloads.count { it.status == "Скачивается" }} активных", color = accent, fontSize = 10.sp)
     }
     Spacer(Modifier.height(8.dp))
     if (visible.isEmpty()) {
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF171020))
             .border(1.dp, Border, RoundedCornerShape(20.dp)).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Default.Download, contentDescription = null, tint = Orange, modifier = Modifier.size(36.dp))
+            Icon(Icons.Default.Download, contentDescription = null, tint = accent, modifier = Modifier.size(36.dp))
             Spacer(Modifier.height(9.dp))
             Text(if (downloads.isEmpty()) "Пока ничего не скачано" else "Файлы не найдены", color = Paper, fontWeight = FontWeight.SemiBold)
             Text("Измени категорию или поисковый запрос.", color = Muted, fontSize = 12.sp)
@@ -3290,8 +3290,8 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
                 Surface(Modifier.fillMaxWidth(), color = Color.Transparent, shape = shape, border = BorderStroke(1.dp, Border)) {
                     Row(Modifier.background(Brush.horizontalGradient(listOf(Color(0xFF291B3D), Color(0xFF120F1D))))
                         .padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Orange.copy(alpha = .14f))
-                            .border(1.dp, Orange.copy(alpha = .28f), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(accent.copy(alpha = .14f))
+                            .border(1.dp, accent.copy(alpha = .28f), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
                             val fileIcon = when (downloadCategory(item.name)) {
                                 "Изображения" -> Icons.Default.Image
                                 "Видео" -> Icons.Default.Movie
@@ -3300,7 +3300,7 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
                                 "Архивы и приложения" -> Icons.Default.FolderZip
                                 else -> Icons.Default.InsertDriveFile
                             }
-                            Icon(fileIcon, contentDescription = downloadCategory(item.name), tint = Orange, modifier = Modifier.size(22.dp))
+                            Icon(fileIcon, contentDescription = downloadCategory(item.name), tint = accent, modifier = Modifier.size(22.dp))
                         }
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
@@ -3309,10 +3309,10 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
                             if (item.status == "Скачивается" || item.status == "В очереди" || item.status == "Приостановлено") {
                                 if (item.totalBytes > 0L) {
                                     val fraction = (item.downloadedBytes.toFloat() / item.totalBytes.toFloat()).coerceIn(0f, 1f)
-                                    LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth().padding(top = 7.dp), color = Orange, trackColor = Color(0xFF283650))
+                                    LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth().padding(top = 7.dp), color = accent, trackColor = Color(0xFF283650))
                                     Text("${(fraction * 100).toInt()}% · ${formatDownloadSize(item.downloadedBytes)} / ${formatDownloadSize(item.totalBytes)}", color = Muted, fontSize = 9.sp, modifier = Modifier.padding(top = 3.dp))
                                 } else {
-                                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 7.dp), color = Orange, trackColor = Color(0xFF283650))
+                                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 7.dp), color = accent, trackColor = Color(0xFF283650))
                                     Text("${formatDownloadSize(item.downloadedBytes)} загружено", color = Muted, fontSize = 9.sp)
                                 }
                             } else if (item.downloadedBytes > 0L) {
@@ -3321,11 +3321,11 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
                         }
                         IconButton(onClick = { detailsRecord = item }) { Icon(Icons.Default.Info, contentDescription = "Сведения о файле", tint = Muted) }
                         if (completed && downloadCategory(item.name) == "Изображения") {
-                            IconButton(onClick = { previewRecord = item }) { Icon(Icons.Default.Visibility, contentDescription = "Предпросмотр изображения", tint = Orange) }
+                            IconButton(onClick = { previewRecord = item }) { Icon(Icons.Default.Visibility, contentDescription = "Предпросмотр изображения", tint = accent) }
                         }
-                        if (completed) IconButton(onClick = { onOpen(item) }) { Icon(Icons.Default.OpenInNew, contentDescription = "Открыть файл", tint = Orange) }
+                        if (completed) IconButton(onClick = { onOpen(item) }) { Icon(Icons.Default.OpenInNew, contentDescription = "Открыть файл", tint = accent) }
                         if ((item.status == "Ошибка загрузки" || item.status == "Файл недоступен") && item.systemDownloadId > 0L && item.sourceUri != null) {
-                            IconButton(onClick = { onRetry(item.id) }) { Icon(Icons.Default.Refresh, contentDescription = "Повторить загрузку", tint = Orange) }
+                            IconButton(onClick = { onRetry(item.id) }) { Icon(Icons.Default.Refresh, contentDescription = "Повторить загрузку", tint = accent) }
                         }
                         if (item.status == "Скачивается") {
                             IconButton(onClick = { onCancel(item.id) }) {
@@ -3355,9 +3355,9 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
                     Text("${formatDownloadSize(preview.downloadedBytes)} · ${preview.status}", color = Muted, fontSize = 10.sp)
                 }
             },
-            confirmButton = { TextButton(onClick = { onOpen(preview); previewRecord = null }) { Text("Открыть", color = Orange) } },
+            confirmButton = { TextButton(onClick = { onOpen(preview); previewRecord = null }) { Text("Открыть", color = accent) } },
             dismissButton = { TextButton(onClick = { previewRecord = null }) { Text("Закрыть", color = Muted) } },
-            containerColor = Color(0xFF17233A), titleContentColor = Paper, textContentColor = Paper
+            containerColor = Color(0xFF1C1428), titleContentColor = Paper, textContentColor = Paper
         )
     }
     val details = detailsRecord
@@ -3374,8 +3374,8 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
                 Text("Дата добавления: ${java.text.DateFormat.getDateTimeInstance().format(java.util.Date(details.createdAt))}", color = Muted, fontSize = 12.sp)
                 Text("Расположение: ${details.savedUri ?: "ещё не сохранён"}", color = Muted, fontSize = 10.sp)
             } },
-            confirmButton = { TextButton(onClick = { detailsRecord = null }) { Text("Закрыть", color = Orange) } },
-            containerColor = Color(0xFF17233A), titleContentColor = Paper, textContentColor = Paper)
+            confirmButton = { TextButton(onClick = { detailsRecord = null }) { Text("Закрыть", color = accent) } },
+            containerColor = Color(0xFF1C1428), titleContentColor = Paper, textContentColor = Paper)
     }
     val candidate = deleteCandidate
     if (candidate != null) {
@@ -3384,7 +3384,7 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
             text = { Text("Будет удалена запись и, если доступно, сам сохранённый файл «${candidate.name}». Это действие нельзя отменить.", color = Muted) },
             confirmButton = { TextButton(onClick = { onRemove(candidate.id); deleteCandidate = null }) { Text("Удалить", color = Color(0xFFFF8A80)) } },
             dismissButton = { TextButton(onClick = { deleteCandidate = null }) { Text("Отмена", color = Muted) } },
-            containerColor = Color(0xFF17233A), titleContentColor = Paper, textContentColor = Paper)
+            containerColor = Color(0xFF1C1428), titleContentColor = Paper, textContentColor = Paper)
     }
     Text("Категории определяются по расширению файла. История хранится на устройстве; незавершённые загрузки после перезапуска отмечаются как прерванные. При отмене частичный файл может остаться в выбранной папке.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
 }
@@ -3674,24 +3674,24 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(46.dp).clip(RoundedCornerShape(15.dp)).background(Color(0xFFB58CFF).copy(alpha = .16f))
                 .border(1.dp, Color(0xFFB58CFF).copy(alpha = .42f), RoundedCornerShape(15.dp)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.Shield, contentDescription = null, tint = Color(0xFF62E6C2), modifier = Modifier.size(25.dp))
+                Icon(Icons.Default.Shield, contentDescription = null, tint = Color(0xFFB58CFF), modifier = Modifier.size(25.dp))
             }
             Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
                 Text("ЗАЩИТА БРАУЗЕРА", color = Muted, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
                 Text("Контроль активен", color = Paper, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
-            Text("LOCAL", color = Color(0xFF62E6C2), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            Text("LOCAL", color = Color(0xFFB58CFF), fontSize = 9.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(12.dp))
         Text("Настройки ниже управляют режимами защиты интерфейса и GeckoView. Они не заменяют системные разрешения Android.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
     }
     Spacer(Modifier.height(14.dp))
-    Text("ЗАЩИТА ОТ ОТСЛЕЖИВАНИЯ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    Text("ЗАЩИТА ОТ ОТСЛЕЖИВАНИЯ", color = Color(0xFFB58CFF), fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
     SettingSwitch("Блокировать известные трекеры", trackers, setTrackers)
     SettingSwitch("Усиленная защита от отслеживания", ad, setAd)
     Spacer(Modifier.height(14.dp))
-    Text("ЗАЩИТА РАБОЧИХ ПРОСТРАНСТВ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    Text("ЗАЩИТА РАБОЧИХ ПРОСТРАНСТВ", color = Color(0xFFB58CFF), fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
     Text("Для каждого пространства можно отдельно включить или отключить защиту от отслеживания. Если настройка не задана, используется общий переключатель выше.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
     Spacer(Modifier.height(7.dp))
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xFF171020))
@@ -3704,7 +3704,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
                     Text(if (override == null) "Общая настройка: " + if (trackers) "защита включена" else "защита выключена" else if (override) "Индивидуальная защита включена" else "Индивидуальная защита выключена", color = Muted, fontSize = 10.sp)
                 }
                 Switch(checked = override ?: trackers, onCheckedChange = { setWorkspaceProtection(name, it) },
-                    colors = SwitchDefaults.colors(checkedThumbColor = Ink, checkedTrackColor = Orange))
+                    colors = SwitchDefaults.colors(checkedThumbColor = Ink, checkedTrackColor = Color(0xFFB58CFF)))
             }
             if (index != workspaces.distinct().lastIndex) Divider(color = Border.copy(alpha = .55f))
         }
@@ -3712,11 +3712,11 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     Spacer(Modifier.height(14.dp))
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text("РАЗРЕШЕНИЯ САЙТОВ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+            Text("РАЗРЕШЕНИЯ САЙТОВ", color = Color(0xFFB58CFF), fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
             Text("Доступы, сохранённые движком браузера", color = Muted, fontSize = 10.sp)
         }
         IconButton(onClick = refreshSitePermissions) {
-            Icon(Icons.Default.Refresh, contentDescription = "Обновить разрешения", tint = Orange)
+            Icon(Icons.Default.Refresh, contentDescription = "Обновить разрешения", tint = Color(0xFFB58CFF))
         }
     }
     if (sitePermissions.isEmpty()) {
@@ -3751,7 +3751,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     Spacer(Modifier.height(13.dp))
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text("ЗАПОМНЕННЫЕ РЕШЕНИЯ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+            Text("ЗАПОМНЕННЫЕ РЕШЕНИЯ", color = Color(0xFFB58CFF), fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
             Text("Сохранённые разрешения и запреты сайтов", color = Muted, fontSize = 10.sp)
         }
         if (savedDecisions.isNotEmpty()) TextButton(onClick = clearAllDecisions) { Text("Сбросить всё", color = Peach, fontSize = 10.sp) }
@@ -3768,16 +3768,16 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(host, color = Paper, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                    Text(kind + " · " + if (entry.second) "Разрешено" else "Запрещено", color = if (entry.second) Color(0xFF62E6C2) else Peach, fontSize = 10.sp)
+                    Text(kind + " · " + if (entry.second) "Разрешено" else "Запрещено", color = if (entry.second) Color(0xFFB58CFF) else Peach, fontSize = 10.sp)
                 }
-                IconButton(onClick = { clearDecision(entry.first) }) { Icon(Icons.Default.Refresh, contentDescription = "Сбросить решение сайта", tint = Orange) }
+                IconButton(onClick = { clearDecision(entry.first) }) { Icon(Icons.Default.Refresh, contentDescription = "Сбросить решение сайта", tint = Color(0xFFB58CFF)) }
             }
             if (index != savedDecisions.size - 1) Divider(color = Border.copy(alpha = .5f))
         }
     }
     Spacer(Modifier.height(13.dp))
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text("ИСТОРИЯ ЗАПРОСОВ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        Text("ИСТОРИЯ ЗАПРОСОВ", color = Color(0xFFB58CFF), fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
         if (audit.isNotEmpty()) TextButton(onClick = clearAudit) { Text("Очистить", color = Peach, fontSize = 10.sp) }
     }
     if (audit.isEmpty()) Text("История появится после первого запроса сайта.", color = Muted, fontSize = 11.sp)
@@ -3794,11 +3794,11 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
         }
     }
     Spacer(Modifier.height(13.dp))
-    Text("ПРИВАТНОСТЬ И ОТОБРАЖЕНИЕ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    Text("ПРИВАТНОСТЬ И ОТОБРАЖЕНИЕ", color = Color(0xFFB58CFF), fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
     SettingSwitch("Тёмная схема сайтов", dark, setDark)
     SettingSwitch("Ночной режим страниц", night, setNight)
     Spacer(Modifier.height(14.dp))
-    Text("РАЗРЕШЕНИЯ УСТРОЙСТВА", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    Text("РАЗРЕШЕНИЯ УСТРОЙСТВА", color = Color(0xFFB58CFF), fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
     val privacyContext = LocalContext.current
     val permissions = listOf(
         Triple(Icons.Default.CameraAlt, "Камера", "Android спросит доступ при необходимости"),
@@ -3810,8 +3810,8 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
         .border(1.dp, Border, RoundedCornerShape(18.dp)).padding(horizontal = 12.dp)) {
         permissions.forEachIndexed { index, item ->
             Row(Modifier.fillMaxWidth().padding(vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(Orange.copy(alpha = .12f)), contentAlignment = Alignment.Center) {
-                    Icon(item.first, contentDescription = null, tint = Orange, modifier = Modifier.size(19.dp))
+                Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFB58CFF).copy(alpha = .12f)), contentAlignment = Alignment.Center) {
+                    Icon(item.first, contentDescription = null, tint = Color(0xFFB58CFF), modifier = Modifier.size(19.dp))
                 }
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
@@ -3830,7 +3830,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
                             false -> "Запрещено Android · изменить в настройках"
                             null -> item.third
                         },
-                        color = when (isGranted) { true -> Color(0xFF62E6C2); false -> Peach; null -> Muted },
+                        color = when (isGranted) { true -> Color(0xFFB58CFF); false -> Peach; null -> Muted },
                         fontSize = 10.sp, lineHeight = 14.sp
                     )
                 }
@@ -3843,7 +3843,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     Text("Фактический статус камеры и микрофона определяется Android. Изменять системные разрешения можно в настройках приложения.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
     Spacer(Modifier.height(12.dp))
     Button(onClick = openAndroidSettings, modifier = Modifier.fillMaxWidth().height(52.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Ink), shape = RoundedCornerShape(16.dp)) {
+        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB58CFF), contentColor = Ink), shape = RoundedCornerShape(16.dp)) {
         Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
         Text("Открыть разрешения Android", fontWeight = FontWeight.Bold)
