@@ -57,6 +57,7 @@ import org.json.JSONArray
 import java.net.URLEncoder
 import java.net.URL
 import org.mozilla.geckoview.GeckoRuntime
+import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoRuntimeSettings
 import org.mozilla.geckoview.ContentBlocking
 import org.mozilla.geckoview.GeckoSession
@@ -75,6 +76,8 @@ private val Muted = DarknesDesignTokens.muted
 private val Glass = DarknesDesignTokens.glass
 private val Border = DarknesDesignTokens.border
 private fun uiLabel(language: String, russian: String, english: String): String = if (language == "en") english else russian
+
+private data class PendingSitePermission(val permission: GeckoSession.PermissionDelegate.ContentPermission, val result: GeckoResult<Int>, val label: String)
 
 private data class ThemePack(val id: String, val name: String, val accent: String, val incognitoAccent: String, val homeLayout: String, val blur: Float, val language: String)
 
@@ -415,6 +418,16 @@ private fun resolveAddress(raw: String, engine: String): String {
 @Composable
 private fun DarknesLaunchGate(onAuthenticated: () -> Unit) {
     val context = LocalContext.current
+    val sitePermissionPrefs = remember(context) { context.getSharedPreferences("darknes_site_permissions", android.content.Context.MODE_PRIVATE) }
+    val sitePermissionDecisions = remember(sitePermissionPrefs) {
+        mutableStateMapOf<String, Boolean>().apply {
+            runCatching {
+                val json = org.json.JSONObject(sitePermissionPrefs.getString("decisions", "{}") ?: "{}")
+                json.keys().forEach { key -> put(key, json.optBoolean(key)) }
+            }
+        }
+    }
+    var pendingSitePermission by remember { mutableStateOf<PendingSitePermission?>(null) }
     val iconBurst = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         kotlinx.coroutines.delay(850)
@@ -1170,6 +1183,42 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     }
     val transition = updateTransition(targetState = panel, label = "panels")
     DisposableEffect(session, incognito) {
+        session.setPermissionDelegate(object : GeckoSession.PermissionDelegate {
+            override fun onContentPermissionRequest(
+                session: GeckoSession,
+                perm: GeckoSession.PermissionDelegate.ContentPermission
+            ): GeckoResult<Int> {
+                val origin = runCatching { Uri.parse(perm.uri).host ?: perm.uri }.getOrDefault(perm.uri)
+                val kind = when (perm.permission) {
+                    GeckoSession.PermissionDelegate.PERMISSION_GEOLOCATION -> "Геолокация"
+                    GeckoSession.PermissionDelegate.PERMISSION_DESKTOP_NOTIFICATION -> "Уведомления"
+                    else -> "Доступ к сайту"
+                }
+                val key = "$origin|${perm.permission}"
+                val saved = if (incognito || perm.privateMode) null else sitePermissionDecisions[key]
+                if (saved != null) {
+                    return GeckoResult.fromValue(
+                        if (saved) GeckoSession.PermissionDelegate.ContentPermission.VALUE_ALLOW
+                        else GeckoSession.PermissionDelegate.ContentPermission.VALUE_DENY
+                    )
+                }
+                val result = GeckoResult<Int>()
+                pendingSitePermission = PendingSitePermission(perm, result, "$kind — $origin")
+                return result
+            }
+
+            override fun onAndroidPermissionsRequest(
+                session: GeckoSession,
+                permissions: Array<String>,
+                callback: GeckoSession.PermissionDelegate.Callback
+            ) {
+                val granted = permissions.all { permission ->
+                    androidx.core.content.ContextCompat.checkSelfPermission(context, permission) ==
+                        android.content.pm.PackageManager.PERMISSION_GRANTED
+                }
+                if (granted) callback.grant() else callback.reject()
+            }
+        })
         session.setContentDelegate(object : GeckoSession.ContentDelegate {
             override fun onExternalResponse(session: GeckoSession, response: WebResponse) {
                 onDownload(response)
@@ -1198,6 +1247,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             }
         })
         onDispose {
+            session.setPermissionDelegate(null)
             session.setNavigationDelegate(null)
             session.setContentDelegate(null)
         }
@@ -1467,6 +1517,49 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                         }
                     }
                 }
+            }
+            val permissionPrompt = pendingSitePermission
+            if (permissionPrompt != null) {
+                LaunchedEffect(permissionPrompt) { permissionPrompt.permission.notifyShown() }
+                AlertDialog(
+                    onDismissRequest = {
+                        permissionPrompt.result.complete(GeckoSession.PermissionDelegate.ContentPermission.VALUE_DENY)
+                        pendingSitePermission = null
+                    },
+                    title = { Text("Запрос разрешения", color = Paper) },
+                    text = { Text("Сайт запрашивает: ${permissionPrompt.label}. Разрешить доступ?", color = Muted) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val perm = permissionPrompt.permission
+                            val origin = runCatching { Uri.parse(perm.uri).host ?: perm.uri }.getOrDefault(perm.uri)
+                            if (!incognito && !perm.privateMode) {
+                                val key = "$origin|${perm.permission}"
+                                sitePermissionDecisions[key] = true
+                                val json = org.json.JSONObject()
+                                sitePermissionDecisions.forEach { (k, v) -> json.put(k, v) }
+                                sitePermissionPrefs.edit().putString("decisions", json.toString()).apply()
+                            }
+                            permissionPrompt.result.complete(GeckoSession.PermissionDelegate.ContentPermission.VALUE_ALLOW)
+                            pendingSitePermission = null
+                        }) { Text("Разрешить", color = Orange) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = {
+                            val perm = permissionPrompt.permission
+                            val origin = runCatching { Uri.parse(perm.uri).host ?: perm.uri }.getOrDefault(perm.uri)
+                            if (!incognito && !perm.privateMode) {
+                                val key = "$origin|${perm.permission}"
+                                sitePermissionDecisions[key] = false
+                                val json = org.json.JSONObject()
+                                sitePermissionDecisions.forEach { (k, v) -> json.put(k, v) }
+                                sitePermissionPrefs.edit().putString("decisions", json.toString()).apply()
+                            }
+                            permissionPrompt.result.complete(GeckoSession.PermissionDelegate.ContentPermission.VALUE_DENY)
+                            pendingSitePermission = null
+                        }) { Text("Запретить", color = Peach) }
+                    },
+                    containerColor = Color(0xFF17233A)
+                )
             }
             AnimatedVisibility(toast.isNotEmpty(), enter = fadeIn() + slideInVertically { -it }, exit = fadeOut(),
                 modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 12.dp)) {
