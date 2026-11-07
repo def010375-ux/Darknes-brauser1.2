@@ -2653,9 +2653,9 @@ private fun SecretTesterPanel(
             onClick = {
                 val checks = listOf(
                     "Контекст приложения" to runCatching { context.packageName.isNotBlank() }.getOrDefault(false),
-                    "Объект GeckoRuntime" to runtimeName.contains("GeckoRuntime", ignoreCase = true),
-                    "Список сессий" to (sessionCount >= 0),
-                    "Состояние приватного режима" to true
+                    "Экземпляр GeckoRuntime" to runtime.javaClass.name.contains("GeckoRuntime", ignoreCase = true),
+                    "Есть активные сессии браузера" to (sessionCount > 0),
+                    "Свободная память процесса не менее 16 МБ" to (freeMemoryMb >= 16L)
                 )
                 val timestamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
                 logs.add(0, "Проверка $timestamp")
