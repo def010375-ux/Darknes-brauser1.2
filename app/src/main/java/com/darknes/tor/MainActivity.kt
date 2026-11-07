@@ -2284,11 +2284,17 @@ private fun TabsPanel(
     closeTab: (Int) -> Unit, selectTab: (Int) -> Unit, cycleGroup: (Int) -> Unit, done: () -> Unit
 ) {
     val tabAccent = if (incognito) Violet else Orange
+    var selectedGroup by remember { mutableStateOf("Все") }
+    val availableGroups = remember(groups) { listOf("Все") + groups.filter { it.isNotBlank() }.distinct() }
+    val visibleIndices = remember(titles.size, groups.toList(), selectedGroup) {
+        titles.indices.filter { selectedGroup == "Все" || groups.getOrNull(it) == selectedGroup }
+    }
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Вкладки", color = Paper, fontSize = 26.sp, fontWeight = FontWeight.Black, letterSpacing = (-.5).sp)
                 Text("ТВОЁ ПРОСТРАНСТВО · DARKNES", color = Muted, fontSize = 9.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 3.dp))
+                Text("${titles.size} вкладок · ${groups.distinct().size} групп", color = tabAccent, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 5.dp))
             }
             Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
                 .background(Brush.linearGradient(listOf(tabAccent.copy(alpha = .25f), Violet.copy(alpha = .16f))))
@@ -2311,7 +2317,31 @@ private fun TabsPanel(
                 modifier = Modifier.weight(1f), colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = Violet.copy(alpha = .22f), selectedLabelColor = Color(0xFFE4DCFF), labelColor = Muted))
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(12.dp))
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            availableGroups.forEach { group ->
+                val selected = selectedGroup == group
+                FilterChip(
+                    selected = selected,
+                    onClick = { selectedGroup = group },
+                    label = { Text(group, maxLines = 1) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = tabAccent.copy(alpha = .20f),
+                        selectedLabelColor = Paper,
+                        labelColor = Muted
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true, selected = selected,
+                        borderColor = Border, selectedBorderColor = tabAccent.copy(alpha = .65f)
+                    )
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
         if (titles.isEmpty()) {
             Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color(0xFF10182D))
                 .border(1.dp, Border, RoundedCornerShape(22.dp)).padding(28.dp), contentAlignment = Alignment.Center) {
@@ -2322,11 +2352,17 @@ private fun TabsPanel(
                     Text("Создай новую вкладку, чтобы продолжить", color = Muted, fontSize = 11.sp)
                 }
             }
+        } else if (visibleIndices.isEmpty()) {
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF10182D))
+                .border(1.dp, Border, RoundedCornerShape(20.dp)).padding(22.dp), contentAlignment = Alignment.Center) {
+                Text("В этой группе пока нет вкладок", color = Muted, fontSize = 12.sp)
+            }
         } else {
             LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp),
                 contentPadding = PaddingValues(bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(titles.size) { index ->
+                items(visibleIndices.size) { visiblePosition ->
+                    val index = visibleIndices[visiblePosition]
                     val isActive = index == activeIndex
                     val pageUrl = urls.getOrNull(index).orEmpty()
                     val host = runCatching { java.net.URI(pageUrl).host.orEmpty().removePrefix("www.") }.getOrDefault("")
@@ -2396,7 +2432,7 @@ private fun TabsPanel(
                 }
             }
         }
-        Text("Нажми на карточку, чтобы открыть страницу. Плашка внизу переключает группу вкладки.", color = Muted,
+        Text("Фильтруй пространство по группам, открывай карточку касанием или меняй её группу через нижнюю плашку.", color = Muted,
             fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 7.dp))
     }
 }
