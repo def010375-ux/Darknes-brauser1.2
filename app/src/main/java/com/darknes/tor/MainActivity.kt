@@ -1817,11 +1817,21 @@ private fun HomeSearchBar(
     onSearch: () -> Unit
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
+    val searchContext = LocalContext.current
+    val searchPrefs = remember(searchContext) { searchContext.getSharedPreferences("darknes_search", android.content.Context.MODE_PRIVATE) }
     var engineMenuExpanded by remember { mutableStateOf(false) }
-    var recentQueries by remember { mutableStateOf(listOf<String>()) }
+    var recentQueries by remember(searchPrefs) {
+        mutableStateOf(runCatching {
+            val saved = JSONArray(searchPrefs.getString("recent_queries", "[]") ?: "[]")
+            (0 until saved.length()).map { saved.optString(it) }.filter { it.isNotBlank() }.take(6)
+        }.getOrDefault(emptyList()))
+    }
     val matchingSuggestions = recentQueries.filter { it.contains(value, ignoreCase = true) }.take(4)
     fun submitSearch() {
-        if (value.isNotBlank()) recentQueries = (listOf(value.trim()) + recentQueries.filterNot { it.equals(value.trim(), true) }).take(6)
+        if (value.isNotBlank()) {
+            recentQueries = (listOf(value.trim()) + recentQueries.filterNot { it.equals(value.trim(), true) }).take(6)
+            searchPrefs.edit().putString("recent_queries", JSONArray(recentQueries).toString()).apply()
+        }
         onSearch()
         keyboard?.hide()
     }
