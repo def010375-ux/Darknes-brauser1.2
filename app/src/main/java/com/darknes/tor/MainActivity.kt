@@ -769,6 +769,19 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             }
         }
     }
+    // Close every owned GeckoSession when the browser composition leaves the screen.
+    DisposableEffect(sessions) {
+        onDispose {
+            sessions.toList().forEach { tabSession ->
+                runCatching {
+                    tabSession.setPermissionDelegate(null)
+                    tabSession.setNavigationDelegate(null)
+                    tabSession.setContentDelegate(null)
+                    tabSession.close()
+                }
+            }
+        }
+    }
     val tabPreviews = remember { mutableStateMapOf<GeckoSession, Bitmap>() }
     var activeGeckoView by remember { mutableStateOf<GeckoView?>(null) }
     val tabTitles = remember { mutableStateListOf<String>().apply { addAll(restoredTabs.map { it.title }) } }
@@ -827,6 +840,11 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             if (!incognito && sessions.contains(capturedSession) && bitmap != null && bitmap.width > 0) {
                 val thumbnailHeight = (bitmap.height * 480f / bitmap.width).toInt().coerceAtLeast(1)
                 tabPreviews[capturedSession] = Bitmap.createScaledBitmap(bitmap, 480, thumbnailHeight, true)
+                // Keep thumbnail memory bounded; older previews can be recaptured on demand.
+                while (tabPreviews.size > 12) {
+                    val oldest = tabPreviews.keys.firstOrNull { it !== capturedSession } ?: break
+                    tabPreviews.remove(oldest)
+                }
             }
         }, { }) }
     }
@@ -880,8 +898,14 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             recentlyClosedIndex = index
         }
         if (sessions.size > 1) {
-            tabPreviews.remove(sessions[index])
-            sessions[index].close()
+            val closingSession = sessions[index]
+            tabPreviews.remove(closingSession)
+            runCatching {
+                closingSession.setPermissionDelegate(null)
+                closingSession.setNavigationDelegate(null)
+                closingSession.setContentDelegate(null)
+                closingSession.close()
+            }
             sessions.removeAt(index)
             tabTitles.removeAt(index)
             tabUrls.removeAt(index)
@@ -970,7 +994,10 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         if (panel == "Безопасность") refreshSitePermissions()
     }
     var engine by remember(settingsPrefs) { mutableStateOf(settingsPrefs.getString("searchEngine", "DuckDuckGo") ?: "DuckDuckGo") }
-    val onLoad: (String) -> Unit = { session.loadUri(resolveAddress(it, engine)) }
+    val onLoad: (String) -> Unit = { raw ->
+        runCatching { session.loadUri(resolveAddress(raw, engine)) }
+            .onFailure { Toast.makeText(context, "Не удалось открыть страницу. Попробуй ещё раз.", Toast.LENGTH_SHORT).show() }
+    }
     var blur by remember { mutableFloatStateOf(settingsPrefs.getFloat("blur", 8f).coerceIn(0f, 24f)) }
     var wallpaperUri by remember { mutableStateOf(settingsPrefs.getString("wallpaperUri", "") ?: "") }
     var incognitoAccentChoice by remember { mutableStateOf(settingsPrefs.getString("incognitoAccent", "purple") ?: "purple") }
@@ -1372,25 +1399,33 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 onDownload(response)
             }
             override fun onTitleChange(session: GeckoSession, title: String?) {
-                tabTitles[activeTab] = title?.takeIf { it.isNotBlank() } ?: "Без названия"
+                val tabIndex = sessions.indexOf(session)
+                if (tabIndex !in tabTitles.indices) return
+                tabTitles[tabIndex] = title?.takeIf { it.isNotBlank() } ?: "Без названия"
             }
         })
         session.setNavigationDelegate(object : GeckoSession.NavigationDelegate {
-            override fun onCanGoBack(session: GeckoSession, value: Boolean) { canGoBack = value }
-            override fun onCanGoForward(session: GeckoSession, value: Boolean) { canGoForward = value }
+            override fun onCanGoBack(session: GeckoSession, value: Boolean) {
+                if (sessions.getOrNull(activeTab) === session) canGoBack = value
+            }
+            override fun onCanGoForward(session: GeckoSession, value: Boolean) {
+                if (sessions.getOrNull(activeTab) === session) canGoForward = value
+            }
             override fun onLocationChange(session: GeckoSession, url: String?, perms: List<GeckoSession.PermissionDelegate.ContentPermission>, hasUserGesture: Boolean) {
-                loaded = !url.isNullOrBlank() && url != "about:blank"
-                if (!url.isNullOrBlank()) {
+                val tabIndex = sessions.indexOf(session)
+                if (tabIndex !in tabUrls.indices || url.isNullOrBlank()) return
+                tabUrls[tabIndex] = url
+                if (tabIndex == activeTab) {
+                    loaded = url != "about:blank"
                     query = url
-                    tabUrls[activeTab] = url
-                    if (url == "about:blank") tabTitles[activeTab] = "Новая вкладка"
-                    if (!incognito && (url.startsWith("https://") || url.startsWith("http://"))) {
-                        val pageTitle = tabTitles.getOrNull(activeTab)?.takeIf { it.isNotBlank() && it != "Новая вкладка" } ?: url
-                        val existing = history.indexOfFirst { it.url == url }
-                        if (existing >= 0) history.removeAt(existing)
-                        history.add(0, SavedPage(pageTitle, url))
-                        while (history.size > 500) history.removeAt(history.lastIndex)
-                    }
+                }
+                if (url == "about:blank") tabTitles[tabIndex] = "Новая вкладка"
+                if (!incognito && (url.startsWith("https://") || url.startsWith("http://"))) {
+                    val pageTitle = tabTitles.getOrNull(tabIndex)?.takeIf { it.isNotBlank() && it != "Новая вкладка" } ?: url
+                    val existing = history.indexOfFirst { it.url == url }
+                    if (existing >= 0) history.removeAt(existing)
+                    history.add(0, SavedPage(pageTitle, url))
+                    while (history.size > 500) history.removeAt(history.lastIndex)
                 }
             }
         })
