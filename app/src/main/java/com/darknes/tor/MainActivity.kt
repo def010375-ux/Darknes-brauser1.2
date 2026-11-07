@@ -1526,6 +1526,18 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         if (toast.isNotEmpty()) { kotlinx.coroutines.delay(2100); toast = "" }
     }
 
+    val activeAddress = tabUrls.getOrNull(activeTab).orEmpty()
+    val addressSecurityLabel = when {
+        activeAddress.startsWith("https://", ignoreCase = true) -> "HTTPS · шифрование включено"
+        activeAddress.startsWith("http://", ignoreCase = true) -> "HTTP · соединение не защищено"
+        activeAddress.isBlank() || activeAddress == "about:blank" -> "Поиск и адрес сайта"
+        else -> "Внутренняя страница"
+    }
+    val addressSecurityIcon = when {
+        activeAddress.startsWith("https://", ignoreCase = true) -> Icons.Default.Lock
+        activeAddress.startsWith("http://", ignoreCase = true) -> Icons.Default.Warning
+        else -> Icons.Default.Language
+    }
     Column(Modifier.fillMaxSize().background(Ink).statusBarsPadding()) {
         // Dynamic Island-style address capsule
         Box(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp), contentAlignment = Alignment.TopCenter) {
@@ -1545,8 +1557,10 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                     Row(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(34.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = .14f)), contentAlignment = Alignment.Center) {
                             Icon(
-                                if (incognito) Icons.Default.VisibilityOff else if (query.startsWith("https://")) Icons.Default.Lock else Icons.Default.Language,
-                                contentDescription = null, tint = accent, modifier = Modifier.size(18.dp)
+                                if (incognito) Icons.Default.VisibilityOff else addressSecurityIcon,
+                                contentDescription = if (incognito) "Приватный режим" else addressSecurityLabel,
+                                tint = if (!incognito && activeAddress.startsWith("http://", ignoreCase = true)) Peach else accent,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                         Spacer(Modifier.width(11.dp))
@@ -1568,15 +1582,21 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                 }
                             )
                             Text(
-                                if (incognito) "История не сохраняется" else if (loaded && query.startsWith("https://")) "Защищённое соединение" else "Поиск и адрес сайта",
-                                color = Muted, fontSize = 9.sp, maxLines = 1
+                                if (incognito) "История не сохраняется" else addressSecurityLabel,
+                                color = if (!incognito && activeAddress.startsWith("http://", ignoreCase = true)) Peach else Muted,
+                                fontSize = 9.sp, maxLines = 1
                             )
                         }
                         Icon(Icons.Default.ExpandMore, contentDescription = "Открыть адресную строку", tint = accent, modifier = Modifier.size(20.dp))
                     }
                 } else {
                     Row(Modifier.fillMaxSize().padding(start = 16.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(if (incognito) Icons.Default.VisibilityOff else Icons.Default.Search, contentDescription = if (incognito) "Инкогнито" else "Поиск", tint = accent, modifier = Modifier.size(21.dp))
+                        Icon(
+                            if (incognito) Icons.Default.VisibilityOff else if (loaded) addressSecurityIcon else Icons.Default.Search,
+                            contentDescription = if (incognito) "Инкогнито" else addressSecurityLabel,
+                            tint = if (!incognito && activeAddress.startsWith("http://", ignoreCase = true)) Peach else accent,
+                            modifier = Modifier.size(21.dp)
+                        )
                         Spacer(Modifier.width(10.dp))
                         BasicTextField(
                             value = query, onValueChange = { query = it }, modifier = Modifier.weight(1f),
