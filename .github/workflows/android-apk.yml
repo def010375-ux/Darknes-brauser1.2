@@ -1,0 +1,75 @@
+name: Darknes Tor Android APK
+
+on:
+  push:
+    branches:
+      - remaster/2.0
+    paths:
+      - 'app/**'
+      - '*.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle/**'
+      - '.github/workflows/android-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: darknes-android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-debug-apk:
+    name: Build installable debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout remaster branch
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK platform and build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager --list > /tmp/android-sdk-packages.txt
+          PLATFORM="$(sed -n 's/^[[:space:]]*\(platforms;android-37[^[:space:]]*\).*/\1/p' /tmp/android-sdk-packages.txt | head -n 1)"
+          if [ -z "$PLATFORM" ]; then PLATFORM="platforms;android-37"; fi
+          BUILD_TOOLS="$(sed -n 's/^[[:space:]]*\(build-tools;37[^[:space:]]*\).*/\1/p' /tmp/android-sdk-packages.txt | head -n 1)"
+          if [ -z "$BUILD_TOOLS" ]; then BUILD_TOOLS="build-tools;36.0.0"; fi
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "$PLATFORM" "$BUILD_TOOLS" "platform-tools"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: '9.4.1'
+
+      - name: Build debug APK
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Verify APK output
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          ls -lh "$APK"
+          sha256sum "$APK"
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Darknes-Tor-2.0-Remaster-debug-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
