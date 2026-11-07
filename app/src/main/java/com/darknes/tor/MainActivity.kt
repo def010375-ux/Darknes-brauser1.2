@@ -1772,10 +1772,10 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         // Dynamic Island-style address capsule
         Box(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp), contentAlignment = Alignment.TopCenter) {
             Surface(
-                color = Glass,
-                shape = RoundedCornerShape(if (islandOpen) 28.dp else 30.dp),
-                border = BorderStroke(1.dp, Border),
-                shadowElevation = 18.dp,
+                color = Color(0xFF171020),
+                shape = RoundedCornerShape(if (islandOpen) 24.dp else 27.dp),
+                border = BorderStroke(1.dp, Color(0x997F59B6)),
+                shadowElevation = 22.dp,
                 modifier = Modifier
                     .widthIn(min = 280.dp, max = 560.dp)
                     .fillMaxWidth(if (islandOpen) 0.96f else 0.92f)
@@ -1785,7 +1785,9 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             ) {
                 if (!islandOpen) {
                     Row(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(34.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = .14f)), contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(36.dp).clip(RoundedCornerShape(13.dp))
+                            .background(Brush.linearGradient(listOf(Color(0xFFB58CFF).copy(alpha = .28f), Color(0xFF7045A8).copy(alpha = .16f))))
+                            .border(1.dp, Color(0x667F59B6), RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
                             Icon(
                                 if (incognito) Icons.Default.VisibilityOff else addressSecurityIcon,
                                 contentDescription = if (incognito) "Приватный режим" else addressSecurityLabel,
@@ -1825,7 +1827,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                             DropdownMenu(
                                 expanded = showPageActions,
                                 onDismissRequest = { showPageActions = false },
-                                modifier = Modifier.background(Color(0xFF17233A))
+                                modifier = Modifier.background(Color(0xFF1B1428))
                             ) {
                                 val pageUrl = tabUrls.getOrNull(activeTab).orEmpty()
                                 val validPage = pageUrl.startsWith("https://", true) || pageUrl.startsWith("http://", true)
@@ -1944,8 +1946,9 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                             Icon(Icons.Default.ContentPaste, contentDescription = "Вставить адрес", tint = Muted, modifier = Modifier.size(17.dp))
                         }
                         Box(
-                            Modifier.size(42.dp).clip(CircleShape)
-                                .background(Brush.linearGradient(listOf(accent, Violet)))
+                            Modifier.size(42.dp).clip(RoundedCornerShape(15.dp))
+                                .background(Brush.linearGradient(listOf(Color(0xFFD9C8FF), Color(0xFF8D63D2), Color(0xFF65418F))))
+                                .border(1.dp, Color(0x99E7D9FF), RoundedCornerShape(15.dp))
                                 .clickable {
                                     if (query.isNotBlank()) runSearch(query)
                                     keyboard?.hide(); islandOpen = false
@@ -2309,7 +2312,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                         }
                     },
                     confirmButton = { TextButton(onClick = { pendingContextAction = null }) { Text("Закрыть", color = Muted) } },
-                    containerColor = Color(0xFF17233A)
+                    containerColor = Color(0xFF1B1428)
                 )
             }
             val mediaPrompt = pendingSiteMediaPermission
@@ -2352,7 +2355,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                             pendingSiteMediaPermission = null
                         }) { Text("Запретить", color = Peach) }
                     },
-                    containerColor = Color(0xFF17233A)
+                    containerColor = Color(0xFF1B1428)
                 )
             }
             val permissionPrompt = pendingSitePermission
@@ -2396,12 +2399,12 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                             pendingSitePermission = null
                         }) { Text("Запретить", color = Peach) }
                     },
-                    containerColor = Color(0xFF17233A)
+                    containerColor = Color(0xFF1B1428)
                 )
             }
             AnimatedVisibility(toast.isNotEmpty(), enter = fadeIn() + slideInVertically { -it }, exit = fadeOut(),
                 modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 12.dp)) {
-                Surface(color = Glass, shape = CircleShape, border = BorderStroke(1.dp, Border), shadowElevation = 14.dp) {
+                Surface(color = Color(0xFF21172F), shape = CircleShape, border = BorderStroke(1.dp, Color(0x997F59B6)), shadowElevation = 18.dp) {
                     Text(toast, color = Paper, modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp), fontSize = 13.sp)
                 }
             }
@@ -2413,8 +2416,8 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 10.dp)
                 .height(70.dp).animateContentSize(spring(dampingRatio = .78f, stiffness = 420f))
                 .clip(RoundedCornerShape(DarknesDesignTokens.radiusLarge))
-                .background(Brush.horizontalGradient(listOf(Color(0xF01A2944), Color(0xF00D1528), Color(0xF01B2040))))
-                .border(1.dp, DarknesDesignTokens.border.copy(alpha = .9f), RoundedCornerShape(DarknesDesignTokens.radiusLarge))
+                .background(Brush.horizontalGradient(listOf(Color(0xF02B1B40), Color(0xF0130F1D), Color(0xF0271A3A))))
+                .border(1.dp, Color(0x997F59B6), RoundedCornerShape(DarknesDesignTokens.radiusLarge))
                 .padding(horizontal = 5.dp),
             horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically
         ) {
@@ -2434,8 +2437,8 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             Box(
                 Modifier.size(42.dp).animateContentSize(spring(dampingRatio = .7f, stiffness = 500f))
                     .clip(RoundedCornerShape(14.dp))
-                    .background(Brush.linearGradient(listOf(accent.copy(alpha = .28f), Violet.copy(alpha = .20f))))
-                    .border(1.dp, accent.copy(alpha = .5f), RoundedCornerShape(14.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFFB58CFF).copy(alpha = .32f), Color(0xFF7045A8).copy(alpha = .20f))))
+                    .border(1.dp, Color(0x99B58CFF), RoundedCornerShape(14.dp))
                     .clickable { panel = "Вкладки" },
                 contentAlignment = Alignment.Center
             ) {
