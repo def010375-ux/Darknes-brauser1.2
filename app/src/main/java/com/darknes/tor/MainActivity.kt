@@ -2285,7 +2285,7 @@ private fun TabsPanel(
 ) {
     val tabAccent = if (incognito) Violet else Orange
     var selectedGroup by remember { mutableStateOf("Все") }
-    val availableGroups = remember(groups) { listOf("Все") + groups.filter { it.isNotBlank() }.distinct() }
+    val availableGroups = remember(groups.toList()) { listOf("Все") + groups.filter { it.isNotBlank() }.distinct() }
     val visibleIndices = remember(titles.size, groups.toList(), selectedGroup) {
         titles.indices.filter { selectedGroup == "Все" || groups.getOrNull(it) == selectedGroup }
     }
@@ -2333,10 +2333,6 @@ private fun TabsPanel(
                         selectedContainerColor = tabAccent.copy(alpha = .20f),
                         selectedLabelColor = Paper,
                         labelColor = Muted
-                    ),
-                    border = FilterChipDefaults.filterChipBorder(
-                        enabled = true, selected = selected,
-                        borderColor = Border, selectedBorderColor = tabAccent.copy(alpha = .65f)
                     )
                 )
             }
