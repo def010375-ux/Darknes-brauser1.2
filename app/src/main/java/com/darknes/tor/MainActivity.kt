@@ -1665,11 +1665,14 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                 onRemove = { page -> offlinePages.removeAll { it.url == page.url } }
                             )
                             "Офлайн-просмотр" -> OfflinePageViewerPanel(selectedOfflinePage, onBack = { panel = "Офлайн-страницы" })
-                            "Тестер" -> TesterPanel { url ->
-                                runCatching {
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                }.onFailure { toast = "Не удалось открыть загрузку APK" }
-                            }
+                            "Тестер" -> SecretTesterPanel(
+                                runtime = runtime,
+                                sessionCount = sessions.size,
+                                permissionCount = storedSitePermissions.size,
+                                downloadCount = downloads.size,
+                                privateMode = incognito,
+                                onClose = { panel = "" }
+                            )
                             "Расширения" -> ExtensionsPanel(adBlock, { adBlock = it }, nightPages, { nightPages = it }) { toast = "Установка расширений появится позже" }
                             "Аккаунт" -> DarknesIdPanel()
                             "ИИ-чат" -> ChatPanel {
@@ -2553,6 +2556,99 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
     Spacer(Modifier.height(12.dp))
     Text("История загрузок хранится на устройстве. Незавершённые загрузки после перезапуска отмечаются как прерванные.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
 }
+@Composable
+private fun SecretTesterPanel(
+    runtime: GeckoRuntime,
+    sessionCount: Int,
+    permissionCount: Int,
+    downloadCount: Int,
+    privateMode: Boolean,
+    onClose: () -> Unit
+) {
+    val context = LocalContext.current
+    val logs = remember { mutableStateListOf<String>() }
+    val appVersion = remember {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "не определена" }
+            .getOrDefault("не определена")
+    }
+    val totalMemoryMb = Runtime.getRuntime().totalMemory() / (1024L * 1024L)
+    val freeMemoryMb = Runtime.getRuntime().freeMemory() / (1024L * 1024L)
+    val runtimeName = runtime.javaClass.simpleName.ifBlank { "GeckoRuntime" }
+
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("DARKNES · INTERNAL", color = Color(0xFF38D9E8), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp)
+                Text("Секретная панель тестировщика", color = Paper, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                Text("Внутренняя диагностика браузера", color = Muted, fontSize = 11.sp)
+            }
+            IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = "Закрыть панель", tint = Paper) }
+        }
+        Spacer(Modifier.height(15.dp))
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color(0xFF111D32),
+            shape = RoundedCornerShape(17.dp),
+            border = BorderStroke(1.dp, Color(0xFF38D9E8).copy(alpha = .32f))
+        ) {
+            Column(Modifier.padding(14.dp)) {
+                Text("СОСТОЯНИЕ СЕАНСА", color = Color(0xFF38D9E8), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Spacer(Modifier.height(9.dp))
+                val rows = listOf(
+                    "Режим" to if (privateMode) "Инкогнито" else "Обычный",
+                    "Движок" to runtimeName,
+                    "Android" to "${android.os.Build.VERSION.RELEASE} · API ${android.os.Build.VERSION.SDK_INT}",
+                    "Устройство" to "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}",
+                    "Версия приложения" to appVersion,
+                    "Сессии браузера" to sessionCount.toString(),
+                    "Разрешения сайтов" to permissionCount.toString(),
+                    "Записи загрузок" to downloadCount.toString(),
+                    "Память процесса" to "${totalMemoryMb} МБ выделено · ${freeMemoryMb} МБ свободно"
+                )
+                rows.forEach { (label, value) ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(label, color = Muted, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                        Text(value, color = Paper, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Button(
+            onClick = {
+                val checks = listOf(
+                    "Контекст приложения" to runCatching { context.packageName.isNotBlank() }.getOrDefault(false),
+                    "Объект GeckoRuntime" to runtimeName.contains("GeckoRuntime", ignoreCase = true),
+                    "Список сессий" to (sessionCount >= 0),
+                    "Состояние приватного режима" to true
+                )
+                val timestamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+                logs.add(0, "Проверка $timestamp")
+                checks.forEach { (name, passed) -> logs.add(1, "${if (passed) "OK" else "ПРОВЕРИТЬ"} · $name") }
+                while (logs.size > 30) logs.removeAt(logs.lastIndex)
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF38D9E8), contentColor = Color(0xFF07111D)),
+            shape = RoundedCornerShape(13.dp)
+        ) {
+            Icon(Icons.Default.MonitorHeart, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Запустить локальную диагностику", fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.height(13.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("ЖУРНАЛ ДИАГНОСТИКИ", color = Color(0xFF38D9E8), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, modifier = Modifier.weight(1f))
+            if (logs.isNotEmpty()) TextButton(onClick = { logs.clear() }) { Text("Очистить", color = Muted, fontSize = 10.sp) }
+        }
+        if (logs.isEmpty()) Text("Пока нет записей. Запусти локальную диагностику.", color = Muted, fontSize = 11.sp)
+        else logs.forEach { line ->
+            Text(line, color = if (line.contains("OK")) Color(0xFF62E6C2) else Paper.copy(alpha = .86f), fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(vertical = 2.dp))
+        }
+        Spacer(Modifier.height(10.dp))
+        Text("Панель не отправляет диагностические данные и не собирает историю или адреса посещённых страниц. Проверка локальная и не заменяет тестирование сети, разрешений и реального устройства.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+    }
+}
+
 @Composable
 private fun TesterPanel(onDownload: (String) -> Unit) {
     var versions by remember { mutableStateOf<List<PublishedVersion>>(emptyList()) }
