@@ -3002,6 +3002,18 @@ private fun SavedPagesPanel(
 private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> Unit, onCancel: (Long) -> Unit, onOpen: (DownloadRecord) -> Unit) {
     var filter by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("Все") }
+    var sortNewestFirst by remember { mutableStateOf(true) }
+    var previewRecord by remember { mutableStateOf<DownloadRecord?>(null) }
+    val context = LocalContext.current
+    val previewBitmap by produceState<Bitmap?>(null, previewRecord?.savedUri) {
+        value = null
+        val uri = previewRecord?.savedUri
+        if (uri != null && previewRecord?.let { downloadCategory(it.name) == "Изображения" } == true) {
+            value = withContext(Dispatchers.IO) {
+                runCatching { context.contentResolver.openInputStream(Uri.parse(uri))?.use { BitmapFactory.decodeStream(it) } }.getOrNull()
+            }
+        }
+    }
     val categories = listOf("Все", "Изображения", "Видео", "Аудио", "Документы", "Архивы и приложения", "Другие")
     PanelTitle("Загрузки", "Менеджер загруженных файлов")
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp))
@@ -3032,10 +3044,15 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
     val visible = downloads.filter {
         (category == "Все" || downloadCategory(it.name) == category) &&
             (it.name.contains(filter, true) || it.status.contains(filter, true))
-    }.sortedByDescending { it.id }
+    }.let { rows -> if (sortNewestFirst) rows.sortedByDescending { it.id } else rows.sortedBy { it.id } }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text("${visible.size} ФАЙЛОВ", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
+        TextButton(onClick = { sortNewestFirst = !sortNewestFirst }) {
+            Icon(if (sortNewestFirst) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward, contentDescription = null, tint = Orange, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(if (sortNewestFirst) "Новые" else "Старые", color = Orange, fontSize = 10.sp)
+        }
         Text("${downloads.count { it.status == "Скачивается" }} активных", color = Orange, fontSize = 10.sp)
     }
     Spacer(Modifier.height(8.dp))
@@ -3084,6 +3101,9 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
                                 Text(formatDownloadSize(item.downloadedBytes), color = Muted, fontSize = 9.sp)
                             }
                         }
+                        if (completed && downloadCategory(item.name) == "Изображения") {
+                            IconButton(onClick = { previewRecord = item }) { Icon(Icons.Default.Visibility, contentDescription = "Предпросмотр изображения", tint = Orange) }
+                        }
                         if (completed) IconButton(onClick = { onOpen(item) }) { Icon(Icons.Default.OpenInNew, contentDescription = "Открыть файл", tint = Orange) }
                         if (item.status == "Скачивается") {
                             IconButton(onClick = { onCancel(item.id) }) {
@@ -3097,6 +3117,27 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
         }
     }
     Spacer(Modifier.height(12.dp))
+    val preview = previewRecord
+    if (preview != null) {
+        AlertDialog(
+            onDismissRequest = { previewRecord = null },
+            title = { Text(preview.name, color = Paper, maxLines = 2) },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (previewBitmap != null) {
+                        Image(bitmap = previewBitmap!!.asImageBitmap(), contentDescription = preview.name, modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp).clip(RoundedCornerShape(14.dp)), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
+                    } else {
+                        Icon(Icons.Default.BrokenImage, contentDescription = null, tint = Muted, modifier = Modifier.size(48.dp))
+                        Text("Не удалось отобразить изображение. Попробуй открыть файл отдельно.", color = Muted, fontSize = 12.sp)
+                    }
+                    Text("${formatDownloadSize(preview.downloadedBytes)} · ${preview.status}", color = Muted, fontSize = 10.sp)
+                }
+            },
+            confirmButton = { TextButton(onClick = { onOpen(preview); previewRecord = null }) { Text("Открыть", color = Orange) } },
+            dismissButton = { TextButton(onClick = { previewRecord = null }) { Text("Закрыть", color = Muted) } },
+            containerColor = Color(0xFF17233A), titleContentColor = Paper, textContentColor = Paper
+        )
+    }
     Text("Категории определяются по расширению файла. История хранится на устройстве; незавершённые загрузки после перезапуска отмечаются как прерванные. При отмене частичный файл может остаться в выбранной папке.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
 }
 
