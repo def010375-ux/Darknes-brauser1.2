@@ -95,6 +95,8 @@ private fun encodePermissionAudit(entries: List<PermissionAuditEntry>): String =
 }.toString()
 
 private data class PendingSitePermission(val permission: GeckoSession.PermissionDelegate.ContentPermission, val result: GeckoResult<Int>, val label: String)
+private data class PendingContextAction(val session: GeckoSession, val linkUri: String?, val srcUri: String?, val title: String?, val altText: String?, val textContent: String?, val isImage: Boolean)
+
 private data class PendingSiteMediaPermission(
     val uri: String,
     val video: Array<GeckoSession.PermissionDelegate.MediaSource>?,
@@ -1039,6 +1041,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     }
     var pendingSitePermission by remember { mutableStateOf<PendingSitePermission?>(null) }
     var pendingSiteMediaPermission by remember { mutableStateOf<PendingSiteMediaPermission?>(null) }
+    var pendingContextAction by remember { mutableStateOf<PendingContextAction?>(null) }
     val mediaPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
         val request = pendingSiteMediaPermission
         if (request != null) {
@@ -1485,6 +1488,22 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             }
         })
         session.setContentDelegate(object : GeckoSession.ContentDelegate {
+            override fun onContextMenu(
+                session: GeckoSession,
+                screenX: Int,
+                screenY: Int,
+                element: GeckoSession.ContentDelegate.ContextElement
+            ) {
+                pendingContextAction = PendingContextAction(
+                    session = session,
+                    linkUri = element.linkUri,
+                    srcUri = element.srcUri,
+                    title = element.title,
+                    altText = element.altText,
+                    textContent = element.textContent,
+                    isImage = element.type == GeckoSession.ContentDelegate.ContextElement.TYPE_IMAGE
+                )
+            }
             override fun onExternalResponse(session: GeckoSession, response: WebResponse) {
                 onDownload(response)
             }
@@ -2004,6 +2023,72 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                         }
                     }
                 }
+            }
+            val contextAction = pendingContextAction
+            if (contextAction != null) {
+                val link = contextAction.linkUri?.takeIf { it.startsWith("http://", true) || it.startsWith("https://", true) }
+                val media = contextAction.srcUri?.takeIf { it.startsWith("http://", true) || it.startsWith("https://", true) }
+                val selectedText = contextAction.textContent?.trim()?.takeIf { it.isNotBlank() }
+                val imageOnly = contextAction.isImage && media != null
+                AlertDialog(
+                    onDismissRequest = { pendingContextAction = null },
+                    title = { Text(if (imageOnly) "Изображение" else if (link != null) "Действия со ссылкой" else "Действия с текстом", color = Paper) },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text(contextAction.title?.takeIf { it.isNotBlank() } ?: contextAction.altText?.takeIf { it.isNotBlank() } ?: selectedText?.take(120) ?: link ?: media ?: "Элемент страницы", color = Muted, maxLines = 3)
+                            if (link != null) {
+                                TextButton(onClick = {
+                                    clipboardManager?.setPrimaryClip(android.content.ClipData.newPlainText("Darknes URL", link))
+                                    toast = "Ссылка скопирована"
+                                    pendingContextAction = null
+                                }) { Text("Копировать ссылку", color = Orange) }
+                                TextButton(onClick = {
+                                    addTab()
+                                    sessions[activeTab].loadUri(link)
+                                    query = link
+                                    loaded = true
+                                    pendingContextAction = null
+                                }) { Text("Открыть в новой вкладке", color = Orange) }
+                                TextButton(onClick = {
+                                    contextAction.session.loadUri(link)
+                                    if (sessions.indexOf(contextAction.session) == activeTab) { query = link; loaded = true }
+                                    pendingContextAction = null
+                                }) { Text("Открыть здесь", color = Orange) }
+                            }
+                            if (media != null) {
+                                TextButton(onClick = {
+                                    clipboardManager?.setPrimaryClip(android.content.ClipData.newPlainText("Darknes image URL", media))
+                                    toast = "Адрес изображения скопирован"
+                                    pendingContextAction = null
+                                }) { Text("Копировать адрес изображения", color = Orange) }
+                                TextButton(onClick = {
+                                    addTab()
+                                    sessions[activeTab].loadUri(media)
+                                    query = media
+                                    loaded = true
+                                    pendingContextAction = null
+                                }) { Text("Открыть изображение в новой вкладке", color = Orange) }
+                            }
+                            if (selectedText != null) {
+                                TextButton(onClick = {
+                                    clipboardManager?.setPrimaryClip(android.content.ClipData.newPlainText("Darknes text", selectedText))
+                                    toast = "Текст скопирован"
+                                    pendingContextAction = null
+                                }) { Text("Копировать текст", color = Orange) }
+                                TextButton(onClick = {
+                                    val searchUrl = "https://www.google.com/search?q=" + URLEncoder.encode(selectedText, "UTF-8")
+                                    addTab()
+                                    sessions[activeTab].loadUri(searchUrl)
+                                    query = searchUrl
+                                    loaded = true
+                                    pendingContextAction = null
+                                }) { Text("Искать выделенный текст", color = Orange) }
+                            }
+                        }
+                    },
+                    confirmButton = { TextButton(onClick = { pendingContextAction = null }) { Text("Закрыть", color = Muted) } },
+                    containerColor = Color(0xFF17233A)
+                )
             }
             val mediaPrompt = pendingSiteMediaPermission
             if (mediaPrompt != null && pendingSitePermission == null) {
