@@ -1498,7 +1498,9 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                 val decisions = org.json.JSONObject()
                                 sitePermissionDecisions.forEach { (key, value) -> decisions.put(key, value) }
                                 sitePermissionPrefs.edit().putString("decisions", decisions.toString()).apply()
-                                refreshSitePermissions()
+                                storedSitePermissions = storedSitePermissions.filterNot {
+                                    it.uri == permission.uri && it.permission == permission.permission
+                                }
                             }) {
                                 runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))) }
                                     .onFailure { toast = "Не удалось открыть настройки Android" }
