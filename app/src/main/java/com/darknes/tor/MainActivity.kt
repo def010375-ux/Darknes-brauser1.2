@@ -852,11 +852,15 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         mutableStateListOf<SavedPage>().apply { addAll(readSavedPages(savedPrefs.getString("bookmarks", null))) }
     }
     var desktopMode by remember { mutableStateOf(settingsPrefs.getBoolean("desktopMode", false)) }
+    var workspaceWallpaperTarget by remember { mutableStateOf<String?>(null) }
     val wallpaperPicker = androidx.activity.compose.rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            wallpaperUri = uri.toString()
+            val targetGroup = workspaceWallpaperTarget
+            if (targetGroup != null) workspaceWallpapers[targetGroup] = uri.toString()
+            else wallpaperUri = uri.toString()
         }
+        workspaceWallpaperTarget = null
     }
     val configPicker = androidx.activity.compose.rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) runCatching {
@@ -962,8 +966,11 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         "cyan" -> Orange
         else -> if (incognito) Violet else Orange
     }
-    LaunchedEffect(effectiveTrackers, sessions.size) {
-        sessions.forEach { it.settings.setUseTrackingProtection(effectiveTrackers) }
+    LaunchedEffect(workspaceTracking.toMap(), tabGroups.toList(), sessions.size, activeWorkspace) {
+        sessions.forEachIndexed { index, browserSession ->
+            val groupName = tabGroups.getOrNull(index).orEmpty().ifBlank { "Основная" }
+            browserSession.settings.setUseTrackingProtection(workspaceTracking[groupName] ?: trackers)
+        }
         splitSession.settings.setUseTrackingProtection(effectiveTrackers)
     }
     LaunchedEffect(desktopMode, sessions.size) {
@@ -1357,7 +1364,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                 onOpen = { url -> session.loadUri(url); query = url; loaded = true; showSearchResults = false; panel = "" },
                                 onRemove = { page -> history.remove(page) },
                                 onClear = { history.clear() })
-                            "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), tabGroups.toList(), groupNames.toList(), tabPinned.toList(), workspaceWallpapers.toMap(), workspaceTracking.toMap(), activeTab, incognito, { value -> if (value) { privateModeUsed = true; tabPreviews.clear() }; incognito = value }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { index -> tabGroups[index] = when (tabGroups[index]) { "Основная" -> "Работа"; "Работа" -> "Личное"; else -> "Основная" } }, { from, to -> moveTab(from, to) }, { index, group -> if (index in tabGroups.indices) tabGroups[index] = group }, { index -> if (!incognito && index in tabPinned.indices) tabPinned[index] = !tabPinned[index] }, { group, image, protection -> workspaceWallpapers[group] = image; workspaceTracking[group] = protection }, { name -> if (name.isNotBlank() && name !in groupNames) groupNames.add(name) }, { old, new -> if (old in groupNames && new.isNotBlank() && new !in groupNames) { groupNames[groupNames.indexOf(old)] = new; tabGroups.indices.forEach { if (tabGroups[it] == old) tabGroups[it] = new } } }, { name -> if (name != "Основная" && name in groupNames) { tabGroups.indices.forEach { if (tabGroups[it] == name) tabGroups[it] = "Основная" }; groupNames.remove(name) } }, sessions.map { tabPreviews[it] }, { captureActiveTabPreview() }, recentlyClosedTab != null && !incognito, { restoreRecentlyClosedTab() }, { panel = "" })
+                            "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), tabGroups.toList(), groupNames.toList(), tabPinned.toList(), workspaceWallpapers.toMap(), workspaceTracking.toMap(), { group -> workspaceWallpaperTarget = group; wallpaperPicker.launch(arrayOf("image/*")) }, activeTab, incognito, { value -> if (value) { privateModeUsed = true; tabPreviews.clear() }; incognito = value }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { index -> tabGroups[index] = when (tabGroups[index]) { "Основная" -> "Работа"; "Работа" -> "Личное"; else -> "Основная" } }, { from, to -> moveTab(from, to) }, { index, group -> if (index in tabGroups.indices) tabGroups[index] = group }, { index -> if (!incognito && index in tabPinned.indices) tabPinned[index] = !tabPinned[index] }, { group, image, protection -> workspaceWallpapers[group] = image; workspaceTracking[group] = protection }, { name -> if (name.isNotBlank() && name !in groupNames) groupNames.add(name) }, { old, new -> if (old in groupNames && new.isNotBlank() && new !in groupNames) { groupNames[groupNames.indexOf(old)] = new; tabGroups.indices.forEach { if (tabGroups[it] == old) tabGroups[it] = new } } }, { name -> if (name != "Основная" && name in groupNames) { tabGroups.indices.forEach { if (tabGroups[it] == name) tabGroups[it] = "Основная" }; groupNames.remove(name) } }, sessions.map { tabPreviews[it] }, { captureActiveTabPreview() }, recentlyClosedTab != null && !incognito, { restoreRecentlyClosedTab() }, { panel = "" })
                         }
                         }
                     }
@@ -2383,7 +2390,7 @@ private fun OfflinePageViewerPanel(page: OfflinePage?, onBack: () -> Unit) {
 
 @Composable
 private fun TabsPanel(
-    titles: List<String>, urls: List<String>, groups: List<String>, groupNames: List<String>, pinned: List<Boolean>, workspaceWallpapers: Map<String, String>, workspaceTracking: Map<String, Boolean>, activeIndex: Int,
+    titles: List<String>, urls: List<String>, groups: List<String>, groupNames: List<String>, pinned: List<Boolean>, workspaceWallpapers: Map<String, String>, workspaceTracking: Map<String, Boolean>, chooseWorkspaceWallpaper: (String) -> Unit, activeIndex: Int,
     incognito: Boolean, setIncognito: (Boolean) -> Unit, addTab: () -> Unit,
     closeTab: (Int) -> Unit, selectTab: (Int) -> Unit, cycleGroup: (Int) -> Unit, moveTab: (Int, Int) -> Unit,
     setTabGroup: (Int, String) -> Unit, togglePinned: (Int) -> Unit, saveWorkspace: (String, String, Boolean) -> Unit, createGroup: (String) -> Unit, renameGroup: (String, String) -> Unit, deleteGroup: (String) -> Unit,
@@ -2495,6 +2502,10 @@ private fun TabsPanel(
                         }
                         OutlinedTextField(value = workspaceWallpaperDraft, onValueChange = { workspaceWallpaperDraft = it.take(500) },
                             modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("URI обоев изображения") })
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = { chooseWorkspaceWallpaper(workspaceGroup) }) { Icon(Icons.Default.Image, null); Spacer(Modifier.width(5.dp)); Text("Выбрать фото") }
+                            TextButton(onClick = { workspaceWallpaperDraft = "" }) { Text("Сбросить") }
+                        }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text("Защита от отслеживания", color = Paper, fontWeight = FontWeight.SemiBold)
