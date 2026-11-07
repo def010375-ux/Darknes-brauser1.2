@@ -4033,8 +4033,8 @@ private fun TabsPanel(
                 val isWorkspaceActive = selectedGroup == group
                 Column(
                     Modifier.width(150.dp).clip(RoundedCornerShape(20.dp))
-                        .background(Brush.linearGradient(listOf(groupTint.copy(alpha = if (isWorkspaceActive) .30f else .16f), Color(0xFF10182B))))
-                        .border(if (isWorkspaceActive) 2.dp else 1.dp, groupTint.copy(alpha = if (isWorkspaceActive) .95f else .38f), RoundedCornerShape(17.dp))
+                        .background(Brush.linearGradient(listOf(Color(0xFF281A3C), Color(0xFF100D1B), groupTint.copy(alpha = .13f))))
+                        .border(if (isWorkspaceActive) 2.dp else 1.dp, if (isWorkspaceActive) Color(0xFFD3B8FF) else Color(0xFF76549E).copy(alpha = .55f), RoundedCornerShape(20.dp))
                         .clickable { selectedGroup = group; activateWorkspace(group) }
                         .padding(8.dp).animateContentSize()
                 ) {
@@ -4184,7 +4184,7 @@ private fun TabsPanel(
                     val pageUrl = urls.getOrNull(index).orEmpty()
                     val host = runCatching { java.net.URI(pageUrl).host.orEmpty().removePrefix("www.") }.getOrDefault("")
                     val cardShape = RoundedCornerShape(21.dp)
-                    val cardColors = if (incognito) listOf(Color(0xFF29245A), Color(0xFF11172D)) else listOf(Color(0xFF17334A), Color(0xFF0B1428))
+                    val cardColors = if (incognito) listOf(Color(0xFF30204F), Color(0xFF120D20)) else listOf(Color(0xFF28183E), Color(0xFF100D1B))
                     var dragOffset by remember(index) { mutableStateOf(Offset.Zero) }
                     val dragScale by animateFloatAsState(if (dragOffset != Offset.Zero) 1.035f else 1f, label = "tab-drag-scale")
                     var groupMenuExpanded by remember(index) { mutableStateOf(false) }
@@ -4196,7 +4196,7 @@ private fun TabsPanel(
                             scaleX = dragScale
                             scaleY = dragScale
                         }.clip(cardShape).background(Brush.linearGradient(cardColors))
-                        .border(if (isActive) 2.dp else 1.dp, if (isActive) tabAccent else Border, cardShape)
+                        .border(if (isActive) 2.dp else 1.dp, if (isActive) Color(0xFFD8BEFF) else Color(0xFF76549E).copy(alpha = .62f), cardShape)
                         .onGloballyPositioned { cardOrigin = it.positionInRoot() }
                         .pointerInput(index, visibleIndices, availableGroups) {
                             detectDragGesturesAfterLongPress(
@@ -4243,11 +4243,11 @@ private fun TabsPanel(
                                 Column(Modifier.fillMaxSize().padding(9.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Box(Modifier.weight(1f).height(17.dp).clip(RoundedCornerShape(6.dp))
-                                            .background(Color(0x553D5473)).padding(horizontal = 6.dp), contentAlignment = Alignment.CenterStart) {
+                                            .background(Color(0x664C3470)).padding(horizontal = 6.dp), contentAlignment = Alignment.CenterStart) {
                                             Text(host.ifBlank { "darknes://start" }, color = Paper.copy(alpha = .72f), fontSize = 7.sp, maxLines = 1)
                                         }
                                         Spacer(Modifier.width(5.dp))
-                                        Box(Modifier.size(17.dp).clip(CircleShape).background(Color(0x554A6080)), contentAlignment = Alignment.Center) {
+                                        Box(Modifier.size(17.dp).clip(CircleShape).background(Color(0x665B4380)), contentAlignment = Alignment.Center) {
                                             Icon(Icons.Default.Close, null, tint = Paper.copy(alpha = .8f), modifier = Modifier.size(10.dp))
                                         }
                                     }
@@ -4287,7 +4287,7 @@ private fun TabsPanel(
                                         tint = if (pinned.getOrNull(index) == true) tabAccent else Muted,
                                         modifier = Modifier.size(15.dp))
                                 }
-                                Row(Modifier.weight(1f).clip(RoundedCornerShape(9.dp)).background(Color(0x332B4268))
+                                Row(Modifier.weight(1f).clip(RoundedCornerShape(9.dp)).background(Color(0x443D285B))
                                     .clickable { groupMenuExpanded = true }.padding(horizontal = 8.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.FolderOpen, contentDescription = null, tint = tabAccent, modifier = Modifier.size(12.dp))
                                     Spacer(Modifier.width(5.dp))
