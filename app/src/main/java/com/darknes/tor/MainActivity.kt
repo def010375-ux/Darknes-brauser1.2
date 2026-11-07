@@ -666,6 +666,8 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     }
     var canGoBack by remember { mutableStateOf(false) }
     var canGoForward by remember { mutableStateOf(false) }
+    var recentlyClosedTab by remember { mutableStateOf<Triple<String, String, String>?>(null) }
+    var recentlyClosedIndex by remember { mutableIntStateOf(0) }
     fun addTab() {
         if (incognito) privateModeUsed = true
         sessions.add(GeckoSession().also { it.open(runtime) })
@@ -677,6 +679,15 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         canGoForward = false
     }
     fun closeTab(index: Int) {
+        if (index !in sessions.indices) return
+        if (!incognito) {
+            recentlyClosedTab = Triple(
+                tabTitles.getOrNull(index).orEmpty().ifBlank { "Новая вкладка" },
+                tabUrls.getOrNull(index).orEmpty(),
+                tabGroups.getOrNull(index).orEmpty().ifBlank { "Основная" }
+            )
+            recentlyClosedIndex = index
+        }
         if (sessions.size > 1) {
             sessions[index].close()
             sessions.removeAt(index)
@@ -696,6 +707,24 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             canGoBack = false
             canGoForward = false
         }
+    }
+    fun restoreRecentlyClosedTab() {
+        val saved = recentlyClosedTab ?: return
+        val restoredSession = GeckoSession().also { it.open(runtime) }
+        if (saved.second.isNotBlank()) restoredSession.loadUri(saved.second)
+        val insertAt = recentlyClosedIndex.coerceIn(0, sessions.size)
+        sessions.add(insertAt, restoredSession)
+        tabTitles.add(insertAt, saved.first)
+        tabUrls.add(insertAt, saved.second)
+        tabGroups.add(insertAt, saved.third)
+        activeTab = insertAt
+        recentlyClosedTab = null
+        canGoBack = false
+        canGoForward = false
+        query = saved.second
+        loaded = saved.second.isNotBlank()
+        showSearchResults = false
+        toast = "Вкладка восстановлена"
     }
     val settingsPrefs = remember(context) { context.getSharedPreferences("darknes_settings", android.content.Context.MODE_PRIVATE) }
     var query by remember { mutableStateOf(tabUrls.getOrNull(activeTab).orEmpty()) }
@@ -1253,7 +1282,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                 onOpen = { url -> session.loadUri(url); query = url; loaded = true; showSearchResults = false; panel = "" },
                                 onRemove = { page -> history.remove(page) },
                                 onClear = { history.clear() })
-                            "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), tabGroups.toList(), activeTab, incognito, { value -> if (value) privateModeUsed = true; incognito = value }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { index -> tabGroups[index] = when (tabGroups[index]) { "Основная" -> "Работа"; "Работа" -> "Личное"; else -> "Основная" } }, { panel = "" })
+                            "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), tabGroups.toList(), activeTab, incognito, { value -> if (value) privateModeUsed = true; incognito = value }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { index -> tabGroups[index] = when (tabGroups[index]) { "Основная" -> "Работа"; "Работа" -> "Личное"; else -> "Основная" } }, recentlyClosedTab != null && !incognito, { restoreRecentlyClosedTab() }, { panel = "" })
                         }
                         }
                     }
@@ -2281,7 +2310,8 @@ private fun OfflinePageViewerPanel(page: OfflinePage?, onBack: () -> Unit) {
 private fun TabsPanel(
     titles: List<String>, urls: List<String>, groups: List<String>, activeIndex: Int,
     incognito: Boolean, setIncognito: (Boolean) -> Unit, addTab: () -> Unit,
-    closeTab: (Int) -> Unit, selectTab: (Int) -> Unit, cycleGroup: (Int) -> Unit, done: () -> Unit
+    closeTab: (Int) -> Unit, selectTab: (Int) -> Unit, cycleGroup: (Int) -> Unit,
+    hasRecentlyClosed: Boolean, restoreRecentlyClosed: () -> Unit, done: () -> Unit
 ) {
     val tabAccent = if (incognito) Violet else Orange
     var selectedGroup by remember { mutableStateOf("Все") }
@@ -2303,6 +2333,13 @@ private fun TabsPanel(
                 Icon(Icons.Default.Add, contentDescription = "Новая вкладка", tint = tabAccent, modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.width(8.dp))
+            if (hasRecentlyClosed) {
+                TextButton(onClick = restoreRecentlyClosed) {
+                    Icon(Icons.Default.Restore, contentDescription = null, tint = tabAccent, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Вернуть", color = tabAccent, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                }
+            }
             TextButton(onClick = done) { Text("Готово", color = Paper, fontWeight = FontWeight.SemiBold) }
         }
         Spacer(Modifier.height(14.dp))
