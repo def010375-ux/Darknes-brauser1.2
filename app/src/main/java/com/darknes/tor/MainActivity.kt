@@ -120,7 +120,7 @@ private fun parseThemePacks(raw: String): List<ThemePack> = runCatching {
     }
 }.getOrDefault(emptyList())
 
-private data class DownloadRecord(val id: Long, val name: String, val status: String, val savedUri: String? = null, val downloadedBytes: Long = 0L, val totalBytes: Long = 0L, val createdAt: Long = id, val systemDownloadId: Long = 0L)
+private data class DownloadRecord(val id: Long, val name: String, val status: String, val savedUri: String? = null, val downloadedBytes: Long = 0L, val totalBytes: Long = 0L, val createdAt: Long = id, val systemDownloadId: Long = 0L, val sourceUri: String? = null)
 
 private fun downloadCategory(name: String): String {
     val ext = name.substringAfterLast('.', "").lowercase()
@@ -150,7 +150,7 @@ private fun readDownloadRecords(raw: String?): List<DownloadRecord> = runCatchin
         if (id <= 0L || name.isBlank()) return@mapNotNull null
         val storedStatus = item.optString("status", "Сохранено")
         val status = if (storedStatus == "Скачивается" || storedStatus == "Ожидает сохранения") "Прервано" else storedStatus
-        DownloadRecord(id, name, status, item.optString("savedUri").takeIf { it.isNotBlank() && it != "null" }, item.optLong("downloadedBytes", 0L).coerceAtLeast(0L), item.optLong("totalBytes", 0L).coerceAtLeast(0L), item.optLong("createdAt", id).takeIf { it > 0L } ?: id, item.optLong("systemDownloadId", 0L).coerceAtLeast(0L))
+        DownloadRecord(id, name, status, item.optString("savedUri").takeIf { it.isNotBlank() && it != "null" }, item.optLong("downloadedBytes", 0L).coerceAtLeast(0L), item.optLong("totalBytes", 0L).coerceAtLeast(0L), item.optLong("createdAt", id).takeIf { it > 0L } ?: id, item.optLong("systemDownloadId", 0L).coerceAtLeast(0L), item.optString("sourceUri").takeIf { it.isNotBlank() && it != "null" })
     }.sortedByDescending { it.id }.take(100)
 }.getOrDefault(emptyList())
 
@@ -158,7 +158,7 @@ private fun encodeDownloadRecords(records: List<DownloadRecord>): String = JSONA
     records.take(100).forEach { item ->
         put(org.json.JSONObject().put("id", item.id).put("name", item.name)
             .put("status", item.status).put("savedUri", item.savedUri ?: "")
-            .put("downloadedBytes", item.downloadedBytes).put("totalBytes", item.totalBytes).put("createdAt", item.createdAt).put("systemDownloadId", item.systemDownloadId))
+            .put("downloadedBytes", item.downloadedBytes).put("totalBytes", item.totalBytes).put("createdAt", item.createdAt).put("systemDownloadId", item.systemDownloadId).put("sourceUri", item.sourceUri ?: ""))
     }
 }.toString()
 
@@ -309,11 +309,35 @@ class MainActivity : ComponentActivity() {
             if (!mime.isNullOrBlank()) request.setMimeType(mime)
             val systemId = manager.enqueue(request)
             val recordId = System.currentTimeMillis()
-            downloadRecords.add(0, DownloadRecord(recordId, fileName, "В очереди", createdAt = recordId, systemDownloadId = systemId))
+            downloadRecords.add(0, DownloadRecord(recordId, fileName, "В очереди", createdAt = recordId, systemDownloadId = systemId, sourceUri = uri.toString()))
             persistDownloads()
             Toast.makeText(this, "Изображение добавлено в загрузки", Toast.LENGTH_SHORT).show()
         }.onFailure {
             Toast.makeText(this, "Не удалось начать загрузку изображения", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun retrySystemImageDownload(recordId: Long) {
+        val index = downloadRecords.indexOfFirst { it.id == recordId }
+        if (index < 0) return
+        val record = downloadRecords[index]
+        val source = record.sourceUri ?: return
+        runCatching {
+            val manager = getSystemService(android.content.Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+            if (record.systemDownloadId > 0L) manager.remove(record.systemDownloadId)
+            val request = android.app.DownloadManager.Request(Uri.parse(source))
+                .setTitle(record.name)
+                .setDescription("Повторная загрузка изображения из Darknes Tor")
+                .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, record.name)
+            val mime = java.net.URLConnection.guessContentTypeFromName(record.name)
+            if (!mime.isNullOrBlank()) request.setMimeType(mime)
+            val newSystemId = manager.enqueue(request)
+            downloadRecords[index] = record.copy(status = "В очереди", savedUri = null, downloadedBytes = 0L, totalBytes = 0L, systemDownloadId = newSystemId)
+            persistDownloads()
+            Toast.makeText(this, "Повторная загрузка запущена", Toast.LENGTH_SHORT).show()
+        }.onFailure {
+            Toast.makeText(this, "Не удалось повторить загрузку", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -454,7 +478,7 @@ class MainActivity : ComponentActivity() {
         runtime = GeckoRuntime.create(this)
         session = GeckoSession().also { it.open(runtime) }
         setContent { MaterialTheme(colorScheme = darkColorScheme(background = Ink, surface = Glass, primary = Orange)) {
-            DarknesApp(runtime, ::requestDownload, downloadRecords.toList(), ::removeDownload, ::cancelDownload, ::enqueueSystemImageDownload)
+            DarknesApp(runtime, ::requestDownload, downloadRecords.toList(), ::removeDownload, ::cancelDownload, ::enqueueSystemImageDownload, ::retrySystemImageDownload, ::refreshSystemDownloads)
         } }
     }
 
@@ -895,7 +919,7 @@ private fun MaintenanceLockScreen(hour: Int, minute: Int) {
     }
 }
 
-private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse, onSystemImageDownload: (Uri, String) -> Unit) -> Unit, downloads: List<DownloadRecord>, onRemoveDownload: (Long) -> Unit, onCancelDownload: (Long) -> Unit) {
+private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit, downloads: List<DownloadRecord>, onRemoveDownload: (Long) -> Unit, onCancelDownload: (Long) -> Unit, onSystemImageDownload: (Uri, String) -> Unit, onRetrySystemDownload: (Long) -> Unit, onRefreshSystemDownloads: () -> Unit) {
     // Daily maintenance window uses Moscow time regardless of the device's selected timezone.
     var maintenanceClockTick by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -2099,7 +2123,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse, onSystem
                                 loaded = true
                                 showSearchResults = false
                             }
-                            "Загрузки" -> DownloadsPanel(downloads, onRemoveDownload, onCancelDownload) { item ->
+                            "Загрузки" -> DownloadsPanel(downloads, onRemoveDownload, onCancelDownload, onRetrySystemDownload, onRefreshSystemDownloads) { item ->
                                 val saved = item.savedUri ?: return@DownloadsPanel
                                 runCatching {
                                     context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(saved), "*/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
@@ -3084,7 +3108,7 @@ private fun SavedPagesPanel(
     }
 }
 @Composable
-private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> Unit, onCancel: (Long) -> Unit, onOpen: (DownloadRecord) -> Unit) {
+private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> Unit, onCancel: (Long) -> Unit, onRetry: (Long) -> Unit, onRefresh: () -> Unit, onOpen: (DownloadRecord) -> Unit) {
     var filter by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("Все") }
     var sortNewestFirst by remember { mutableStateOf(true) }
@@ -3092,6 +3116,7 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
     var detailsRecord by remember { mutableStateOf<DownloadRecord?>(null) }
     var deleteCandidate by remember { mutableStateOf<DownloadRecord?>(null) }
     val context = LocalContext.current
+    LaunchedEffect(Unit) { while (true) { onRefresh(); delay(1000L) } }
     val previewBitmap by produceState<Bitmap?>(null, previewRecord?.savedUri) {
         value = null
         val uri = previewRecord?.savedUri
@@ -3175,7 +3200,7 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
                         Column(Modifier.weight(1f)) {
                             Text(item.name, color = Paper, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 2)
                             Text("${downloadCategory(item.name)} · ${item.status}", color = if (completed) Color(0xFF62E6C2) else Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
-                            if (item.status == "Скачивается") {
+                            if (item.status == "Скачивается" || item.status == "В очереди" || item.status == "Приостановлено") {
                                 if (item.totalBytes > 0L) {
                                     val fraction = (item.downloadedBytes.toFloat() / item.totalBytes.toFloat()).coerceIn(0f, 1f)
                                     LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth().padding(top = 7.dp), color = Orange, trackColor = Color(0xFF283650))
@@ -3193,6 +3218,9 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
                             IconButton(onClick = { previewRecord = item }) { Icon(Icons.Default.Visibility, contentDescription = "Предпросмотр изображения", tint = Orange) }
                         }
                         if (completed) IconButton(onClick = { onOpen(item) }) { Icon(Icons.Default.OpenInNew, contentDescription = "Открыть файл", tint = Orange) }
+                        if ((item.status == "Ошибка загрузки" || item.status == "Файл недоступен") && item.systemDownloadId > 0L && item.sourceUri != null) {
+                            IconButton(onClick = { onRetry(item.id) }) { Icon(Icons.Default.Refresh, contentDescription = "Повторить загрузку", tint = Orange) }
+                        }
                         if (item.status == "Скачивается") {
                             IconButton(onClick = { onCancel(item.id) }) {
                                 Icon(Icons.Default.Close, contentDescription = "Отменить загрузку", tint = Color(0xFFFF8A80))
