@@ -670,7 +670,10 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         val view = activeGeckoView ?: return
         val capturedSession = session
         runCatching { view.capturePixels().accept({ bitmap ->
-            if (!incognito && sessions.contains(capturedSession) && bitmap != null) tabPreviews[capturedSession] = bitmap
+            if (!incognito && sessions.contains(capturedSession) && bitmap != null && bitmap.width > 0) {
+                val thumbnailHeight = (bitmap.height * 480f / bitmap.width).toInt().coerceAtLeast(1)
+                tabPreviews[capturedSession] = Bitmap.createScaledBitmap(bitmap, 480, thumbnailHeight, true)
+            }
         }, { }) }
     }
     val splitSession = remember(runtime) { GeckoSession().also { it.open(runtime) } }
