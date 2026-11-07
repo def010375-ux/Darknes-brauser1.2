@@ -85,10 +85,6 @@ private data class PendingSiteMediaPermission(
     val audio: Array<GeckoSession.PermissionDelegate.MediaSource>?,
     val callback: GeckoSession.PermissionDelegate.MediaCallback
 )
-private data class PendingAndroidPermission(
-    val permissions: Array<String>,
-    val callback: GeckoSession.PermissionDelegate.Callback
-)
 
 private data class ThemePack(val id: String, val name: String, val accent: String, val incognitoAccent: String, val homeLayout: String, val blur: Float, val language: String)
 
@@ -852,17 +848,6 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     }
     var pendingSitePermission by remember { mutableStateOf<PendingSitePermission?>(null) }
     var pendingSiteMediaPermission by remember { mutableStateOf<PendingSiteMediaPermission?>(null) }
-    var pendingAndroidPermission by remember { mutableStateOf<PendingAndroidPermission?>(null) }
-    val androidPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
-        val request = pendingAndroidPermission
-        if (request != null) {
-            val granted = request.permissions.all { permission ->
-                androidx.core.content.ContextCompat.checkSelfPermission(context, permission) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            }
-            if (granted) request.callback.grant() else request.callback.reject()
-            pendingAndroidPermission = null
-        }
-    }
     val mediaPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
         val request = pendingSiteMediaPermission
         if (request != null) {
@@ -1270,16 +1255,11 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 permissions: Array<String>,
                 callback: GeckoSession.PermissionDelegate.Callback
             ) {
-                val missing = permissions.filter { permission ->
-                    androidx.core.content.ContextCompat.checkSelfPermission(context, permission) !=
+                val granted = permissions.all { permission ->
+                    androidx.core.content.ContextCompat.checkSelfPermission(context, permission) ==
                         android.content.pm.PackageManager.PERMISSION_GRANTED
                 }
-                if (missing.isEmpty()) {
-                    callback.grant()
-                } else {
-                    pendingAndroidPermission = PendingAndroidPermission(missing.toTypedArray(), callback)
-                    androidPermissionLauncher.launch(missing.toTypedArray())
-                }
+                if (granted) callback.grant() else callback.reject()
             }
 
             override fun onMediaPermissionRequest(
@@ -1290,14 +1270,6 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 callback: GeckoSession.PermissionDelegate.MediaCallback
             ) {
                 if (video.isNullOrEmpty() && audio.isNullOrEmpty()) {
-                    callback.reject()
-                    return
-                }
-                val needsCamera = video?.any { it.source == GeckoSession.PermissionDelegate.MediaSource.SOURCE_CAMERA } == true
-                val needsMicrophone = audio?.any { it.source == GeckoSession.PermissionDelegate.MediaSource.SOURCE_MICROPHONE } == true
-                val cameraGranted = !needsCamera || androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                val microphoneGranted = !needsMicrophone || androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                if (!cameraGranted || !microphoneGranted) {
                     callback.reject()
                     return
                 }
