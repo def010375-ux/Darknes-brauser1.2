@@ -52,7 +52,9 @@ jobs:
           if [ -z "$PLATFORM" ]; then PLATFORM="platforms;android-37"; fi
           BUILD_TOOLS="$(sed -n 's/^[[:space:]]*\(build-tools;37[^[:space:]]*\).*/\1/p' /tmp/android-sdk-packages.txt | head -n 1)"
           if [ -z "$BUILD_TOOLS" ]; then BUILD_TOOLS="build-tools;36.0.0"; fi
+          set +o pipefail
           yes | sdkmanager --licenses >/dev/null
+          set -o pipefail
           sdkmanager "$PLATFORM" "$BUILD_TOOLS" "platform-tools"
 
       - name: Set up Gradle
