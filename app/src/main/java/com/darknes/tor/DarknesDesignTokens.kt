@@ -11,12 +11,12 @@ import androidx.compose.ui.unit.dp
 internal object DarknesDesignTokens {
     val ink = Color(0xFF070A14)
     val paper = Color(0xFFF1F5FF)
-    val cyan = Color(0xFF38D9FF)
-    val lavender = Color(0xFFB69CFF)
-    val violet = Color(0xFF8B6CFF)
+    val cyan = Color(0xFFB58CFF)
+    val lavender = Color(0xFFD9C8FF)
+    val violet = Color(0xFF8B55E8)
     val muted = Color(0xFF929DB8)
     val glass = Color(0xD9161D32)
-    val border = Color(0x5546CFFF)
+    val border = Color(0x668D63D9)
 
     val surface = Color(0xFF11182A)
     val elevatedSurface = Color(0xFF171F35)
