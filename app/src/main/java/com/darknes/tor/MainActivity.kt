@@ -118,6 +118,25 @@ private fun parseThemePacks(raw: String): List<ThemePack> = runCatching {
 
 private data class DownloadRecord(val id: Long, val name: String, val status: String, val savedUri: String? = null, val downloadedBytes: Long = 0L, val totalBytes: Long = 0L)
 
+private fun downloadCategory(name: String): String {
+    val ext = name.substringAfterLast('.', "").lowercase()
+    return when (ext) {
+        "jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "heic" -> "Изображения"
+        "mp4", "mkv", "mov", "webm", "avi", "3gp" -> "Видео"
+        "mp3", "wav", "ogg", "m4a", "flac", "aac" -> "Аудио"
+        "pdf", "doc", "docx", "txt", "rtf", "odt", "xls", "xlsx", "ppt", "pptx", "csv" -> "Документы"
+        "apk", "zip", "rar", "7z", "tar", "gz" -> "Архивы и приложения"
+        else -> "Другие"
+    }
+}
+
+private fun formatDownloadSize(bytes: Long): String = when {
+    bytes >= 1024L * 1024L * 1024L -> String.format(java.util.Locale.ROOT, "%.1f GB", bytes / (1024.0 * 1024.0 * 1024.0))
+    bytes >= 1024L * 1024L -> String.format(java.util.Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024.0))
+    bytes >= 1024L -> "${bytes / 1024L} KB"
+    else -> "${bytes.coerceAtLeast(0L)} B"
+}
+
 private fun readDownloadRecords(raw: String?): List<DownloadRecord> = runCatching {
     val array = JSONArray(raw ?: "[]")
     (0 until array.length()).mapNotNull { index ->
@@ -2652,6 +2671,8 @@ private fun SavedPagesPanel(
 @Composable
 private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> Unit, onOpen: (DownloadRecord) -> Unit) {
     var filter by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("Все") }
+    val categories = listOf("Все", "Изображения", "Видео", "Аудио", "Документы", "Архивы и приложения", "Другие")
     PanelTitle("Загрузки", "Менеджер загруженных файлов")
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp))
         .background(Brush.horizontalGradient(listOf(Color(0xFF172641), Color(0xFF11182D))))
@@ -2666,8 +2687,22 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
             Icon(Icons.Default.Close, contentDescription = "Очистить", tint = Muted, modifier = Modifier.size(17.dp))
         }
     }
-    Spacer(Modifier.height(12.dp))
-    val visible = downloads.filter { it.name.contains(filter, true) || it.status.contains(filter, true) }
+    Spacer(Modifier.height(10.dp))
+    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+        items(categories) { item ->
+            val selected = category == item
+            Box(Modifier.clip(RoundedCornerShape(50)).background(if (selected) Orange.copy(alpha = .20f) else Color(0xFF17233A))
+                .border(1.dp, if (selected) Orange.copy(alpha = .75f) else Border, RoundedCornerShape(50))
+                .clickable { category = item }.padding(horizontal = 11.dp, vertical = 8.dp)) {
+                Text(item, color = if (selected) Orange else Paper, fontSize = 10.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
+            }
+        }
+    }
+    Spacer(Modifier.height(10.dp))
+    val visible = downloads.filter {
+        (category == "Все" || downloadCategory(it.name) == category) &&
+            (it.name.contains(filter, true) || it.status.contains(filter, true))
+    }.sortedByDescending { it.id }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text("${visible.size} ФАЙЛОВ", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
@@ -2680,7 +2715,7 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
             Icon(Icons.Default.Download, contentDescription = null, tint = Orange, modifier = Modifier.size(36.dp))
             Spacer(Modifier.height(9.dp))
             Text(if (downloads.isEmpty()) "Пока ничего не скачано" else "Файлы не найдены", color = Paper, fontWeight = FontWeight.SemiBold)
-            Text("Загруженные файлы появятся в этом разделе.", color = Muted, fontSize = 12.sp)
+            Text("Измени категорию или поисковый запрос.", color = Muted, fontSize = 12.sp)
         }
     } else {
         LazyColumn(Modifier.fillMaxWidth().heightIn(max = 480.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -2692,21 +2727,31 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
                         .padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Orange.copy(alpha = .14f))
                             .border(1.dp, Orange.copy(alpha = .28f), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
-                            Icon(if (completed) Icons.Default.InsertDriveFile else Icons.Default.Downloading, contentDescription = null, tint = Orange, modifier = Modifier.size(22.dp))
+                            val fileIcon = when (downloadCategory(item.name)) {
+                                "Изображения" -> Icons.Default.Image
+                                "Видео" -> Icons.Default.Movie
+                                "Аудио" -> Icons.Default.MusicNote
+                                "Документы" -> Icons.Default.Description
+                                "Архивы и приложения" -> Icons.Default.FolderZip
+                                else -> Icons.Default.InsertDriveFile
+                            }
+                            Icon(fileIcon, contentDescription = downloadCategory(item.name), tint = Orange, modifier = Modifier.size(22.dp))
                         }
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text(item.name, color = Paper, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 2)
-                            Text(item.status, color = if (completed) Color(0xFF62E6C2) else Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
+                            Text("${downloadCategory(item.name)} · ${item.status}", color = if (completed) Color(0xFF62E6C2) else Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
                             if (item.status == "Скачивается") {
                                 if (item.totalBytes > 0L) {
                                     val fraction = (item.downloadedBytes.toFloat() / item.totalBytes.toFloat()).coerceIn(0f, 1f)
                                     LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth().padding(top = 7.dp), color = Orange, trackColor = Color(0xFF283650))
-                                    Text("${(fraction * 100).toInt()}% · ${item.downloadedBytes / 1024} / ${item.totalBytes / 1024} KB", color = Muted, fontSize = 9.sp, modifier = Modifier.padding(top = 3.dp))
+                                    Text("${(fraction * 100).toInt()}% · ${formatDownloadSize(item.downloadedBytes)} / ${formatDownloadSize(item.totalBytes)}", color = Muted, fontSize = 9.sp, modifier = Modifier.padding(top = 3.dp))
                                 } else {
                                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 7.dp), color = Orange, trackColor = Color(0xFF283650))
-                                    Text("${item.downloadedBytes / 1024} KB загружено", color = Muted, fontSize = 9.sp)
+                                    Text("${formatDownloadSize(item.downloadedBytes)} загружено", color = Muted, fontSize = 9.sp)
                                 }
+                            } else if (item.downloadedBytes > 0L) {
+                                Text(formatDownloadSize(item.downloadedBytes), color = Muted, fontSize = 9.sp)
                             }
                         }
                         if (completed) IconButton(onClick = { onOpen(item) }) { Icon(Icons.Default.OpenInNew, contentDescription = "Открыть файл", tint = Orange) }
@@ -2717,8 +2762,9 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
         }
     }
     Spacer(Modifier.height(12.dp))
-    Text("История загрузок хранится на устройстве. Незавершённые загрузки после перезапуска отмечаются как прерванные.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+    Text("Категории определяются по расширению файла. История хранится на устройстве; незавершённые загрузки после перезапуска отмечаются как прерванные.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
 }
+
 @Composable
 private fun SecretTesterPanel(
     runtime: GeckoRuntime,
