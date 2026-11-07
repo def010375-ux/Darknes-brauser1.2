@@ -670,7 +670,7 @@ private fun DarknesLaunchGate(onAuthenticated: () -> Unit) {
             Modifier.fillMaxWidth().weight(0.9f).padding(top = 4.dp),
             contentAlignment = Alignment.Center
         ) {
-            BlackHoleScene(iconBurst = iconBurst.value)
+            CrownEmblem(modifier = Modifier.fillMaxWidth().height(250.dp))
         }
         AnimatedVisibility(
             visible = showLogin,
@@ -694,6 +694,97 @@ private fun DarknesLaunchGate(onAuthenticated: () -> Unit) {
         Spacer(Modifier.height(8.dp))
         Text("DARKNES ID  ·  ЕДИНЫЙ АККАУНТ", color = Muted, fontSize = 9.sp, letterSpacing = 1.5.sp)
         Spacer(Modifier.height(5.dp))
+    }
+}
+
+@Composable
+private fun CrownEmblem(
+    modifier: Modifier = Modifier,
+    glowColor: Color = Color(0xFF9B63FF),
+    showParticles: Boolean = true
+) {
+    val motion = rememberInfiniteTransition(label = "darknes-crown-motion")
+    val pulse by motion.animateFloat(
+        initialValue = 0.82f,
+        targetValue = 1.12f,
+        animationSpec = infiniteRepeatable(tween(1900, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
+        label = "crown-glow-pulse"
+    )
+    val floatY by motion.animateFloat(
+        initialValue = -4f,
+        targetValue = 4f,
+        animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
+        label = "crown-float"
+    )
+    Canvas(modifier.graphicsLayer { translationY = floatY.dp.toPx() }) {
+        val w = size.width
+        val h = size.height
+        val center = Offset(w * .5f, h * .49f)
+        val glowRadius = minOf(w, h) * .48f * pulse
+        drawCircle(
+            brush = Brush.radialGradient(
+                0f to glowColor.copy(alpha = .40f),
+                .38f to Color(0xFF713BCE).copy(alpha = .22f),
+                1f to Color.Transparent,
+                center = center,
+                radius = glowRadius
+            ),
+            radius = glowRadius,
+            center = center
+        )
+        if (showParticles) {
+            for (i in 0 until 30) {
+                val x = ((i * 47 + 13) % 101) / 101f * w
+                val y = ((i * 71 + 29) % 97) / 97f * h
+                val alpha = (.28f + .35f * ((i % 5) / 4f)) * pulse.coerceAtMost(1f)
+                drawCircle(Color(0xFFE9E2FF).copy(alpha = alpha), radius = if (i % 7 == 0) 2.1.dp.toPx() else 1.1.dp.toPx(), center = Offset(x, y))
+            }
+        }
+        val crown = Path().apply {
+            moveTo(w * .19f, h * .68f)
+            lineTo(w * .13f, h * .30f)
+            lineTo(w * .35f, h * .47f)
+            lineTo(w * .50f, h * .13f)
+            lineTo(w * .65f, h * .47f)
+            lineTo(w * .87f, h * .30f)
+            lineTo(w * .81f, h * .68f)
+            close()
+        }
+        drawPath(
+            path = crown,
+            brush = Brush.linearGradient(
+                0f to Color(0xFFFFFFFF),
+                .48f to Color(0xFFE7E2F2),
+                1f to Color(0xFFBCA9E8),
+                start = Offset(w * .5f, h * .12f),
+                end = Offset(w * .5f, h * .72f)
+            )
+        )
+        drawPath(
+            path = crown,
+            brush = Brush.linearGradient(listOf(glowColor.copy(alpha = .95f), Color(0xFFE9DFFF), glowColor.copy(alpha = .9f))),
+            style = Stroke(width = 2.2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+        drawRoundRect(
+            brush = Brush.linearGradient(listOf(Color(0xFFFFFFFF), Color(0xFFD7C9F5), Color(0xFF9B75E8))),
+            topLeft = Offset(w * .18f, h * .68f),
+            size = androidx.compose.ui.geometry.Size(w * .64f, h * .15f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .035f, w * .035f)
+        )
+        drawRoundRect(
+            color = Color(0xFF8E62E8).copy(alpha = .85f),
+            topLeft = Offset(w * .20f, h * .82f),
+            size = androidx.compose.ui.geometry.Size(w * .60f, h * .025f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .01f, w * .01f)
+        )
+        for (i in 0..4) {
+            val x = w * (.24f + i * .13f)
+            drawCircle(Color(0xFF8B5DE0).copy(alpha = .95f), radius = w * .012f, center = Offset(x, h * .735f))
+        }
+        // Bright tips make the white crown silhouette read clearly against the purple aura.
+        listOf(Offset(w * .13f, h * .30f), Offset(w * .50f, h * .13f), Offset(w * .87f, h * .30f)).forEach {
+            drawCircle(Color.White.copy(alpha = .92f), radius = 2.8.dp.toPx(), center = it)
+        }
     }
 }
 
@@ -2570,9 +2661,11 @@ private fun HomeScreen(
                     modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(24.dp)).blur(blur.dp))
                 Box(Modifier.fillMaxSize().padding(horizontal = 12.dp).clip(RoundedCornerShape(24.dp)).background(Color.Black.copy(alpha = .28f)))
             }
-            BlackHoleScene(iconBurst = orbitProgress,
+            CrownEmblem(
                 modifier = Modifier.width(270.dp).height(205.dp).clickable { orbitExpanded = !orbitExpanded },
-                accent = accent, showOrbitIcons = true, showParticles = true)
+                glowColor = Color(0xFF9B63FF),
+                showParticles = true
+            )
         }
         Spacer(Modifier.height(4.dp))
         Text(
@@ -2586,7 +2679,7 @@ private fun HomeScreen(
                     onSecretSettings()
                 }
             },
-            style = TextStyle(brush = Brush.linearGradient(listOf(Paper, Orange, Violet)), fontSize = 39.sp, fontWeight = FontWeight.Bold)
+            style = TextStyle(brush = Brush.linearGradient(listOf(Color.White, Color(0xFFDCCBFF), Color(0xFF9B63FF))), fontSize = 39.sp, fontWeight = FontWeight.Bold)
         )
         Text(uiLabel(language, "Приватность под твоим контролем", "Privacy on your terms"), color = Muted, fontSize = 14.sp)
         Spacer(Modifier.height(13.dp))
