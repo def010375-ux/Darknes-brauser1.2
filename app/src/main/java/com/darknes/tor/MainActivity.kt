@@ -912,6 +912,10 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         mutableIntStateOf(restoredIndex)
     }
     val session = sessions[activeTab.coerceIn(0, sessions.lastIndex)]
+    val navigationBackBySession = remember { mutableStateMapOf<GeckoSession, Boolean>() }
+    val navigationForwardBySession = remember { mutableStateMapOf<GeckoSession, Boolean>() }
+    val canGoBack = navigationBackBySession[session] ?: false
+    val canGoForward = navigationForwardBySession[session] ?: false
     fun captureActiveTabPreview() {
         if (incognito) return
         val view = activeGeckoView ?: return
@@ -933,8 +937,6 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     DisposableEffect(splitSession) {
         onDispose { splitSession.close() }
     }
-    var canGoBack by remember { mutableStateOf(false) }
-    var canGoForward by remember { mutableStateOf(false) }
     var recentlyClosedTab by remember { mutableStateOf<Triple<String, String, String>?>(null) }
     var recentlyClosedIndex by remember { mutableIntStateOf(0) }
     fun addTab() {
@@ -945,8 +947,6 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         tabGroups.add("Основная")
         tabPinned.add(false)
         activeTab = sessions.lastIndex
-        canGoBack = false
-        canGoForward = false
     }
     fun moveTab(from: Int, to: Int) {
         if (from !in sessions.indices || to !in sessions.indices || from == to) return
@@ -980,6 +980,8 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         if (sessions.size > 1) {
             val closingSession = sessions[index]
             tabPreviews.remove(closingSession)
+            navigationBackBySession.remove(closingSession)
+            navigationForwardBySession.remove(closingSession)
             runCatching {
                 closingSession.setPermissionDelegate(null)
                 closingSession.setNavigationDelegate(null)
@@ -1003,8 +1005,6 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             tabTitles[0] = "Новая вкладка"
             tabUrls[0] = ""
             tabPinned[0] = false
-            canGoBack = false
-            canGoForward = false
         }
     }
     val settingsPrefs = remember(context) { context.getSharedPreferences("darknes_settings", android.content.Context.MODE_PRIVATE) }
@@ -1151,6 +1151,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var testerTapCount by remember { mutableIntStateOf(0) }
     var testerLastTap by remember { mutableLongStateOf(0L) }
     val keyboard = LocalSoftwareKeyboardController.current
+    val clipboardManager = remember(context) { context.getSystemService(android.content.ClipboardManager::class.java) }
     val savedPrefs = remember(context) { context.getSharedPreferences("darknes_browser_data", android.content.Context.MODE_PRIVATE) }
     val history = remember(savedPrefs) {
         mutableStateListOf<SavedPage>().apply { addAll(readSavedPages(savedPrefs.getString("history", null))) }
@@ -1486,10 +1487,10 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         })
         session.setNavigationDelegate(object : GeckoSession.NavigationDelegate {
             override fun onCanGoBack(session: GeckoSession, value: Boolean) {
-                if (sessions.getOrNull(activeTab) === session) canGoBack = value
+                navigationBackBySession[session] = value
             }
             override fun onCanGoForward(session: GeckoSession, value: Boolean) {
-                if (sessions.getOrNull(activeTab) === session) canGoForward = value
+                navigationForwardBySession[session] = value
             }
             override fun onLocationChange(session: GeckoSession, url: String?, perms: List<GeckoSession.PermissionDelegate.ContentPermission>, hasUserGesture: Boolean) {
                 val tabIndex = sessions.indexOf(session)
@@ -1609,9 +1610,32 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                             decorationBox = { inner -> Box { if (query.isEmpty()) Text("Поиск или адрес", color = Muted, fontSize = 14.sp); inner() } }
                         )
                         if (query.isNotBlank()) {
-                            IconButton(onClick = { query = "" }, modifier = Modifier.size(34.dp)) {
+                            IconButton(onClick = { query = "" }, modifier = Modifier.size(32.dp)) {
                                 Icon(Icons.Default.Close, contentDescription = "Очистить адрес", tint = Muted, modifier = Modifier.size(18.dp))
                             }
+                        }
+                        IconButton(
+                            onClick = {
+                                val textToCopy = activeAddress.ifBlank { query }
+                                if (textToCopy.isNotBlank()) {
+                                    clipboardManager?.setPrimaryClip(android.content.ClipData.newPlainText("Darknes URL", textToCopy))
+                                    toast = "Адрес скопирован"
+                                }
+                            },
+                            enabled = activeAddress.isNotBlank() || query.isNotBlank(),
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = "Копировать адрес", tint = if (activeAddress.isNotBlank() || query.isNotBlank()) Muted else Muted.copy(alpha = .35f), modifier = Modifier.size(17.dp))
+                        }
+                        IconButton(
+                            onClick = {
+                                val pasted = runCatching { clipboardManager?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty() }.getOrDefault("")
+                                if (pasted.isNotBlank()) query = pasted
+                                else toast = "Буфер обмена пуст"
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(Icons.Default.ContentPaste, contentDescription = "Вставить адрес", tint = Muted, modifier = Modifier.size(17.dp))
                         }
                         Box(
                             Modifier.size(42.dp).clip(CircleShape)
