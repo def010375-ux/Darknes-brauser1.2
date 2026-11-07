@@ -2459,7 +2459,7 @@ private fun TabsPanel(
     var draggingTabIndex by remember { mutableIntStateOf(-1) }
     var dragPointerRoot by remember { mutableStateOf(Offset.Zero) }
     val groupDropBounds = remember { mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
-    var selectedGroup by remember { mutableStateOf("Все") }
+    var selectedGroup by remember { mutableStateOf(groups.getOrNull(activeIndex) ?: "Все") }
     val availableGroups = remember(groups.toList(), groupNames) { listOf("Все") + (groupNames + groups).filter { it.isNotBlank() }.distinct() }
     var manageGroupsOpen by remember { mutableStateOf(false) }
     var workspaceDialogOpen by remember { mutableStateOf(false) }
