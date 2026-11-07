@@ -259,6 +259,8 @@ class MainActivity : ComponentActivity() {
     private var pendingDownload: WebResponse? = null
     private var pendingDownloadId: Long? = null
     private val downloadRecords = mutableStateListOf<DownloadRecord>()
+    private data class ActiveDownload(val body: java.io.InputStream, val cancelled: java.util.concurrent.atomic.AtomicBoolean)
+    private val activeDownloads = java.util.concurrent.ConcurrentHashMap<Long, ActiveDownload>()
 
     private fun persistDownloads() {
         getSharedPreferences("darknes_downloads", android.content.Context.MODE_PRIVATE)
@@ -299,10 +301,16 @@ class MainActivity : ComponentActivity() {
                 updateDownload(recordId, "Отменено")
                 Toast.makeText(this, "Скачивание отменено", Toast.LENGTH_SHORT).show()
             } else {
+                val body = response.body
+                if (body == null) {
+                    updateDownload(recordId, "Ошибка")
+                    return@registerForActivityResult
+                }
+                val task = ActiveDownload(body, java.util.concurrent.atomic.AtomicBoolean(false))
+                if (recordId != null) activeDownloads[recordId] = task
                 updateDownload(recordId, "Скачивается")
                 Thread {
                     try {
-                        val body = response.body ?: throw IllegalStateException("Нет данных файла")
                         val output = contentResolver.openOutputStream(destination)
                             ?: throw IllegalStateException("Не удалось открыть место сохранения")
                         val totalBytes = response.headers.entries.firstOrNull { it.key.equals("content-length", ignoreCase = true) }?.value?.toLongOrNull() ?: 0L
@@ -311,7 +319,9 @@ class MainActivity : ComponentActivity() {
                         body.use { input -> output.use { target ->
                             val buffer = ByteArray(64 * 1024)
                             while (true) {
+                                if (task.cancelled.get()) throw java.io.IOException("Загрузка отменена")
                                 val count = input.read(buffer)
+                                if (task.cancelled.get()) throw java.io.IOException("Загрузка отменена")
                                 if (count < 0) break
                                 target.write(buffer, 0, count)
                                 copiedBytes += count
@@ -322,12 +332,22 @@ class MainActivity : ComponentActivity() {
                             }
                             target.flush()
                         } }
-                        updateDownload(recordId, "Сохранено", destination.toString(), copiedBytes, totalBytes)
-                        runOnUiThread { Toast.makeText(this, "Файл сохранён", Toast.LENGTH_LONG).show() }
+                        if (task.cancelled.get()) {
+                            updateDownload(recordId, "Отменено", downloadedBytes = copiedBytes, totalBytes = totalBytes)
+                        } else {
+                            updateDownload(recordId, "Сохранено", destination.toString(), copiedBytes, totalBytes)
+                            runOnUiThread { Toast.makeText(this, "Файл сохранён", Toast.LENGTH_LONG).show() }
+                        }
                     } catch (error: Exception) {
-                        response.body?.close()
-                        updateDownload(recordId, "Ошибка")
-                        runOnUiThread { Toast.makeText(this, "Не удалось скачать файл: ${error.message}", Toast.LENGTH_LONG).show() }
+                        runCatching { body.close() }
+                        if (task.cancelled.get()) {
+                            updateDownload(recordId, "Отменено")
+                        } else {
+                            updateDownload(recordId, "Ошибка")
+                            runOnUiThread { Toast.makeText(this, "Не удалось скачать файл: ${error.message}", Toast.LENGTH_LONG).show() }
+                        }
+                    } finally {
+                        if (recordId != null) activeDownloads.remove(recordId, task)
                     }
                 }.start()
             }
@@ -338,8 +358,17 @@ class MainActivity : ComponentActivity() {
         runtime = GeckoRuntime.create(this)
         session = GeckoSession().also { it.open(runtime) }
         setContent { MaterialTheme(colorScheme = darkColorScheme(background = Ink, surface = Glass, primary = Orange)) {
-            DarknesApp(runtime, ::requestDownload, downloadRecords.toList(), ::removeDownload)
+            DarknesApp(runtime, ::requestDownload, downloadRecords.toList(), ::removeDownload, ::cancelDownload)
         } }
+    }
+
+    private fun cancelDownload(id: Long) {
+        val task = activeDownloads[id] ?: return
+        if (task.cancelled.compareAndSet(false, true)) {
+            runCatching { task.body.close() }
+            updateDownload(id, "Отменено")
+            Toast.makeText(this, "Загрузка отменена. Частичный файл может остаться в выбранном месте.", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun requestDownload(response: WebResponse) {
@@ -761,7 +790,7 @@ private fun MaintenanceLockScreen(hour: Int, minute: Int) {
     }
 }
 
-private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit, downloads: List<DownloadRecord>, onRemoveDownload: (Long) -> Unit) {
+private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit, downloads: List<DownloadRecord>, onRemoveDownload: (Long) -> Unit, onCancelDownload: (Long) -> Unit) {
     // Daily maintenance window uses Moscow time regardless of the device's selected timezone.
     var maintenanceClockTick by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -1771,7 +1800,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                 loaded = true
                                 showSearchResults = false
                             }
-                            "Загрузки" -> DownloadsPanel(downloads, onRemoveDownload) { item ->
+                            "Загрузки" -> DownloadsPanel(downloads, onRemoveDownload, onCancelDownload) { item ->
                                 val saved = item.savedUri ?: return@DownloadsPanel
                                 runCatching {
                                     context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(saved), "*/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
@@ -2669,7 +2698,7 @@ private fun SavedPagesPanel(
     }
 }
 @Composable
-private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> Unit, onOpen: (DownloadRecord) -> Unit) {
+private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> Unit, onCancel: (Long) -> Unit, onOpen: (DownloadRecord) -> Unit) {
     var filter by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("Все") }
     val categories = listOf("Все", "Изображения", "Видео", "Аудио", "Документы", "Архивы и приложения", "Другие")
@@ -2755,6 +2784,11 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
                             }
                         }
                         if (completed) IconButton(onClick = { onOpen(item) }) { Icon(Icons.Default.OpenInNew, contentDescription = "Открыть файл", tint = Orange) }
+                        if (item.status == "Скачивается") {
+                            IconButton(onClick = { onCancel(item.id) }) {
+                                Icon(Icons.Default.Close, contentDescription = "Отменить загрузку", tint = Color(0xFFFF8A80))
+                            }
+                        }
                         IconButton(onClick = { onRemove(item.id) }) { Icon(Icons.Default.DeleteOutline, contentDescription = "Удалить запись", tint = Muted, modifier = Modifier.size(18.dp)) }
                     }
                 }
@@ -2762,7 +2796,7 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
         }
     }
     Spacer(Modifier.height(12.dp))
-    Text("Категории определяются по расширению файла. История хранится на устройстве; незавершённые загрузки после перезапуска отмечаются как прерванные.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+    Text("Категории определяются по расширению файла. История хранится на устройстве; незавершённые загрузки после перезапуска отмечаются как прерванные. При отмене частичный файл может остаться в выбранной папке.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
 }
 
 @Composable
