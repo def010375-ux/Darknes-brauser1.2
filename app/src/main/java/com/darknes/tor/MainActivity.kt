@@ -4006,7 +4006,7 @@ private fun TabsPanel(
     previews: List<Bitmap?>, capturePreview: () -> Unit,
     hasRecentlyClosed: Boolean, restoreRecentlyClosed: () -> Unit, done: () -> Unit
 ) {
-    val tabAccent = if (incognito) Violet else Orange
+    val tabAccent = if (incognito) Color(0xFFD5B8FF) else Color(0xFFB58CFF)
     var tabGridColumns by remember { mutableIntStateOf(2) }
     var draggingTabIndex by remember { mutableIntStateOf(-1) }
     var dragPointerRoot by remember { mutableStateOf(Offset.Zero) }
@@ -4030,7 +4030,7 @@ private fun TabsPanel(
     val groupColors = remember { mutableStateMapOf<String, Long>().apply {
         runCatching { val json = org.json.JSONObject(groupColorPrefs.getString("group_colors", "{}") ?: "{}"); json.keys().forEach { key -> put(key, json.optLong(key)) } }
     } }
-    val palette = listOf(0xFF35D6E8L, 0xFF8B7CFFL, 0xFFFFA45BL, 0xFF63D69BL, 0xFFFF6F91L)
+    val palette = listOf(0xFFB58CFFL, 0xFF8D63D2L, 0xFFD5B8FFL, 0xFF7045A8L, 0xFF9B70E0L)
     LaunchedEffect(groupColors.toMap()) { val json = org.json.JSONObject(); groupColors.forEach { (key, value) -> json.put(key, value) }; groupColorPrefs.edit().putString("group_colors", json.toString()).apply() }
     val visibleIndices = remember(titles.size, groups.toList(), pinned, selectedGroup) {
         titles.indices.filter { selectedGroup == "Все" || groups.getOrNull(it) == selectedGroup }
@@ -4039,7 +4039,7 @@ private fun TabsPanel(
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Вкладки", color = Paper, fontSize = 29.sp, fontWeight = FontWeight.Black, letterSpacing = (-.8).sp)
+                Text("ТВОИ ВКЛАДКИ", color = Paper, fontSize = 27.sp, fontWeight = FontWeight.Black, letterSpacing = (-.7).sp)
                 Text("DARKNES  /  ТВОЁ ЦИФРОВОЕ ПРОСТРАНСТВО", color = Color(0xFFBDA9E8), fontSize = 8.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
                 Text("${titles.size} вкладок · ${groups.distinct().size} групп", color = tabAccent, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 5.dp))
             }
@@ -4071,15 +4071,15 @@ private fun TabsPanel(
         }
         Spacer(Modifier.height(14.dp))
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
-            .background(Brush.horizontalGradient(listOf(Color(0xFF211632), Color(0xFF120E1D), Color(0xFF1B1430))))
+            .background(Brush.horizontalGradient(listOf(Color(0xFF2B1C40), Color(0xFF130F1D), Color(0xFF241832))))
             .border(1.dp, Color(0xFF805BB5).copy(alpha = .65f), RoundedCornerShape(18.dp)).padding(5.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             FilterChip(selected = !incognito, onClick = { setIncognito(false) }, label = { Text("Обычные") },
                 modifier = Modifier.weight(1f), colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Orange.copy(alpha = .2f), selectedLabelColor = Paper, labelColor = Muted))
+                    selectedContainerColor = Color(0xFF8D63D2).copy(alpha = .28f), selectedLabelColor = Paper, labelColor = Muted))
             FilterChip(selected = incognito, onClick = { setIncognito(true) }, label = { Text("Секретные") },
                 modifier = Modifier.weight(1f), colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Violet.copy(alpha = .22f), selectedLabelColor = Color(0xFFE4DCFF), labelColor = Muted))
+                    selectedContainerColor = Color(0xFFD5B8FF).copy(alpha = .24f), selectedLabelColor = Color(0xFFEFE5FF), labelColor = Muted))
         }
         Spacer(Modifier.height(12.dp))
         Text("РАБОЧИЕ ПРОСТРАНСТВА", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.25.sp)
@@ -4092,7 +4092,7 @@ private fun TabsPanel(
                 val isWorkspaceActive = selectedGroup == group
                 Column(
                     Modifier.width(150.dp).clip(RoundedCornerShape(20.dp))
-                        .background(Brush.linearGradient(listOf(Color(0xFF281A3C), Color(0xFF100D1B), groupTint.copy(alpha = .13f))))
+                        .background(Brush.linearGradient(listOf(Color(0xFF302044), Color(0xFF120D1C), groupTint.copy(alpha = .18f))))
                         .border(if (isWorkspaceActive) 2.dp else 1.dp, if (isWorkspaceActive) Color(0xFFD3B8FF) else Color(0xFF76549E).copy(alpha = .55f), RoundedCornerShape(20.dp))
                         .clickable { selectedGroup = group; activateWorkspace(group) }
                         .padding(8.dp).animateContentSize()
@@ -4179,7 +4179,7 @@ private fun TabsPanel(
                 },
                 confirmButton = { TextButton(onClick = { saveWorkspace(workspaceGroup, workspaceWallpaperDraft.trim(), workspaceTrackingDraft); workspaceDialogOpen = false }) { Text("Сохранить") } },
                 dismissButton = { TextButton(onClick = { workspaceDialogOpen = false }) { Text("Отмена") } },
-                containerColor = Color(0xFF151D31), titleContentColor = Paper, textContentColor = Paper
+                containerColor = Color(0xFF1A1326), titleContentColor = Paper, textContentColor = Paper
             )
         }
         if (manageGroupsOpen) {
@@ -4209,7 +4209,7 @@ private fun TabsPanel(
                     }
                 },
                 confirmButton = { TextButton(onClick = { manageGroupsOpen = false; editingGroup = null }) { Text("Готово") } },
-                containerColor = Color(0xFF151D31),
+                containerColor = Color(0xFF1A1326),
                 titleContentColor = Paper,
                 textContentColor = Paper
             )
@@ -4218,7 +4218,7 @@ private fun TabsPanel(
         val dragThresholdY = with(LocalDensity.current) { 150.dp.toPx() }
         Spacer(Modifier.height(12.dp))
         if (titles.isEmpty()) {
-            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color(0xFF10182D))
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color(0xFF1A1326))
                 .border(1.dp, Border, RoundedCornerShape(22.dp)).padding(28.dp), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.Tab, contentDescription = null, tint = tabAccent, modifier = Modifier.size(38.dp))
@@ -4228,7 +4228,7 @@ private fun TabsPanel(
                 }
             }
         } else if (visibleIndices.isEmpty()) {
-            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF10182D))
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF1A1326))
                 .border(1.dp, Border, RoundedCornerShape(20.dp)).padding(22.dp), contentAlignment = Alignment.Center) {
                 Text("В этой группе пока нет вкладок", color = Muted, fontSize = 12.sp)
             }
@@ -4243,13 +4243,13 @@ private fun TabsPanel(
                     val pageUrl = urls.getOrNull(index).orEmpty()
                     val host = runCatching { java.net.URI(pageUrl).host.orEmpty().removePrefix("www.") }.getOrDefault("")
                     val cardShape = RoundedCornerShape(21.dp)
-                    val cardColors = if (incognito) listOf(Color(0xFF30204F), Color(0xFF120D20)) else listOf(Color(0xFF28183E), Color(0xFF100D1B))
+                    val cardColors = if (incognito) listOf(Color(0xFF382451), Color(0xFF160F24)) else listOf(Color(0xFF302044), Color(0xFF130F1D))
                     var dragOffset by remember(index) { mutableStateOf(Offset.Zero) }
                     val dragScale by animateFloatAsState(if (dragOffset != Offset.Zero) 1.035f else 1f, label = "tab-drag-scale")
                     var groupMenuExpanded by remember(index) { mutableStateOf(false) }
                     var cardOrigin by remember(index) { mutableStateOf(Offset.Zero) }
                     val previewBitmap = previews.getOrNull(index)
-                    Box(Modifier.fillMaxWidth().aspectRatio(if (tabGridColumns == 3) .66f else .76f).graphicsLayer {
+                    Box(Modifier.fillMaxWidth().aspectRatio(if (tabGridColumns == 3) .68f else .80f).graphicsLayer {
                             translationX = dragOffset.x
                             translationY = dragOffset.y
                             scaleX = dragScale
@@ -4286,7 +4286,7 @@ private fun TabsPanel(
                         .clickable { selectTab(index) }.animateContentSize().padding(13.dp)) {
                         Column(Modifier.fillMaxSize()) {
                             Box(
-                                Modifier.fillMaxWidth().height(if (tabGridColumns == 3) 76.dp else 94.dp).clip(RoundedCornerShape(14.dp))
+                                Modifier.fillMaxWidth().height(if (tabGridColumns == 3) 86.dp else 112.dp).clip(RoundedCornerShape(14.dp))
                                     .background(Brush.linearGradient(cardColors))
                             ) {
                                 if (previewBitmap != null && !incognito) {
@@ -4302,7 +4302,7 @@ private fun TabsPanel(
                                 Column(Modifier.fillMaxSize().padding(9.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Box(Modifier.weight(1f).height(17.dp).clip(RoundedCornerShape(6.dp))
-                                            .background(Color(0x664C3470)).padding(horizontal = 6.dp), contentAlignment = Alignment.CenterStart) {
+                                            .background(Color(0xAA241735)).padding(horizontal = 6.dp), contentAlignment = Alignment.CenterStart) {
                                             Text(host.ifBlank { "darknes://start" }, color = Paper.copy(alpha = .72f), fontSize = 7.sp, maxLines = 1)
                                         }
                                         Spacer(Modifier.width(5.dp))
@@ -4324,7 +4324,7 @@ private fun TabsPanel(
                             }
                             Spacer(Modifier.height(9.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(tabAccent.copy(alpha = .17f))
+                                Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(Brush.linearGradient(listOf(tabAccent.copy(alpha = .28f), Color(0xFF7045A8).copy(alpha = .16f))))
                                     .border(1.dp, tabAccent.copy(alpha = .28f), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
                                     Icon(if (incognito) Icons.Default.VisibilityOff else Icons.Default.Public, contentDescription = null, tint = tabAccent, modifier = Modifier.size(19.dp))
                                 }
@@ -4346,7 +4346,7 @@ private fun TabsPanel(
                                         tint = if (pinned.getOrNull(index) == true) tabAccent else Muted,
                                         modifier = Modifier.size(15.dp))
                                 }
-                                Row(Modifier.weight(1f).clip(RoundedCornerShape(9.dp)).background(Color(0x443D285B))
+                                Row(Modifier.weight(1f).clip(RoundedCornerShape(9.dp)).background(Color(0x66332149))
                                     .clickable { groupMenuExpanded = true }.padding(horizontal = 8.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.FolderOpen, contentDescription = null, tint = tabAccent, modifier = Modifier.size(12.dp))
                                     Spacer(Modifier.width(5.dp))
