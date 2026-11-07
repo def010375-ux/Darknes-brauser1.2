@@ -2428,7 +2428,7 @@ private fun TabsPanel(
                     modifier = Modifier.onGloballyPositioned { groupDropBounds[group] = it.boundsInRoot() },
                     label = { Text(group, maxLines = 1) },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = Color(groupColors[group] ?: tabAccent.value.toLong()).copy(alpha = .24f),
+                        selectedContainerColor = Color(groupColors[group] ?: palette[groupNames.indexOf(group).coerceAtLeast(0) % palette.size]).copy(alpha = .24f),
                         selectedLabelColor = Paper,
                         labelColor = Muted
                     )
