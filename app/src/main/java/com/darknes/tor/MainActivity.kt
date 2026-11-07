@@ -2418,8 +2418,33 @@ private fun TabsPanel(
                     val host = runCatching { java.net.URI(pageUrl).host.orEmpty().removePrefix("www.") }.getOrDefault("")
                     val cardShape = RoundedCornerShape(21.dp)
                     val cardColors = if (incognito) listOf(Color(0xFF29245A), Color(0xFF11172D)) else listOf(Color(0xFF17334A), Color(0xFF0B1428))
-                    Box(Modifier.fillMaxWidth().aspectRatio(.76f).clip(cardShape).background(Brush.linearGradient(cardColors))
+                    var dragOffset by remember(index) { mutableStateOf(Offset.Zero) }
+                    val dragScale by animateFloatAsState(if (dragOffset != Offset.Zero) 1.035f else 1f, label = "tab-drag-scale")
+                    Box(Modifier.fillMaxWidth().aspectRatio(.76f).graphicsLayer {
+                            translationX = dragOffset.x
+                            translationY = dragOffset.y
+                            scaleX = dragScale
+                            scaleY = dragScale
+                        }.clip(cardShape).background(Brush.linearGradient(cardColors))
                         .border(if (isActive) 2.dp else 1.dp, if (isActive) tabAccent else Border, cardShape)
+                        .pointerInput(index, visibleIndices) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = { dragOffset = Offset.Zero },
+                                onDragEnd = {
+                                    val horizontalStep = if (dragOffset.x > 90.dp.toPx()) 1 else if (dragOffset.x < -90.dp.toPx()) -1 else 0
+                                    val verticalStep = if (dragOffset.y > 150.dp.toPx()) 2 else if (dragOffset.y < -150.dp.toPx()) -2 else 0
+                                    val targetPosition = (visiblePosition + horizontalStep + verticalStep).coerceIn(0, visibleIndices.lastIndex)
+                                    val targetIndex = visibleIndices.getOrNull(targetPosition)
+                                    dragOffset = Offset.Zero
+                                    if (targetIndex != null && targetIndex != index) moveTab(index, targetIndex)
+                                },
+                                onDragCancel = { dragOffset = Offset.Zero },
+                                onDrag = { change, amount ->
+                                    change.consume()
+                                    dragOffset += amount
+                                }
+                            )
+                        }
                         .clickable { selectTab(index) }.animateContentSize().padding(13.dp)) {
                         Column(Modifier.fillMaxSize()) {
                             Box(
@@ -2494,7 +2519,7 @@ private fun TabsPanel(
                 }
             }
         }
-        Text("Фильтруй по группам, меняй группу через плашку и сортируй вкладки стрелками. Предпросмотр показывает адрес и структуру страницы.", color = Muted,
+        Text("Удерживай карточку и перетащи её: влево/вправо — на соседнюю позицию, вверх/вниз — на строку. Группу можно сменить через нижнюю плашку.", color = Muted,
             fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 7.dp))
     }
 }
