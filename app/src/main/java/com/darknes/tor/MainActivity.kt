@@ -2186,10 +2186,9 @@ private fun HomeSearchBar(
         .filter { it.title.contains(value, true) || it.url.contains(value, true) }
         .distinctBy { it.url }.take(4)
     fun submitSearch() {
-        if (value.isNotBlank()) {
-            recentQueries = (listOf(value.trim()) + recentQueries.filterNot { it.equals(value.trim(), true) }).take(6)
-            searchPrefs.edit().putString("recent_queries", JSONArray(recentQueries).toString()).apply()
-        }
+        if (value.isBlank()) return
+        recentQueries = (listOf(value.trim()) + recentQueries.filterNot { it.equals(value.trim(), true) }).take(6)
+        searchPrefs.edit().putString("recent_queries", JSONArray(recentQueries).toString()).apply()
         if (selectedCategory == "Все") onSearch()
         else onCategorySearch(value.trim(), selectedCategory)
         keyboard?.hide()
