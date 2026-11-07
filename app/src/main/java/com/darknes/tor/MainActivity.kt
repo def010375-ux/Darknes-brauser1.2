@@ -120,7 +120,7 @@ private fun parseThemePacks(raw: String): List<ThemePack> = runCatching {
     }
 }.getOrDefault(emptyList())
 
-private data class DownloadRecord(val id: Long, val name: String, val status: String, val savedUri: String? = null, val downloadedBytes: Long = 0L, val totalBytes: Long = 0L, val createdAt: Long = id)
+private data class DownloadRecord(val id: Long, val name: String, val status: String, val savedUri: String? = null, val downloadedBytes: Long = 0L, val totalBytes: Long = 0L, val createdAt: Long = id, val systemDownloadId: Long = 0L)
 
 private fun downloadCategory(name: String): String {
     val ext = name.substringAfterLast('.', "").lowercase()
@@ -150,7 +150,7 @@ private fun readDownloadRecords(raw: String?): List<DownloadRecord> = runCatchin
         if (id <= 0L || name.isBlank()) return@mapNotNull null
         val storedStatus = item.optString("status", "Сохранено")
         val status = if (storedStatus == "Скачивается" || storedStatus == "Ожидает сохранения") "Прервано" else storedStatus
-        DownloadRecord(id, name, status, item.optString("savedUri").takeIf { it.isNotBlank() && it != "null" }, item.optLong("downloadedBytes", 0L).coerceAtLeast(0L), item.optLong("totalBytes", 0L).coerceAtLeast(0L), item.optLong("createdAt", id).takeIf { it > 0L } ?: id)
+        DownloadRecord(id, name, status, item.optString("savedUri").takeIf { it.isNotBlank() && it != "null" }, item.optLong("downloadedBytes", 0L).coerceAtLeast(0L), item.optLong("totalBytes", 0L).coerceAtLeast(0L), item.optLong("createdAt", id).takeIf { it > 0L } ?: id, item.optLong("systemDownloadId", 0L).coerceAtLeast(0L))
     }.sortedByDescending { it.id }.take(100)
 }.getOrDefault(emptyList())
 
@@ -158,7 +158,7 @@ private fun encodeDownloadRecords(records: List<DownloadRecord>): String = JSONA
     records.take(100).forEach { item ->
         put(org.json.JSONObject().put("id", item.id).put("name", item.name)
             .put("status", item.status).put("savedUri", item.savedUri ?: "")
-            .put("downloadedBytes", item.downloadedBytes).put("totalBytes", item.totalBytes).put("createdAt", item.createdAt))
+            .put("downloadedBytes", item.downloadedBytes).put("totalBytes", item.totalBytes).put("createdAt", item.createdAt).put("systemDownloadId", item.systemDownloadId))
     }
 }.toString()
 
@@ -274,16 +274,78 @@ class MainActivity : ComponentActivity() {
     private fun removeDownload(id: Long) {
         runOnUiThread {
             val record = downloadRecords.firstOrNull { it.id == id } ?: return@runOnUiThread
-            val saved = record.savedUri
-            if (saved != null) {
-                val deleted = runCatching { contentResolver.delete(Uri.parse(saved), null, null) }.getOrDefault(0)
-                if (deleted <= 0) {
-                    Toast.makeText(this, "Не удалось удалить файл. Запись сохранена.", Toast.LENGTH_LONG).show()
+            if (record.systemDownloadId > 0L) {
+                val removed = runCatching {
+                    (getSystemService(android.content.Context.DOWNLOAD_SERVICE) as android.app.DownloadManager).remove(record.systemDownloadId)
+                }.getOrDefault(0)
+                if (removed <= 0) {
+                    Toast.makeText(this, "Не удалось удалить системную загрузку. Запись сохранена.", Toast.LENGTH_LONG).show()
                     return@runOnUiThread
+                }
+            } else {
+                val saved = record.savedUri
+                if (saved != null) {
+                    val deleted = runCatching { contentResolver.delete(Uri.parse(saved), null, null) }.getOrDefault(0)
+                    if (deleted <= 0) {
+                        Toast.makeText(this, "Не удалось удалить файл. Запись сохранена.", Toast.LENGTH_LONG).show()
+                        return@runOnUiThread
+                    }
                 }
             }
             downloadRecords.removeAll { it.id == id }
             persistDownloads()
+        }
+    }
+
+    private fun enqueueSystemImageDownload(uri: Uri, fileName: String) {
+        runCatching {
+            val manager = getSystemService(android.content.Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+            val request = android.app.DownloadManager.Request(uri)
+                .setTitle(fileName)
+                .setDescription("Изображение из Darknes Tor")
+                .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+            val mime = java.net.URLConnection.guessContentTypeFromName(fileName)
+            if (!mime.isNullOrBlank()) request.setMimeType(mime)
+            val systemId = manager.enqueue(request)
+            val recordId = System.currentTimeMillis()
+            downloadRecords.add(0, DownloadRecord(recordId, fileName, "В очереди", createdAt = recordId, systemDownloadId = systemId))
+            persistDownloads()
+            Toast.makeText(this, "Изображение добавлено в загрузки", Toast.LENGTH_SHORT).show()
+        }.onFailure {
+            Toast.makeText(this, "Не удалось начать загрузку изображения", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun refreshSystemDownloads() {
+        val manager = getSystemService(android.content.Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+        downloadRecords.filter { it.systemDownloadId > 0L }.forEach { record ->
+            val query = android.app.DownloadManager.Query().setFilterById(record.systemDownloadId)
+            runCatching {
+                manager.query(query)?.use { cursor ->
+                    if (!cursor.moveToFirst()) {
+                        updateDownload(record.id, "Файл недоступен")
+                    } else {
+                        val statusIndex = cursor.getColumnIndex(android.app.DownloadManager.COLUMN_STATUS)
+                        val bytesIndex = cursor.getColumnIndex(android.app.DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
+                        val totalIndex = cursor.getColumnIndex(android.app.DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
+                        val uriIndex = cursor.getColumnIndex(android.app.DownloadManager.COLUMN_LOCAL_URI)
+                        val statusCode = if (statusIndex >= 0) cursor.getInt(statusIndex) else -1
+                        val status = when (statusCode) {
+                            android.app.DownloadManager.STATUS_PENDING -> "В очереди"
+                            android.app.DownloadManager.STATUS_RUNNING -> "Скачивается"
+                            android.app.DownloadManager.STATUS_PAUSED -> "Приостановлено"
+                            android.app.DownloadManager.STATUS_SUCCESSFUL -> "Сохранено"
+                            android.app.DownloadManager.STATUS_FAILED -> "Ошибка загрузки"
+                            else -> "Статус неизвестен"
+                        }
+                        val bytes = if (bytesIndex >= 0) cursor.getLong(bytesIndex).coerceAtLeast(0L) else 0L
+                        val total = if (totalIndex >= 0) cursor.getLong(totalIndex).coerceAtLeast(0L) else 0L
+                        val localUri = if (uriIndex >= 0) cursor.getString(uriIndex) else null
+                        updateDownload(record.id, status, localUri, bytes, total)
+                    }
+                }
+            }
         }
     }
 
@@ -392,7 +454,7 @@ class MainActivity : ComponentActivity() {
         runtime = GeckoRuntime.create(this)
         session = GeckoSession().also { it.open(runtime) }
         setContent { MaterialTheme(colorScheme = darkColorScheme(background = Ink, surface = Glass, primary = Orange)) {
-            DarknesApp(runtime, ::requestDownload, downloadRecords.toList(), ::removeDownload, ::cancelDownload)
+            DarknesApp(runtime, ::requestDownload, downloadRecords.toList(), ::removeDownload, ::cancelDownload, ::enqueueSystemImageDownload)
         } }
     }
 
@@ -833,7 +895,7 @@ private fun MaintenanceLockScreen(hour: Int, minute: Int) {
     }
 }
 
-private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit, downloads: List<DownloadRecord>, onRemoveDownload: (Long) -> Unit, onCancelDownload: (Long) -> Unit) {
+private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse, onSystemImageDownload: (Uri, String) -> Unit) -> Unit, downloads: List<DownloadRecord>, onRemoveDownload: (Long) -> Unit, onCancelDownload: (Long) -> Unit) {
     // Daily maintenance window uses Moscow time regardless of the device's selected timezone.
     var maintenanceClockTick by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -2111,16 +2173,8 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                             ?: "image"
                                         val fileName = "Darknes_" + System.currentTimeMillis() + "_" + safeName
                                         runCatching {
-                                            val downloadManager = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
-                                            val request = android.app.DownloadManager.Request(parsedImage)
-                                                .setTitle(fileName)
-                                                .setDescription("Изображение из Darknes Tor")
-                                                .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                                                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
-                                            val mime = java.net.URLConnection.guessContentTypeFromName(safeName)
-                                            if (!mime.isNullOrBlank()) request.setMimeType(mime)
-                                            downloadManager.enqueue(request)
-                                            toast = "Изображение отправлено в загрузки"
+                                            onSystemImageDownload(parsedImage, fileName)
+                                            toast = "Изображение добавлено в менеджер загрузок"
                                         }.onFailure {
                                             toast = "Не удалось начать загрузку изображения"
                                         }
