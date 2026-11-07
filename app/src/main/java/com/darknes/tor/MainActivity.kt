@@ -548,6 +548,20 @@ private fun BlackHoleScene(
             val ry = unit * .235f
             val horizon = unit * .112f
 
+            // Deterministic deep-space star field: stable positions avoid visual flicker.
+            for (i in 0 until 54) {
+                val seedX = ((i * 73 + 19) % 101) / 101f
+                val seedY = ((i * 47 + 31) % 103) / 103f
+                val starX = size.width * seedX
+                val starY = size.height * seedY
+                val twinkle = .24f + .20f * kotlin.math.sin((rotation * .035f + i * 1.7f).toDouble()).toFloat().let { (it + 1f) * .5f }
+                drawCircle(
+                    color = Color(0xFFDCEBFF).copy(alpha = twinkle),
+                    radius = unit * if (i % 11 == 0) .0042f else .0021f,
+                    center = Offset(starX, starY)
+                )
+            }
+
             // Volumetric gravitational glow behind the accretion disk.
             drawCircle(
                 brush = Brush.radialGradient(
@@ -586,7 +600,7 @@ private fun BlackHoleScene(
                 // 3D particle field: orbital radius contracts toward the event horizon;
                 // perspective depth changes each particle's apparent size and brightness.
                 if (showParticles) {
-                    val particleCount = 132
+                    // Scale particle density with the rendered scene size to protect slower devices.\n                    val particleCount = if (unit < 300f) 76 else if (unit < 430f) 104 else 132
                     for (i in 0 until particleCount) {
                         val seed = i / particleCount.toFloat()
                         val cycle = (seed + infall) % 1f
@@ -625,6 +639,20 @@ private fun BlackHoleScene(
                     )
                 }
             }
+
+            // Gravitational lensing: two soft concentric rings frame the event horizon.
+            drawCircle(
+                color = Color(0xFF9CCBFF).copy(alpha = .13f),
+                radius = horizon * 1.42f,
+                center = Offset(cx, cy),
+                style = Stroke(width = unit * .012f)
+            )
+            drawCircle(
+                color = accent.copy(alpha = .20f),
+                radius = horizon * 1.68f,
+                center = Offset(cx, cy),
+                style = Stroke(width = unit * .006f)
+            )
 
             // Event horizon: a dark spherical core with a thin gravitational-lensing rim.
             drawCircle(
@@ -681,7 +709,6 @@ private fun BlackHoleScene(
     }
 }
 
-@Composable
 @Composable
 private fun MaintenanceLockScreen(hour: Int, minute: Int) {
     BackHandler(enabled = true) { }
