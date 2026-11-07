@@ -672,6 +672,12 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             addAll(restoredTabs.indices.map { stored.getOrNull(it) ?: false })
         }
     }
+    val workspaceWallpapers = remember(tabsPrefs) { mutableStateMapOf<String, String>().apply {
+        runCatching { val json = org.json.JSONObject(tabsPrefs.getString("workspace_wallpapers", "{}") ?: "{}"); json.keys().forEach { key -> put(key, json.optString(key)) } }
+    } }
+    val workspaceTracking = remember(tabsPrefs) { mutableStateMapOf<String, Boolean>().apply {
+        runCatching { val json = org.json.JSONObject(tabsPrefs.getString("workspace_tracking", "{}") ?: "{}"); json.keys().forEach { key -> put(key, json.optBoolean(key, true)) } }
+    } }
     val groupNames = remember(tabsPrefs) {
         val stored = runCatching { val array = JSONArray(tabsPrefs.getString("group_names", "[]") ?: "[]"); (0 until array.length()).map { array.optString(it) }.filter { it.isNotBlank() } }.getOrDefault(emptyList())
         mutableStateListOf<String>().apply { addAll((stored + tabGroups.toList() + "Основная").distinct()) }
@@ -907,6 +913,17 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     LaunchedEffect(groupNames.toList()) {
         tabsPrefs.edit().putString("group_names", JSONArray(groupNames.toList()).toString()).apply()
     }
+    LaunchedEffect(workspaceWallpapers.toMap()) {
+        val json = org.json.JSONObject(); workspaceWallpapers.forEach { (key, value) -> json.put(key, value) }
+        tabsPrefs.edit().putString("workspace_wallpapers", json.toString()).apply()
+    }
+    LaunchedEffect(workspaceTracking.toMap()) {
+        val json = org.json.JSONObject(); workspaceTracking.forEach { (key, value) -> json.put(key, value) }
+        tabsPrefs.edit().putString("workspace_tracking", json.toString()).apply()
+    }
+    val activeWorkspace = tabGroups.getOrNull(activeTab).orEmpty().ifBlank { "Основная" }
+    val effectiveTrackers = workspaceTracking[activeWorkspace] ?: trackers
+    val effectiveWallpaper = workspaceWallpapers[activeWorkspace]?.takeIf { it.isNotBlank() } ?: wallpaperUri
     LaunchedEffect(tabTitles.toList(), tabUrls.toList(), tabGroups.toList(), activeTab, incognito, privateModeUsed) {
         // Once private browsing has been used in this app session, do not overwrite
         // the last normal-tab snapshot with URLs that may have been opened privately.
@@ -945,9 +962,9 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         "cyan" -> Orange
         else -> if (incognito) Violet else Orange
     }
-    LaunchedEffect(trackers, sessions.size) {
-        sessions.forEach { it.settings.setUseTrackingProtection(trackers) }
-        splitSession.settings.setUseTrackingProtection(trackers)
+    LaunchedEffect(effectiveTrackers, sessions.size) {
+        sessions.forEach { it.settings.setUseTrackingProtection(effectiveTrackers) }
+        splitSession.settings.setUseTrackingProtection(effectiveTrackers)
     }
     LaunchedEffect(desktopMode, sessions.size) {
         sessions.forEach { browserSession ->
@@ -1224,7 +1241,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 engine = engine,
                 onEngineChange = { engine = it },
                 bookmarks = bookmarks.toList(),
-                wallpaperUri = wallpaperUri,
+                wallpaperUri = effectiveWallpaper,
                 homeLayout = homeLayout,
                 showBranding = showHomeBranding,
                 showShortcuts = showHomeShortcuts,
@@ -1340,7 +1357,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                 onOpen = { url -> session.loadUri(url); query = url; loaded = true; showSearchResults = false; panel = "" },
                                 onRemove = { page -> history.remove(page) },
                                 onClear = { history.clear() })
-                            "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), tabGroups.toList(), groupNames.toList(), tabPinned.toList(), activeTab, incognito, { value -> if (value) { privateModeUsed = true; tabPreviews.clear() }; incognito = value }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { index -> tabGroups[index] = when (tabGroups[index]) { "Основная" -> "Работа"; "Работа" -> "Личное"; else -> "Основная" } }, { from, to -> moveTab(from, to) }, { index, group -> if (index in tabGroups.indices) tabGroups[index] = group }, { index -> if (!incognito && index in tabPinned.indices) tabPinned[index] = !tabPinned[index] }, { name -> if (name.isNotBlank() && name !in groupNames) groupNames.add(name) }, { old, new -> if (old in groupNames && new.isNotBlank() && new !in groupNames) { groupNames[groupNames.indexOf(old)] = new; tabGroups.indices.forEach { if (tabGroups[it] == old) tabGroups[it] = new } } }, { name -> if (name != "Основная" && name in groupNames) { tabGroups.indices.forEach { if (tabGroups[it] == name) tabGroups[it] = "Основная" }; groupNames.remove(name) } }, sessions.map { tabPreviews[it] }, { captureActiveTabPreview() }, recentlyClosedTab != null && !incognito, { restoreRecentlyClosedTab() }, { panel = "" })
+                            "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), tabGroups.toList(), groupNames.toList(), tabPinned.toList(), workspaceWallpapers.toMap(), workspaceTracking.toMap(), activeTab, incognito, { value -> if (value) { privateModeUsed = true; tabPreviews.clear() }; incognito = value }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { index -> tabGroups[index] = when (tabGroups[index]) { "Основная" -> "Работа"; "Работа" -> "Личное"; else -> "Основная" } }, { from, to -> moveTab(from, to) }, { index, group -> if (index in tabGroups.indices) tabGroups[index] = group }, { index -> if (!incognito && index in tabPinned.indices) tabPinned[index] = !tabPinned[index] }, { group, image, protection -> workspaceWallpapers[group] = image; workspaceTracking[group] = protection }, { name -> if (name.isNotBlank() && name !in groupNames) groupNames.add(name) }, { old, new -> if (old in groupNames && new.isNotBlank() && new !in groupNames) { groupNames[groupNames.indexOf(old)] = new; tabGroups.indices.forEach { if (tabGroups[it] == old) tabGroups[it] = new } } }, { name -> if (name != "Основная" && name in groupNames) { tabGroups.indices.forEach { if (tabGroups[it] == name) tabGroups[it] = "Основная" }; groupNames.remove(name) } }, sessions.map { tabPreviews[it] }, { captureActiveTabPreview() }, recentlyClosedTab != null && !incognito, { restoreRecentlyClosedTab() }, { panel = "" })
                         }
                         }
                     }
@@ -2366,10 +2383,10 @@ private fun OfflinePageViewerPanel(page: OfflinePage?, onBack: () -> Unit) {
 
 @Composable
 private fun TabsPanel(
-    titles: List<String>, urls: List<String>, groups: List<String>, groupNames: List<String>, pinned: List<Boolean>, activeIndex: Int,
+    titles: List<String>, urls: List<String>, groups: List<String>, groupNames: List<String>, pinned: List<Boolean>, workspaceWallpapers: Map<String, String>, workspaceTracking: Map<String, Boolean>, activeIndex: Int,
     incognito: Boolean, setIncognito: (Boolean) -> Unit, addTab: () -> Unit,
     closeTab: (Int) -> Unit, selectTab: (Int) -> Unit, cycleGroup: (Int) -> Unit, moveTab: (Int, Int) -> Unit,
-    setTabGroup: (Int, String) -> Unit, togglePinned: (Int) -> Unit, createGroup: (String) -> Unit, renameGroup: (String, String) -> Unit, deleteGroup: (String) -> Unit,
+    setTabGroup: (Int, String) -> Unit, togglePinned: (Int) -> Unit, saveWorkspace: (String, String, Boolean) -> Unit, createGroup: (String) -> Unit, renameGroup: (String, String) -> Unit, deleteGroup: (String) -> Unit,
     previews: List<Bitmap?>, capturePreview: () -> Unit,
     hasRecentlyClosed: Boolean, restoreRecentlyClosed: () -> Unit, done: () -> Unit
 ) {
@@ -2380,6 +2397,14 @@ private fun TabsPanel(
     var selectedGroup by remember { mutableStateOf("Все") }
     val availableGroups = remember(groups.toList(), groupNames) { listOf("Все") + (groupNames + groups).filter { it.isNotBlank() }.distinct() }
     var manageGroupsOpen by remember { mutableStateOf(false) }
+    var workspaceDialogOpen by remember { mutableStateOf(false) }
+    var workspaceGroup by remember { mutableStateOf(groupNames.firstOrNull() ?: "Основная") }
+    var workspaceWallpaperDraft by remember { mutableStateOf("") }
+    var workspaceTrackingDraft by remember { mutableStateOf(true) }
+    LaunchedEffect(workspaceGroup, workspaceWallpapers, workspaceTracking) {
+        workspaceWallpaperDraft = workspaceWallpapers[workspaceGroup].orEmpty()
+        workspaceTrackingDraft = workspaceTracking[workspaceGroup] ?: true
+    }
     var newGroupName by remember { mutableStateOf("") }
     var editingGroup by remember { mutableStateOf<String?>(null) }
     var editingGroupName by remember { mutableStateOf("") }
@@ -2413,6 +2438,9 @@ private fun TabsPanel(
                     Spacer(Modifier.width(4.dp))
                     Text("Вернуть", color = tabAccent, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
                 }
+            }
+            IconButton(onClick = { workspaceGroup = groups.getOrNull(activeIndex) ?: groupNames.firstOrNull() ?: "Основная"; workspaceDialogOpen = true }) {
+                Icon(Icons.Default.Tune, contentDescription = "Настройки рабочего пространства", tint = tabAccent)
             }
             IconButton(onClick = { manageGroupsOpen = true }) { Icon(Icons.Default.FolderSpecial, contentDescription = "Управление группами", tint = tabAccent) }
             if (!incognito) IconButton(onClick = capturePreview) { Icon(Icons.Default.PhotoCamera, contentDescription = "Снять миниатюру текущей страницы", tint = tabAccent) }
@@ -2450,6 +2478,36 @@ private fun TabsPanel(
                     )
                 )
             }
+        }
+        if (workspaceDialogOpen) {
+            AlertDialog(
+                onDismissRequest = { workspaceDialogOpen = false },
+                title = { Text("Рабочее пространство", color = Paper) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Профиль хранится отдельно для каждой группы.", color = Muted, fontSize = 11.sp)
+                        var groupMenu by remember { mutableStateOf(false) }
+                        Box {
+                            OutlinedButton(onClick = { groupMenu = true }) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(7.dp)); Text(workspaceGroup) }
+                            DropdownMenu(expanded = groupMenu, onDismissRequest = { groupMenu = false }) {
+                                groupNames.forEach { name -> DropdownMenuItem(text = { Text(name) }, onClick = { workspaceGroup = name; groupMenu = false }) }
+                            }
+                        }
+                        OutlinedTextField(value = workspaceWallpaperDraft, onValueChange = { workspaceWallpaperDraft = it.take(500) },
+                            modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("URI обоев изображения") })
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Защита от отслеживания", color = Paper, fontWeight = FontWeight.SemiBold)
+                                Text("Настройка защиты GeckoView для группы", color = Muted, fontSize = 10.sp)
+                            }
+                            Switch(checked = workspaceTrackingDraft, onCheckedChange = { workspaceTrackingDraft = it })
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { saveWorkspace(workspaceGroup, workspaceWallpaperDraft.trim(), workspaceTrackingDraft); workspaceDialogOpen = false }) { Text("Сохранить") } },
+                dismissButton = { TextButton(onClick = { workspaceDialogOpen = false }) { Text("Отмена") } },
+                containerColor = Color(0xFF151D31), titleContentColor = Paper, textContentColor = Paper
+            )
         }
         if (manageGroupsOpen) {
             AlertDialog(
