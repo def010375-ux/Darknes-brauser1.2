@@ -1066,6 +1066,36 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     fun runSearch(raw: String) {
         val text = raw.trim()
         if (text.isEmpty()) return
+        if (text.startsWith("!")) {
+            val command = text.substringBefore(" ").lowercase()
+            val commands = mapOf(
+                "!tabs" to "Вкладки", "!settings" to "Настройки",
+                "!menu" to "Меню", "!security" to "Безопасность",
+                "!reader" to "Чтение", "!offline" to "Офлайн-страницы",
+                "!ai" to "ИИ-чат"
+            )
+            val target = commands[command]
+            if (target != null) {
+                panel = target
+                showSearchResults = false
+                loaded = false
+                toast = "Команда выполнена: $target"
+                return
+            }
+            if (command == "!history" || command == "!bookmarks") {
+                panel = "Меню"
+                showSearchResults = false
+                loaded = false
+                toast = if (command == "!history") "Открой раздел «История» в меню" else "Открой раздел «Закладки» в меню"
+                return
+            }
+            if (command == "!help") {
+                toast = "Команды: !tabs, !history, !bookmarks, !settings, !security, !reader, !offline, !ai, !menu"
+                return
+            }
+            toast = "Неизвестная команда. Введи !help"
+            return
+        }
         if (text.startsWith("https://") || text.startsWith("http://") || (text.contains(".") && !text.contains(" "))) {
             showSearchResults = false
             loaded = true
@@ -1315,6 +1345,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 engine = engine,
                 onEngineChange = { engine = it },
                 bookmarks = bookmarks.toList(),
+                suggestionPages = (bookmarks.toList() + history.toList()).distinctBy { it.url }.take(30),
                 wallpaperUri = effectiveWallpaper,
                 homeLayout = homeLayout,
                 showBranding = showHomeBranding,
@@ -1658,6 +1689,7 @@ private fun HomeScreen(
     engine: String,
     onEngineChange: (String) -> Unit,
     bookmarks: List<SavedPage>,
+    suggestionPages: List<SavedPage>,
     wallpaperUri: String,
     homeLayout: String,
     showBranding: Boolean,
@@ -1740,6 +1772,7 @@ private fun HomeScreen(
             engine = engine,
             onEngineChange = onEngineChange,
             accent = accent,
+            suggestionPages = suggestionPages,
             onSearch = onSearch
         )
         if (showShortcuts) {
@@ -1814,6 +1847,7 @@ private fun HomeSearchBar(
     engine: String,
     onEngineChange: (String) -> Unit,
     accent: Color,
+    suggestionPages: List<SavedPage>,
     onSearch: () -> Unit
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
@@ -1827,6 +1861,9 @@ private fun HomeSearchBar(
         }.getOrDefault(emptyList()))
     }
     val matchingSuggestions = recentQueries.filter { it.contains(value, ignoreCase = true) }.take(4)
+    val matchingPages = if (value.isBlank()) emptyList() else suggestionPages
+        .filter { it.title.contains(value, true) || it.url.contains(value, true) }
+        .distinctBy { it.url }.take(4)
     fun submitSearch() {
         if (value.isNotBlank()) {
             recentQueries = (listOf(value.trim()) + recentQueries.filterNot { it.equals(value.trim(), true) }).take(6)
@@ -1908,7 +1945,7 @@ private fun HomeSearchBar(
                 }
             }
         }
-        AnimatedVisibility(visible = value.isNotBlank() && matchingSuggestions.isNotEmpty(),
+        AnimatedVisibility(visible = value.isNotBlank() && (matchingSuggestions.isNotEmpty() || matchingPages.isNotEmpty()),
             enter = fadeIn(tween(140)) + expandVertically(tween(180)),
             exit = fadeOut(tween(100)) + shrinkVertically(tween(120))) {
             Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
@@ -1920,6 +1957,22 @@ private fun HomeSearchBar(
                         Icon(Icons.Default.History, null, tint = Muted, modifier = Modifier.size(15.dp))
                         Spacer(Modifier.width(8.dp))
                         Text(suggestion, color = Paper, fontSize = 11.sp, maxLines = 1)
+                    }
+                }
+                if (matchingPages.isNotEmpty()) {
+                    Spacer(Modifier.height(5.dp))
+                    Text("ЗАКЛАДКИ И ИСТОРИЯ", color = Muted, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    matchingPages.forEach { page ->
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                            .clickable { onValueChange(page.url) }
+                            .padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Bookmark, null, tint = accent, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(page.title.ifBlank { page.url }, color = Paper, fontSize = 11.sp, maxLines = 1)
+                                Text(page.url, color = Muted, fontSize = 9.sp, maxLines = 1)
+                            }
+                        }
                     }
                 }
             }
