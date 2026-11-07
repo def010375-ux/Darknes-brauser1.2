@@ -1647,7 +1647,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             ) {
                 Box(Modifier.fillMaxSize().background(Color(0x99000000)).clickable { panel = "" }, contentAlignment = Alignment.BottomCenter) {
                     Column(
-                        Modifier.fillMaxWidth().fillMaxHeight(if (panel == "Вкладки" || panel == "Меню" || panel == "Безопасность" || panel == "Чтение") .92f else .78f)
+                        Modifier.fillMaxWidth().fillMaxHeight(if (panel == "Вкладки" || panel == "Меню" || panel == "Безопасность" || panel == "Чтение" || panel == "Darknes Studio") .92f else .78f)
                             .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
                             .background(Glass).border(1.dp, Border, RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
                             .clickable(enabled = false) {}.padding(20.dp)
@@ -1697,6 +1697,14 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                     else -> action
                                 }
                             }
+                            "Darknes Studio" -> DarknesStudioPanel(
+                                accent = accent, accentChoice = accentChoice, onAccentChange = { accentChoice = it },
+                                incognitoAccentChoice = incognitoAccentChoice, onIncognitoAccentChange = { incognitoAccentChoice = it },
+                                blur = blur, onBlurChange = { blur = it }, homeLayout = homeLayout, onHomeLayoutChange = { homeLayout = it },
+                                animations = animations, onAnimationsChange = { animations = it },
+                                onChooseWallpaper = { wallpaperPicker.launch(arrayOf("image/*")) },
+                                onResetWallpaper = { wallpaperUri = "" }, wallpaperSelected = wallpaperUri.isNotBlank()
+                            )
                             "Настройки" -> SettingsPanel(engine, { engine = it }, trackers, { trackers = it }, darkSites, { darkSites = it }, animations, { animations = it }, blur, { blur = it }, accentChoice, { accentChoice = it }, desktopMode, { desktopMode = it }, incognitoAccentChoice, { incognitoAccentChoice = it }, homeLayout, { homeLayout = it }, interfaceLanguage, { interfaceLanguage = it }, wallpaperUri, { wallpaperPicker.launch(arrayOf("image/*")) }, { wallpaperUri = "" }, { configPicker.launch(arrayOf("application/json", "text/plain", "*/*")) }, showHomeBranding, { showHomeBranding = it }, showHomeShortcuts, { showHomeShortcuts = it }, showHomeBookmarks, { showHomeBookmarks = it }, customHomeSites.toList(), { title, rawUrl -> val clean = rawUrl.trim(); val normalized = if (clean.startsWith("http://") || clean.startsWith("https://")) clean else "https://$clean"; if (title.isBlank() || Uri.parse(normalized).host.isNullOrBlank()) toast = "Проверь название и адрес сайта" else if (customHomeSites.any { it.url == normalized }) toast = "Этот сайт уже добавлен" else { customHomeSites.add(SavedPage(title.trim(), normalized)); toast = "Сайт добавлен на главную" } }, { index, direction -> val target = index + direction; if (target in customHomeSites.indices) { val item = customHomeSites.removeAt(index); customHomeSites.add(target, item) } }, { site -> customHomeSites.removeAll { it.url == site.url } }, themePacks, loadingThemePacks, { scope.launch { loadingThemePacks = true; runCatching { withContext(Dispatchers.IO) { URL("https://raw.githubusercontent.com/def010375-ux/Darknes-brauser1.2/main/themes/catalog.json").openConnection().apply { connectTimeout = 9000; readTimeout = 9000 }.getInputStream().bufferedReader().use { it.readText() } } }.onSuccess { themePacks = parseThemePacks(it); toast = "Загружено тем: ${themePacks.size}" }.onFailure { toast = "Каталог тем недоступен" }; loadingThemePacks = false } }, { pack -> accentChoice = pack.accent; incognitoAccentChoice = pack.incognitoAccent; homeLayout = pack.homeLayout; blur = pack.blur; interfaceLanguage = pack.language; toast = "Тема «${pack.name}» установлена" }, { exportConfigPicker.launch("Darknes-Studio-Config.json") })
                             "Безопасность" -> PrivacyPanel(trackers, { trackers = it }, adBlock, { adBlock = it }, darkSites, { darkSites = it }, nightPages, { nightPages = it }, groupNames.toList(), workspaceTracking.toMap(), { group, enabled -> workspaceTracking[group] = enabled }, storedSitePermissions, ::refreshSitePermissions, { permission ->
                                 runtime.storageController.setPermission(permission, GeckoSession.PermissionDelegate.ContentPermission.VALUE_PROMPT)
@@ -2416,6 +2424,98 @@ private fun HomeSearchBar(
     if (subtitle.isNotEmpty()) { Spacer(Modifier.height(4.dp)); Text(subtitle, color = Muted, fontSize = 13.sp) }
     Spacer(Modifier.height(20.dp))
 }
+
+@Composable
+private fun DarknesStudioPanel(
+    accent: Color, accentChoice: String, onAccentChange: (String) -> Unit,
+    incognitoAccentChoice: String, onIncognitoAccentChange: (String) -> Unit,
+    blur: Float, onBlurChange: (Float) -> Unit, homeLayout: String, onHomeLayoutChange: (String) -> Unit,
+    animations: Boolean, onAnimationsChange: (Boolean) -> Unit,
+    onChooseWallpaper: () -> Unit, onResetWallpaper: () -> Unit, wallpaperSelected: Boolean
+) {
+    val swatches = listOf("cyan" to Color(0xFF38D9E8), "blue" to Color(0xFF5798FF), "purple" to Color(0xFFAC83FF), "green" to Color(0xFF55D6A2))
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("DARKNES STUDIO", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+                Text("Твоя визуальная система", color = Muted, fontSize = 12.sp)
+            }
+            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = accent, modifier = Modifier.size(25.dp))
+        }
+        Surface(Modifier.fillMaxWidth(), color = Color(0xFF111A2D), shape = RoundedCornerShape(22.dp), border = BorderStroke(1.dp, accent.copy(alpha = .38f))) {
+            Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Text("ПРЕДПРОСМОТР", color = Muted, fontSize = 9.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Brush.linearGradient(listOf(accent, Violet))), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Public, contentDescription = null, tint = Ink, modifier = Modifier.size(22.dp))
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text("Darknes Tor", color = Paper, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Text("Поиск · вкладки · приватность", color = Muted, fontSize = 10.sp)
+                    }
+                    Icon(Icons.Default.Search, contentDescription = null, tint = accent, modifier = Modifier.size(21.dp))
+                }
+                Box(Modifier.fillMaxWidth().height(7.dp).clip(CircleShape).background(Color(0xFF25324A))) {
+                    Box(Modifier.fillMaxWidth(.62f).fillMaxHeight().clip(CircleShape).background(Brush.horizontalGradient(listOf(accent, Violet))))
+                }
+                Text("Предпросмотр выбранного акцента", color = Muted, fontSize = 9.sp)
+            }
+        }
+        Text("ОСНОВНОЙ АКЦЕНТ", color = Paper, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            swatches.forEach { (id, color) ->
+                Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable { onAccentChange(id) }.padding(vertical = 5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.size(32.dp).clip(CircleShape).background(color).then(if (accentChoice == id) Modifier.border(3.dp, Paper, CircleShape) else Modifier))
+                    Text(if (accentChoice == id) "Выбран" else id, color = if (accentChoice == id) color else Muted, fontSize = 9.sp)
+                }
+            }
+        }
+        Text("АКЦЕНТ ИНКОГНИТО", color = Paper, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            swatches.forEach { (id, color) ->
+                Box(Modifier.weight(1f).height(34.dp).clip(RoundedCornerShape(11.dp))
+                    .background(color.copy(alpha = if (incognitoAccentChoice == id) .9f else .25f))
+                    .border(1.dp, if (incognitoAccentChoice == id) Paper else color.copy(alpha = .45f), RoundedCornerShape(11.dp))
+                    .clickable { onIncognitoAccentChange(id) }, contentAlignment = Alignment.Center) {
+                    if (incognitoAccentChoice == id) Icon(Icons.Default.Check, contentDescription = "Выбран", tint = Ink)
+                }
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Размытие фона", color = Paper, fontSize = 11.sp, modifier = Modifier.weight(1f))
+            Text("${blur.toInt()} dp", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+        Slider(value = blur, onValueChange = onBlurChange, valueRange = 0f..24f)
+        Text("РАСКЛАДКА ГЛАВНОЙ", color = Paper, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            listOf("grid" to "Сетка", "list" to "Список", "compact" to "Компактно").forEach { (id, label) ->
+                val selected = homeLayout == id
+                Box(Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(if (selected) accent.copy(alpha = .20f) else Color(0xFF1A263D))
+                    .border(1.dp, if (selected) accent else Border, RoundedCornerShape(11.dp))
+                    .clickable { onHomeLayoutChange(id) }.padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+                    Text(label, color = if (selected) accent else Paper, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Анимации интерфейса", color = Paper, fontSize = 12.sp)
+                Text("Переходы и появления", color = Muted, fontSize = 9.sp)
+            }
+            Switch(checked = animations, onCheckedChange = onAnimationsChange)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onChooseWallpaper, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = accent)) {
+                Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(5.dp))
+                Text(if (wallpaperSelected) "Сменить фон" else "Выбрать фон", color = Ink, fontSize = 10.sp)
+            }
+            OutlinedButton(onClick = onResetWallpaper, enabled = wallpaperSelected, modifier = Modifier.weight(1f)) { Text("Сбросить фон", fontSize = 10.sp) }
+        }
+        Text("Изменения сохраняются автоматически на устройстве.", color = Muted, fontSize = 9.sp)
+    }
+}
+
 @Composable private fun MenuPanel(accent: Color, onAction: (String) -> Unit) {
     PanelTitle("Меню")
     val items = listOf(
@@ -2428,6 +2528,7 @@ private fun HomeSearchBar(
         Icons.Default.Extension to "Расширения",
         Icons.Default.AutoAwesome to "ИИ-чат",
         Icons.Default.Settings to "Настройки",
+        Icons.Default.Palette to "Darknes Studio",
         Icons.Default.Person to "Аккаунт",
         Icons.Default.Shield to "Безопасность",
         Icons.Default.Translate to "Перевести страницу",
