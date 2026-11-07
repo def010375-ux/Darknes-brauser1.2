@@ -7,6 +7,7 @@ import android.os.SystemClock
 import android.net.Uri
 import android.widget.Toast
 import android.graphics.BitmapFactory
+import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -646,6 +647,8 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             }
         }
     }
+    val tabPreviews = remember { mutableStateMapOf<GeckoSession, Bitmap>() }
+    var activeGeckoView by remember { mutableStateOf<GeckoView?>(null) }
     val tabTitles = remember { mutableStateListOf<String>().apply { addAll(restoredTabs.map { it.title }) } }
     val tabUrls = remember { mutableStateListOf<String>().apply { addAll(restoredTabs.map { it.url }) } }
     val tabGroups = remember(tabsPrefs) {
@@ -659,6 +662,14 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     }
     var activeTab by remember { mutableIntStateOf(tabsPrefs.getInt("active", 0).coerceIn(0, restoredTabs.lastIndex)) }
     val session = sessions[activeTab.coerceIn(0, sessions.lastIndex)]
+    fun captureActiveTabPreview() {
+        if (incognito) return
+        val view = activeGeckoView ?: return
+        val capturedSession = session
+        runCatching { view.capturePixels().accept({ bitmap ->
+            if (!incognito && sessions.contains(capturedSession) && bitmap != null) tabPreviews[capturedSession] = bitmap
+        }, { }) }
+    }
     val splitSession = remember(runtime) { GeckoSession().also { it.open(runtime) } }
     var splitScreen by remember { mutableStateOf(false) }
     DisposableEffect(splitSession) {
@@ -706,6 +717,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             recentlyClosedIndex = index
         }
         if (sessions.size > 1) {
+            tabPreviews.remove(sessions[index])
             sessions[index].close()
             sessions.removeAt(index)
             tabTitles.removeAt(index)
@@ -717,6 +729,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 else -> activeTab
             }
         } else {
+            tabPreviews.remove(sessions[0])
             sessions[0].purgeHistory()
             sessions[0].loadUri("about:blank")
             tabTitles[0] = "Новая вкладка"
@@ -1139,7 +1152,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     key(session) {
                         AndroidView(
-                            factory = { ctx -> GeckoView(ctx).apply { setSession(session) } },
+                            factory = { ctx -> GeckoView(ctx).apply { setSession(session); activeGeckoView = this } },
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         )
                     }
@@ -1152,7 +1165,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 }
             } else {
                 key(session) {
-                    AndroidView(factory = { ctx -> GeckoView(ctx).apply { setSession(session) } }, modifier = Modifier.fillMaxSize())
+                    AndroidView(factory = { ctx -> GeckoView(ctx).apply { setSession(session); activeGeckoView = this } }, modifier = Modifier.fillMaxSize())
                 }
             }
             if (showSearchResults) {
@@ -1299,7 +1312,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                 onOpen = { url -> session.loadUri(url); query = url; loaded = true; showSearchResults = false; panel = "" },
                                 onRemove = { page -> history.remove(page) },
                                 onClear = { history.clear() })
-                            "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), tabGroups.toList(), activeTab, incognito, { value -> if (value) privateModeUsed = true; incognito = value }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { index -> tabGroups[index] = when (tabGroups[index]) { "Основная" -> "Работа"; "Работа" -> "Личное"; else -> "Основная" } }, { from, to -> moveTab(from, to) }, recentlyClosedTab != null && !incognito, { restoreRecentlyClosedTab() }, { panel = "" })
+                            "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), tabGroups.toList(), activeTab, incognito, { value -> if (value) { privateModeUsed = true; tabPreviews.clear() }; incognito = value }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { index -> tabGroups[index] = when (tabGroups[index]) { "Основная" -> "Работа"; "Работа" -> "Личное"; else -> "Основная" } }, { from, to -> moveTab(from, to) }, { index, group -> if (index in tabGroups.indices) tabGroups[index] = group }, sessions.map { tabPreviews[it] }, { captureActiveTabPreview() }, recentlyClosedTab != null && !incognito, { restoreRecentlyClosedTab() }, { panel = "" })
                         }
                         }
                     }
@@ -2328,6 +2341,7 @@ private fun TabsPanel(
     titles: List<String>, urls: List<String>, groups: List<String>, activeIndex: Int,
     incognito: Boolean, setIncognito: (Boolean) -> Unit, addTab: () -> Unit,
     closeTab: (Int) -> Unit, selectTab: (Int) -> Unit, cycleGroup: (Int) -> Unit, moveTab: (Int, Int) -> Unit,
+    setTabGroup: (Int, String) -> Unit, previews: List<Bitmap?>, capturePreview: () -> Unit,
     hasRecentlyClosed: Boolean, restoreRecentlyClosed: () -> Unit, done: () -> Unit
 ) {
     val tabAccent = if (incognito) Violet else Orange
@@ -2357,6 +2371,7 @@ private fun TabsPanel(
                     Text("Вернуть", color = tabAccent, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
                 }
             }
+            if (!incognito) IconButton(onClick = capturePreview) { Icon(Icons.Default.PhotoCamera, contentDescription = "Снять миниатюру текущей страницы", tint = tabAccent) }
             TextButton(onClick = done) { Text("Готово", color = Paper, fontWeight = FontWeight.SemiBold) }
         }
         Spacer(Modifier.height(14.dp))
@@ -2420,6 +2435,8 @@ private fun TabsPanel(
                     val cardColors = if (incognito) listOf(Color(0xFF29245A), Color(0xFF11172D)) else listOf(Color(0xFF17334A), Color(0xFF0B1428))
                     var dragOffset by remember(index) { mutableStateOf(Offset.Zero) }
                     val dragScale by animateFloatAsState(if (dragOffset != Offset.Zero) 1.035f else 1f, label = "tab-drag-scale")
+                    var groupMenuExpanded by remember(index) { mutableStateOf(false) }
+                    val previewBitmap = previews.getOrNull(index)
                     Box(Modifier.fillMaxWidth().aspectRatio(.76f).graphicsLayer {
                             translationX = dragOffset.x
                             translationY = dragOffset.y
@@ -2451,6 +2468,7 @@ private fun TabsPanel(
                                 Modifier.fillMaxWidth().height(94.dp).clip(RoundedCornerShape(14.dp))
                                     .background(Brush.linearGradient(cardColors))
                             ) {
+                                if (previewBitmap != null && !incognito) Image(bitmap = previewBitmap.asImageBitmap(), contentDescription = "Миниатюра страницы", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
                                 Column(Modifier.fillMaxSize().padding(9.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Box(Modifier.weight(1f).height(17.dp).clip(RoundedCornerShape(6.dp))
@@ -2493,11 +2511,14 @@ private fun TabsPanel(
                             Spacer(Modifier.height(8.dp))
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Row(Modifier.weight(1f).clip(RoundedCornerShape(9.dp)).background(Color(0x332B4268))
-                                    .clickable { cycleGroup(index) }.padding(horizontal = 8.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    .clickable { groupMenuExpanded = true }.padding(horizontal = 8.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.FolderOpen, contentDescription = null, tint = tabAccent, modifier = Modifier.size(12.dp))
                                     Spacer(Modifier.width(5.dp))
                                     Text(groups.getOrNull(index) ?: "Основная", color = Paper.copy(alpha = .82f), fontSize = 9.sp, maxLines = 1, modifier = Modifier.weight(1f))
                                     Icon(Icons.Default.Cached, contentDescription = "Изменить группу", tint = tabAccent, modifier = Modifier.size(12.dp))
+                                    DropdownMenu(expanded = groupMenuExpanded, onDismissRequest = { groupMenuExpanded = false }) {
+                                        availableGroups.filter { it != "Все" }.forEach { group -> DropdownMenuItem(text = { Text(group) }, onClick = { setTabGroup(index, group); groupMenuExpanded = false }) }
+                                    }
                                 }
                                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                                     IconButton(onClick = { moveTab(index, (index - 1).coerceAtLeast(0)) }, enabled = index > 0,
@@ -2519,7 +2540,7 @@ private fun TabsPanel(
                 }
             }
         }
-        Text("Удерживай карточку и перетащи её: влево/вправо — на соседнюю позицию, вверх/вниз — на строку. Группу можно сменить через нижнюю плашку.", color = Muted,
+        Text("Миниатюры создаются камерой из текущей страницы. Удерживай карточку для сортировки; группу можно выбрать через меню рядом с её названием.", color = Muted,
             fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 7.dp))
     }
 }
