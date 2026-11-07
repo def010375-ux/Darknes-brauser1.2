@@ -708,24 +708,6 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             canGoForward = false
         }
     }
-    fun restoreRecentlyClosedTab() {
-        val saved = recentlyClosedTab ?: return
-        val restoredSession = GeckoSession().also { it.open(runtime) }
-        if (saved.second.isNotBlank()) restoredSession.loadUri(saved.second)
-        val insertAt = recentlyClosedIndex.coerceIn(0, sessions.size)
-        sessions.add(insertAt, restoredSession)
-        tabTitles.add(insertAt, saved.first)
-        tabUrls.add(insertAt, saved.second)
-        tabGroups.add(insertAt, saved.third)
-        activeTab = insertAt
-        recentlyClosedTab = null
-        canGoBack = false
-        canGoForward = false
-        query = saved.second
-        loaded = saved.second.isNotBlank()
-        showSearchResults = false
-        toast = "Вкладка восстановлена"
-    }
     val settingsPrefs = remember(context) { context.getSharedPreferences("darknes_settings", android.content.Context.MODE_PRIVATE) }
     var query by remember { mutableStateOf(tabUrls.getOrNull(activeTab).orEmpty()) }
     var islandOpen by remember { mutableStateOf(false) }
@@ -760,6 +742,24 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     var searchSource by remember { mutableStateOf(engine) }
     var tabCount by remember { mutableIntStateOf(1) }
     var toast by remember { mutableStateOf("") }
+    fun restoreRecentlyClosedTab() {
+        val saved = recentlyClosedTab ?: return
+        val restoredSession = GeckoSession().also { it.open(runtime) }
+        if (saved.second.isNotBlank()) restoredSession.loadUri(saved.second)
+        val insertAt = recentlyClosedIndex.coerceIn(0, sessions.size)
+        sessions.add(insertAt, restoredSession)
+        tabTitles.add(insertAt, saved.first)
+        tabUrls.add(insertAt, saved.second)
+        tabGroups.add(insertAt, saved.third)
+        activeTab = insertAt
+        recentlyClosedTab = null
+        canGoBack = false
+        canGoForward = false
+        query = saved.second
+        loaded = saved.second.isNotBlank()
+        showSearchResults = false
+        toast = "Вкладка восстановлена"
+    }
     fun exitPrivateSession() {
         sessions.getOrNull(activeTab)?.let { privateSession ->
             privateSession.purgeHistory()
