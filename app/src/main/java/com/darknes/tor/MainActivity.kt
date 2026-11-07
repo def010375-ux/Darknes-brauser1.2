@@ -3385,6 +3385,7 @@ private fun TabsPanel(
     hasRecentlyClosed: Boolean, restoreRecentlyClosed: () -> Unit, done: () -> Unit
 ) {
     val tabAccent = if (incognito) Violet else Orange
+    var tabGridColumns by remember { mutableIntStateOf(2) }
     var draggingTabIndex by remember { mutableIntStateOf(-1) }
     var dragPointerRoot by remember { mutableStateOf(Offset.Zero) }
     val groupDropBounds = remember { mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
@@ -3418,6 +3419,11 @@ private fun TabsPanel(
                 Text("Вкладки", color = Paper, fontSize = 26.sp, fontWeight = FontWeight.Black, letterSpacing = (-.5).sp)
                 Text("ТВОЁ ПРОСТРАНСТВО · DARKNES", color = Muted, fontSize = 9.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 3.dp))
                 Text("${titles.size} вкладок · ${groups.distinct().size} групп", color = tabAccent, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 5.dp))
+            }
+            TextButton(onClick = { tabGridColumns = if (tabGridColumns == 2) 3 else 2 }) {
+                Icon(Icons.Default.GridView, contentDescription = "Изменить плотность сетки", tint = tabAccent, modifier = Modifier.size(17.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(if (tabGridColumns == 2) "2×" else "3×", color = tabAccent, fontWeight = FontWeight.Bold)
             }
             Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
                 .background(Brush.linearGradient(listOf(tabAccent.copy(alpha = .25f), Violet.copy(alpha = .16f))))
@@ -3602,10 +3608,11 @@ private fun TabsPanel(
                 Text("В этой группе пока нет вкладок", color = Muted, fontSize = 12.sp)
             }
         } else {
-            LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp),
+            LazyVerticalGrid(columns = GridCells.Fixed(tabGridColumns), modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp)
+                .animateContentSize(spring(dampingRatio = .82f, stiffness = 360f)),
                 contentPadding = PaddingValues(bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(visibleIndices.size) { visiblePosition ->
+                items(visibleIndices.size, key = { position -> visibleIndices[position] }) { visiblePosition ->
                     val index = visibleIndices[visiblePosition]
                     val isActive = index == activeIndex
                     val pageUrl = urls.getOrNull(index).orEmpty()
@@ -3617,7 +3624,7 @@ private fun TabsPanel(
                     var groupMenuExpanded by remember(index) { mutableStateOf(false) }
                     var cardOrigin by remember(index) { mutableStateOf(Offset.Zero) }
                     val previewBitmap = previews.getOrNull(index)
-                    Box(Modifier.fillMaxWidth().aspectRatio(.76f).graphicsLayer {
+                    Box(Modifier.fillMaxWidth().aspectRatio(if (tabGridColumns == 3) .66f else .76f).graphicsLayer {
                             translationX = dragOffset.x
                             translationY = dragOffset.y
                             scaleX = dragScale
@@ -3654,10 +3661,19 @@ private fun TabsPanel(
                         .clickable { selectTab(index) }.animateContentSize().padding(13.dp)) {
                         Column(Modifier.fillMaxSize()) {
                             Box(
-                                Modifier.fillMaxWidth().height(94.dp).clip(RoundedCornerShape(14.dp))
+                                Modifier.fillMaxWidth().height(if (tabGridColumns == 3) 76.dp else 94.dp).clip(RoundedCornerShape(14.dp))
                                     .background(Brush.linearGradient(cardColors))
                             ) {
-                                if (previewBitmap != null && !incognito) Image(bitmap = previewBitmap.asImageBitmap(), contentDescription = "Миниатюра страницы", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                if (previewBitmap != null && !incognito) {
+                                    Image(bitmap = previewBitmap.asImageBitmap(), contentDescription = "Миниатюра страницы", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                } else {
+                                    Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(if (incognito) Icons.Default.VisibilityOff else Icons.Default.Public, contentDescription = null,
+                                            tint = tabAccent.copy(alpha = .62f), modifier = Modifier.size(if (tabGridColumns == 3) 25.dp else 31.dp))
+                                        Text(if (pageUrl.isBlank()) "НОВАЯ ВКЛАДКА" else host.take(20).uppercase(),
+                                            color = Paper.copy(alpha = .52f), fontSize = 7.sp, fontWeight = FontWeight.Bold, letterSpacing = .7.sp)
+                                    }
+                                }
                                 Column(Modifier.fillMaxSize().padding(9.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Box(Modifier.weight(1f).height(17.dp).clip(RoundedCornerShape(6.dp))
@@ -3694,7 +3710,7 @@ private fun TabsPanel(
                                 }
                             }
                             Spacer(Modifier.weight(1f))
-                            Text(titles[index].ifBlank { "Новая вкладка" }, color = Paper, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 2)
+                            Text(titles[index].ifBlank { "Новая вкладка" }, color = Paper, fontWeight = FontWeight.Bold, fontSize = if (tabGridColumns == 3) 11.sp else 13.sp, maxLines = 2)
                             Spacer(Modifier.height(5.dp))
                             Text(host.ifBlank { if (pageUrl.isBlank()) "Стартовая страница" else pageUrl }, color = Paper.copy(alpha = .62f), fontSize = 9.sp, maxLines = 2)
                             Spacer(Modifier.height(8.dp))
@@ -3735,7 +3751,7 @@ private fun TabsPanel(
                 }
             }
         }
-        Text("Нажми камеру, чтобы сохранить снимок страницы. Удерживай карточку и перетащи её на группу сверху или на соседнюю позицию.", color = Muted,
+        Text("Переключай плотность сетки кнопкой 2×/3×. Нажми карточку для перехода, используй × для закрытия, удерживай её для сортировки и переноса между группами.", color = Muted,
             fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 7.dp))
     }
 }
