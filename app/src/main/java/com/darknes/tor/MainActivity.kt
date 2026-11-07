@@ -2524,6 +2524,52 @@ private fun TabsPanel(
                     selectedContainerColor = Violet.copy(alpha = .22f), selectedLabelColor = Color(0xFFE4DCFF), labelColor = Muted))
         }
         Spacer(Modifier.height(12.dp))
+        Text("РАБОЧИЕ ПРОСТРАНСТВА", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.25.sp)
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            groupNames.forEachIndexed { groupIndex, group ->
+                val groupTabs = groups.indices.filter { groups.getOrNull(it) == group }
+                val groupPreview = groupTabs.firstOrNull()?.let { previews.getOrNull(it) }
+                val groupTint = Color(groupColors[group] ?: palette[groupIndex % palette.size])
+                val isWorkspaceActive = selectedGroup == group
+                Column(
+                    Modifier.width(142.dp).clip(RoundedCornerShape(17.dp))
+                        .background(Brush.linearGradient(listOf(groupTint.copy(alpha = if (isWorkspaceActive) .30f else .16f), Color(0xFF10182B))))
+                        .border(if (isWorkspaceActive) 2.dp else 1.dp, groupTint.copy(alpha = if (isWorkspaceActive) .95f else .38f), RoundedCornerShape(17.dp))
+                        .clickable { selectedGroup = group; activateWorkspace(group) }
+                        .padding(8.dp).animateContentSize()
+                ) {
+                    Box(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(11.dp))
+                        .background(Brush.linearGradient(listOf(groupTint.copy(alpha = .28f), Color(0xFF0A1222))))) {
+                        if (groupPreview != null && !incognito) {
+                            Image(bitmap = groupPreview.asImageBitmap(), contentDescription = "Предпросмотр пространства $group",
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        } else {
+                            Icon(Icons.Default.FolderSpecial, contentDescription = null, tint = groupTint.copy(alpha = .85f),
+                                modifier = Modifier.align(Alignment.Center).size(25.dp))
+                        }
+                        Box(Modifier.align(Alignment.TopEnd).padding(5.dp).clip(CircleShape)
+                            .background(Color(0xCC080F1D)).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                            Text(groupTabs.size.toString(), color = Paper, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Spacer(Modifier.height(7.dp))
+                    Text(group, color = Paper, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text(if (isWorkspaceActive) "ОТКРЫТО" else "ПЕРЕКЛЮЧИТЬ",
+                        color = groupTint, fontSize = 8.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = .55.sp)
+                }
+            }
+            Column(Modifier.width(86.dp).height(103.dp).clip(RoundedCornerShape(17.dp))
+                .background(Color(0xFF10182B)).border(1.dp, Border, RoundedCornerShape(17.dp))
+                .clickable { selectedGroup = "Все" }.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center) {
+                Icon(Icons.Default.Apps, tint = Muted, contentDescription = null, modifier = Modifier.size(23.dp))
+                Spacer(Modifier.height(5.dp))
+                Text("Все", color = Paper, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(titles.size.toString(), color = Muted, fontSize = 9.sp)
+            }
+        }
+        Spacer(Modifier.height(13.dp))
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(7.dp),
