@@ -915,11 +915,6 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         while (permissionAudit.size > 50) permissionAudit.removeAt(permissionAudit.lastIndex)
         sitePermissionPrefs.edit().putString("audit", encodePermissionAudit(permissionAudit.toList())).apply()
     }
-    fun persistSitePermissionDecisions() {
-        val json = org.json.JSONObject()
-        sitePermissionDecisions.forEach { (key, value) -> json.put(key, value) }
-        sitePermissionPrefs.edit().putString("decisions", json.toString()).apply()
-    }
     val sitePermissionDecisions = remember(sitePermissionPrefs) {
         mutableStateMapOf<String, Boolean>().apply {
             runCatching {
@@ -927,6 +922,11 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 json.keys().forEach { key -> put(key, json.optBoolean(key)) }
             }
         }
+    }
+    fun persistSitePermissionDecisions() {
+        val json = org.json.JSONObject()
+        sitePermissionDecisions.forEach { (key, value) -> json.put(key, value) }
+        sitePermissionPrefs.edit().putString("decisions", json.toString()).apply()
     }
     var pendingSitePermission by remember { mutableStateOf<PendingSitePermission?>(null) }
     var pendingSiteMediaPermission by remember { mutableStateOf<PendingSiteMediaPermission?>(null) }
