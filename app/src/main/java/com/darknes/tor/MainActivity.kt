@@ -663,6 +663,15 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             addAll(restoredTabs.indices.map { stored.getOrNull(it)?.takeIf { group -> group.isNotBlank() } ?: "Основная" })
         }
     }
+    val tabPinned = remember(tabsPrefs) {
+        val stored = runCatching {
+            val array = JSONArray(tabsPrefs.getString("pinned_tabs", "[]") ?: "[]")
+            (0 until array.length()).map { array.optBoolean(it, false) }
+        }.getOrDefault(emptyList())
+        mutableStateListOf<Boolean>().apply {
+            addAll(restoredTabs.indices.map { stored.getOrNull(it) ?: false })
+        }
+    }
     val groupNames = remember(tabsPrefs) {
         val stored = runCatching { val array = JSONArray(tabsPrefs.getString("group_names", "[]") ?: "[]"); (0 until array.length()).map { array.optString(it) }.filter { it.isNotBlank() } }.getOrDefault(emptyList())
         mutableStateListOf<String>().apply { addAll((stored + tabGroups.toList() + "Основная").distinct()) }
@@ -695,6 +704,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         tabTitles.add("Новая вкладка")
         tabUrls.add("")
         tabGroups.add("Основная")
+        tabPinned.add(false)
         activeTab = sessions.lastIndex
         canGoBack = false
         canGoForward = false
@@ -705,10 +715,12 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         val movedTitle = tabTitles.removeAt(from)
         val movedUrl = tabUrls.removeAt(from)
         val movedGroup = tabGroups.removeAt(from)
+        val movedPinned = tabPinned.removeAt(from)
         sessions.add(to, movedSession)
         tabTitles.add(to, movedTitle)
         tabUrls.add(to, movedUrl)
         tabGroups.add(to, movedGroup)
+        tabPinned.add(to, movedPinned)
         activeTab = when {
             activeTab == from -> to
             from < activeTab && to >= activeTab -> activeTab - 1
@@ -733,6 +745,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             tabTitles.removeAt(index)
             tabUrls.removeAt(index)
             tabGroups.removeAt(index)
+            tabPinned.removeAt(index)
             activeTab = when {
                 index < activeTab -> activeTab - 1
                 index == activeTab -> (index - 1).coerceAtLeast(0)
@@ -744,6 +757,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             sessions[0].loadUri("about:blank")
             tabTitles[0] = "Новая вкладка"
             tabUrls[0] = ""
+            tabPinned[0] = false
             canGoBack = false
             canGoForward = false
         }
@@ -900,6 +914,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             tabsPrefs.edit()
                 .putString("tabs", encodeBrowserTabs(tabTitles.toList(), tabUrls.toList()))
                 .putString("groups", JSONArray(tabGroups.toList()).toString())
+                .putString("pinned_tabs", JSONArray(tabPinned.toList()).toString())
                 .putInt("active", activeTab.coerceIn(0, (tabTitles.size - 1).coerceAtLeast(0)))
                 .apply()
         }
@@ -1325,7 +1340,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                 onOpen = { url -> session.loadUri(url); query = url; loaded = true; showSearchResults = false; panel = "" },
                                 onRemove = { page -> history.remove(page) },
                                 onClear = { history.clear() })
-                            "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), tabGroups.toList(), groupNames.toList(), activeTab, incognito, { value -> if (value) { privateModeUsed = true; tabPreviews.clear() }; incognito = value }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { index -> tabGroups[index] = when (tabGroups[index]) { "Основная" -> "Работа"; "Работа" -> "Личное"; else -> "Основная" } }, { from, to -> moveTab(from, to) }, { index, group -> if (index in tabGroups.indices) tabGroups[index] = group }, { name -> if (name.isNotBlank() && name !in groupNames) groupNames.add(name) }, { old, new -> if (old in groupNames && new.isNotBlank() && new !in groupNames) { groupNames[groupNames.indexOf(old)] = new; tabGroups.indices.forEach { if (tabGroups[it] == old) tabGroups[it] = new } } }, { name -> if (name != "Основная" && name in groupNames) { tabGroups.indices.forEach { if (tabGroups[it] == name) tabGroups[it] = "Основная" }; groupNames.remove(name) } }, sessions.map { tabPreviews[it] }, { captureActiveTabPreview() }, recentlyClosedTab != null && !incognito, { restoreRecentlyClosedTab() }, { panel = "" })
+                            "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), tabGroups.toList(), groupNames.toList(), tabPinned.toList(), activeTab, incognito, { value -> if (value) { privateModeUsed = true; tabPreviews.clear() }; incognito = value }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { index -> tabGroups[index] = when (tabGroups[index]) { "Основная" -> "Работа"; "Работа" -> "Личное"; else -> "Основная" } }, { from, to -> moveTab(from, to) }, { index, group -> if (index in tabGroups.indices) tabGroups[index] = group }, { index -> if (!incognito && index in tabPinned.indices) tabPinned[index] = !tabPinned[index] }, { name -> if (name.isNotBlank() && name !in groupNames) groupNames.add(name) }, { old, new -> if (old in groupNames && new.isNotBlank() && new !in groupNames) { groupNames[groupNames.indexOf(old)] = new; tabGroups.indices.forEach { if (tabGroups[it] == old) tabGroups[it] = new } } }, { name -> if (name != "Основная" && name in groupNames) { tabGroups.indices.forEach { if (tabGroups[it] == name) tabGroups[it] = "Основная" }; groupNames.remove(name) } }, sessions.map { tabPreviews[it] }, { captureActiveTabPreview() }, recentlyClosedTab != null && !incognito, { restoreRecentlyClosedTab() }, { panel = "" })
                         }
                         }
                     }
@@ -2351,10 +2366,10 @@ private fun OfflinePageViewerPanel(page: OfflinePage?, onBack: () -> Unit) {
 
 @Composable
 private fun TabsPanel(
-    titles: List<String>, urls: List<String>, groups: List<String>, groupNames: List<String>, activeIndex: Int,
+    titles: List<String>, urls: List<String>, groups: List<String>, groupNames: List<String>, pinned: List<Boolean>, activeIndex: Int,
     incognito: Boolean, setIncognito: (Boolean) -> Unit, addTab: () -> Unit,
     closeTab: (Int) -> Unit, selectTab: (Int) -> Unit, cycleGroup: (Int) -> Unit, moveTab: (Int, Int) -> Unit,
-    setTabGroup: (Int, String) -> Unit, createGroup: (String) -> Unit, renameGroup: (String, String) -> Unit, deleteGroup: (String) -> Unit,
+    setTabGroup: (Int, String) -> Unit, togglePinned: (Int) -> Unit, createGroup: (String) -> Unit, renameGroup: (String, String) -> Unit, deleteGroup: (String) -> Unit,
     previews: List<Bitmap?>, capturePreview: () -> Unit,
     hasRecentlyClosed: Boolean, restoreRecentlyClosed: () -> Unit, done: () -> Unit
 ) {
@@ -2374,8 +2389,9 @@ private fun TabsPanel(
     } }
     val palette = listOf(0xFF35D6E8L, 0xFF8B7CFFL, 0xFFFFA45BL, 0xFF63D69BL, 0xFFFF6F91L)
     LaunchedEffect(groupColors.toMap()) { val json = org.json.JSONObject(); groupColors.forEach { (key, value) -> json.put(key, value) }; groupColorPrefs.edit().putString("group_colors", json.toString()).apply() }
-    val visibleIndices = remember(titles.size, groups.toList(), selectedGroup) {
+    val visibleIndices = remember(titles.size, groups.toList(), pinned, selectedGroup) {
         titles.indices.filter { selectedGroup == "Все" || groups.getOrNull(it) == selectedGroup }
+            .sortedWith(compareByDescending<Int> { pinned.getOrNull(it) == true }.thenBy { it })
     }
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2581,6 +2597,12 @@ private fun TabsPanel(
                             Text(host.ifBlank { if (pageUrl.isBlank()) "Стартовая страница" else pageUrl }, color = Paper.copy(alpha = .62f), fontSize = 9.sp, maxLines = 2)
                             Spacer(Modifier.height(8.dp))
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                IconButton(onClick = { togglePinned(index) }, enabled = !incognito, modifier = Modifier.size(27.dp)) {
+                                    Icon(Icons.Default.PushPin,
+                                        contentDescription = if (pinned.getOrNull(index) == true) "Открепить вкладку" else "Закрепить вкладку",
+                                        tint = if (pinned.getOrNull(index) == true) tabAccent else Muted,
+                                        modifier = Modifier.size(15.dp))
+                                }
                                 Row(Modifier.weight(1f).clip(RoundedCornerShape(9.dp)).background(Color(0x332B4268))
                                     .clickable { groupMenuExpanded = true }.padding(horizontal = 8.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.FolderOpen, contentDescription = null, tint = tabAccent, modifier = Modifier.size(12.dp))
