@@ -910,6 +910,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     val sitePermissionPrefs = remember(context) { context.getSharedPreferences("darknes_site_permissions", android.content.Context.MODE_PRIVATE) }
     val permissionAudit = remember(sitePermissionPrefs) { mutableStateListOf<PermissionAuditEntry>().apply { addAll(readPermissionAudit(sitePermissionPrefs.getString("audit", "[]"))) } }
     fun recordPermissionAudit(host: String, permission: String, decision: String) {
+        if (incognito) return
         permissionAudit.add(0, PermissionAuditEntry(host.ifBlank { "Неизвестный сайт" }.take(180), permission.take(80), decision, System.currentTimeMillis()))
         while (permissionAudit.size > 50) permissionAudit.removeAt(permissionAudit.lastIndex)
         sitePermissionPrefs.edit().putString("audit", encodePermissionAudit(permissionAudit.toList())).apply()
@@ -1636,6 +1637,9 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                 sitePermissionDecisions.clear()
                                 persistSitePermissionDecisions()
                                 recordPermissionAudit("Все сайты", "Разрешения", "Все сохранённые решения сброшены")
+                            }, {
+                                permissionAudit.clear()
+                                sitePermissionPrefs.edit().putString("audit", "[]").apply()
                             }, {
                                 runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))) }
                                     .onFailure { toast = "Не удалось открыть настройки Android" }
@@ -2687,7 +2691,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     Spacer(Modifier.height(22.dp))
     }
 }
-@Composable private fun PrivacyPanel(trackers:Boolean, setTrackers:(Boolean)->Unit, ad:Boolean, setAd:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, night:Boolean, setNight:(Boolean)->Unit, workspaces:List<String>, workspaceProtection:Map<String, Boolean>, setWorkspaceProtection:(String, Boolean)->Unit, sitePermissions:List<GeckoSession.PermissionDelegate.ContentPermission>, refreshSitePermissions:()->Unit, revokeSitePermission:(GeckoSession.PermissionDelegate.ContentPermission)->Unit, savedDecisions:Map<String, Boolean>, audit:List<PermissionAuditEntry>, clearDecision:(String)->Unit, clearAllDecisions:()->Unit, openAndroidSettings:()->Unit) {
+@Composable private fun PrivacyPanel(trackers:Boolean, setTrackers:(Boolean)->Unit, ad:Boolean, setAd:(Boolean)->Unit, dark:Boolean, setDark:(Boolean)->Unit, night:Boolean, setNight:(Boolean)->Unit, workspaces:List<String>, workspaceProtection:Map<String, Boolean>, setWorkspaceProtection:(String, Boolean)->Unit, sitePermissions:List<GeckoSession.PermissionDelegate.ContentPermission>, refreshSitePermissions:()->Unit, revokeSitePermission:(GeckoSession.PermissionDelegate.ContentPermission)->Unit, savedDecisions:Map<String, Boolean>, audit:List<PermissionAuditEntry>, clearDecision:(String)->Unit, clearAllDecisions:()->Unit, clearAudit:()->Unit, openAndroidSettings:()->Unit) {
     PanelTitle("Центр безопасности", "Защита браузера и контроль доступа")
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(21.dp))
         .background(Brush.linearGradient(listOf(Color(0xFF1A2D4B), Color(0xFF10172B))))
@@ -2797,7 +2801,10 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
         }
     }
     Spacer(Modifier.height(13.dp))
-    Text("ИСТОРИЯ ЗАПРОСОВ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("ИСТОРИЯ ЗАПРОСОВ", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        if (audit.isNotEmpty()) TextButton(onClick = clearAudit) { Text("Очистить", color = Peach, fontSize = 10.sp) }
+    }
     if (audit.isEmpty()) Text("История появится после первого запроса сайта.", color = Muted, fontSize = 11.sp)
     else Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFF111A2E)).border(1.dp, Border, RoundedCornerShape(16.dp)).padding(horizontal = 11.dp)) {
         audit.take(15).forEachIndexed { index, entry ->
@@ -2817,6 +2824,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
     SettingSwitch("Ночной режим страниц", night, setNight)
     Spacer(Modifier.height(14.dp))
     Text("РАЗРЕШЕНИЯ УСТРОЙСТВА", color = Orange, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+    val privacyContext = LocalContext.current
     val permissions = listOf(
         Triple(Icons.Default.CameraAlt, "Камера", "Android спросит доступ при необходимости"),
         Triple(Icons.Default.Mic, "Микрофон", "Доступ контролируется системой Android"),
@@ -2833,7 +2841,23 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(item.second, color = Paper, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Text(item.third, color = Muted, fontSize = 10.sp, lineHeight = 14.sp)
+                    val runtimePermission = when (item.second) {
+                        "Камера" -> android.Manifest.permission.CAMERA
+                        "Микрофон" -> android.Manifest.permission.RECORD_AUDIO
+                        else -> null
+                    }
+                    val isGranted = runtimePermission?.let {
+                        androidx.core.content.ContextCompat.checkSelfPermission(privacyContext, it) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    }
+                    Text(
+                        when (isGranted) {
+                            true -> "Разрешено Android · изменить в настройках"
+                            false -> "Запрещено Android · изменить в настройках"
+                            null -> item.third
+                        },
+                        color = when (isGranted) { true -> Color(0xFF62E6C2); false -> Peach; null -> Muted },
+                        fontSize = 10.sp, lineHeight = 14.sp
+                    )
                 }
                 Icon(Icons.Default.Lock, contentDescription = "Контроль Android", tint = Muted, modifier = Modifier.size(15.dp))
             }
