@@ -2795,7 +2795,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
                     Text(host, color = Paper, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                     Text(kind + " · " + if (entry.value) "Разрешено" else "Запрещено", color = if (entry.value) Color(0xFF62E6C2) else Peach, fontSize = 10.sp)
                 }
-                IconButton(onClick = { clearDecision(entry.key) }) { Icon(Icons.Default.RestartAlt, contentDescription = "Сбросить решение сайта", tint = Orange) }
+                IconButton(onClick = { clearDecision(entry.key) }) { Icon(Icons.Default.Refresh, contentDescription = "Сбросить решение сайта", tint = Orange) }
             }
             if (index != savedDecisions.size - 1) Divider(color = Border.copy(alpha = .5f))
         }
