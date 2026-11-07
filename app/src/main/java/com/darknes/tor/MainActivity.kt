@@ -678,6 +678,23 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         canGoBack = false
         canGoForward = false
     }
+    fun moveTab(from: Int, to: Int) {
+        if (from !in sessions.indices || to !in sessions.indices || from == to) return
+        val movedSession = sessions.removeAt(from)
+        val movedTitle = tabTitles.removeAt(from)
+        val movedUrl = tabUrls.removeAt(from)
+        val movedGroup = tabGroups.removeAt(from)
+        sessions.add(to, movedSession)
+        tabTitles.add(to, movedTitle)
+        tabUrls.add(to, movedUrl)
+        tabGroups.add(to, movedGroup)
+        activeTab = when {
+            activeTab == from -> to
+            from < activeTab && to >= activeTab -> activeTab - 1
+            from > activeTab && to <= activeTab -> activeTab + 1
+            else -> activeTab
+        }
+    }
     fun closeTab(index: Int) {
         if (index !in sessions.indices) return
         if (!incognito) {
@@ -1282,7 +1299,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                 onOpen = { url -> session.loadUri(url); query = url; loaded = true; showSearchResults = false; panel = "" },
                                 onRemove = { page -> history.remove(page) },
                                 onClear = { history.clear() })
-                            "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), tabGroups.toList(), activeTab, incognito, { value -> if (value) privateModeUsed = true; incognito = value }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { index -> tabGroups[index] = when (tabGroups[index]) { "Основная" -> "Работа"; "Работа" -> "Личное"; else -> "Основная" } }, recentlyClosedTab != null && !incognito, { restoreRecentlyClosedTab() }, { panel = "" })
+                            "Вкладки" -> TabsPanel(tabTitles.toList(), tabUrls.toList(), tabGroups.toList(), activeTab, incognito, { value -> if (value) privateModeUsed = true; incognito = value }, { addTab(); loaded = false }, { index -> closeTab(index); loaded = false }, { index -> activeTab = index; loaded = tabUrls.getOrNull(index).orEmpty().isNotBlank(); query = tabUrls.getOrNull(index).orEmpty(); panel = "" }, { index -> tabGroups[index] = when (tabGroups[index]) { "Основная" -> "Работа"; "Работа" -> "Личное"; else -> "Основная" } }, { from, to -> moveTab(from, to) }, recentlyClosedTab != null && !incognito, { restoreRecentlyClosedTab() }, { panel = "" })
                         }
                         }
                     }
@@ -2310,7 +2327,7 @@ private fun OfflinePageViewerPanel(page: OfflinePage?, onBack: () -> Unit) {
 private fun TabsPanel(
     titles: List<String>, urls: List<String>, groups: List<String>, activeIndex: Int,
     incognito: Boolean, setIncognito: (Boolean) -> Unit, addTab: () -> Unit,
-    closeTab: (Int) -> Unit, selectTab: (Int) -> Unit, cycleGroup: (Int) -> Unit,
+    closeTab: (Int) -> Unit, selectTab: (Int) -> Unit, cycleGroup: (Int) -> Unit, moveTab: (Int, Int) -> Unit,
     hasRecentlyClosed: Boolean, restoreRecentlyClosed: () -> Unit, done: () -> Unit
 ) {
     val tabAccent = if (incognito) Violet else Orange
@@ -2449,12 +2466,24 @@ private fun TabsPanel(
                             Spacer(Modifier.height(5.dp))
                             Text(host.ifBlank { if (pageUrl.isBlank()) "Стартовая страница" else pageUrl }, color = Paper.copy(alpha = .62f), fontSize = 9.sp, maxLines = 2)
                             Spacer(Modifier.height(8.dp))
-                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp)).background(Color(0x332B4268))
-                                .clickable { cycleGroup(index) }.padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.FolderOpen, contentDescription = null, tint = tabAccent, modifier = Modifier.size(12.dp))
-                                Spacer(Modifier.width(5.dp))
-                                Text(groups.getOrNull(index) ?: "Основная", color = Paper.copy(alpha = .82f), fontSize = 9.sp, maxLines = 1, modifier = Modifier.weight(1f))
-                                Icon(Icons.Default.Cached, contentDescription = "Изменить группу", tint = tabAccent, modifier = Modifier.size(12.dp))
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(Modifier.weight(1f).clip(RoundedCornerShape(9.dp)).background(Color(0x332B4268))
+                                    .clickable { cycleGroup(index) }.padding(horizontal = 8.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.FolderOpen, contentDescription = null, tint = tabAccent, modifier = Modifier.size(12.dp))
+                                    Spacer(Modifier.width(5.dp))
+                                    Text(groups.getOrNull(index) ?: "Основная", color = Paper.copy(alpha = .82f), fontSize = 9.sp, maxLines = 1, modifier = Modifier.weight(1f))
+                                    Icon(Icons.Default.Cached, contentDescription = "Изменить группу", tint = tabAccent, modifier = Modifier.size(12.dp))
+                                }
+                                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                                    IconButton(onClick = { moveTab(index, (index - 1).coerceAtLeast(0)) }, enabled = index > 0,
+                                        modifier = Modifier.size(23.dp)) {
+                                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Переместить выше", tint = if (index > 0) tabAccent else Muted, modifier = Modifier.size(17.dp))
+                                    }
+                                    IconButton(onClick = { moveTab(index, (index + 1).coerceAtMost(titles.lastIndex)) }, enabled = index < titles.lastIndex,
+                                        modifier = Modifier.size(23.dp)) {
+                                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Переместить ниже", tint = if (index < titles.lastIndex) tabAccent else Muted, modifier = Modifier.size(17.dp))
+                                    }
+                                }
                             }
                         }
                         IconButton(onClick = { closeTab(index) }, modifier = Modifier.align(Alignment.TopEnd).size(29.dp)
@@ -2465,7 +2494,7 @@ private fun TabsPanel(
                 }
             }
         }
-        Text("Фильтруй пространство по группам, открывай карточку касанием или меняй её группу через нижнюю плашку.", color = Muted,
+        Text("Фильтруй по группам, меняй группу через плашку и сортируй вкладки стрелками. Предпросмотр показывает адрес и структуру страницы.", color = Muted,
             fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 7.dp))
     }
 }
