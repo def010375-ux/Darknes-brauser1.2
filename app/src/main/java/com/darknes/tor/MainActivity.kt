@@ -120,7 +120,7 @@ private fun parseThemePacks(raw: String): List<ThemePack> = runCatching {
     }
 }.getOrDefault(emptyList())
 
-private data class DownloadRecord(val id: Long, val name: String, val status: String, val savedUri: String? = null, val downloadedBytes: Long = 0L, val totalBytes: Long = 0L)
+private data class DownloadRecord(val id: Long, val name: String, val status: String, val savedUri: String? = null, val downloadedBytes: Long = 0L, val totalBytes: Long = 0L, val createdAt: Long = id)
 
 private fun downloadCategory(name: String): String {
     val ext = name.substringAfterLast('.', "").lowercase()
@@ -150,7 +150,7 @@ private fun readDownloadRecords(raw: String?): List<DownloadRecord> = runCatchin
         if (id <= 0L || name.isBlank()) return@mapNotNull null
         val storedStatus = item.optString("status", "Сохранено")
         val status = if (storedStatus == "Скачивается" || storedStatus == "Ожидает сохранения") "Прервано" else storedStatus
-        DownloadRecord(id, name, status, item.optString("savedUri").takeIf { it.isNotBlank() && it != "null" }, item.optLong("downloadedBytes", 0L).coerceAtLeast(0L), item.optLong("totalBytes", 0L).coerceAtLeast(0L))
+        DownloadRecord(id, name, status, item.optString("savedUri").takeIf { it.isNotBlank() && it != "null" }, item.optLong("downloadedBytes", 0L).coerceAtLeast(0L), item.optLong("totalBytes", 0L).coerceAtLeast(0L), item.optLong("createdAt", id).takeIf { it > 0L } ?: id)
     }.sortedByDescending { it.id }.take(100)
 }.getOrDefault(emptyList())
 
@@ -158,7 +158,7 @@ private fun encodeDownloadRecords(records: List<DownloadRecord>): String = JSONA
     records.take(100).forEach { item ->
         put(org.json.JSONObject().put("id", item.id).put("name", item.name)
             .put("status", item.status).put("savedUri", item.savedUri ?: "")
-            .put("downloadedBytes", item.downloadedBytes).put("totalBytes", item.totalBytes))
+            .put("downloadedBytes", item.downloadedBytes).put("totalBytes", item.totalBytes).put("createdAt", item.createdAt))
     }
 }.toString()
 
@@ -273,11 +273,37 @@ class MainActivity : ComponentActivity() {
 
     private fun removeDownload(id: Long) {
         runOnUiThread {
-            val record = downloadRecords.firstOrNull { it.id == id }
-            if (record?.savedUri != null) {
-                runCatching { contentResolver.delete(Uri.parse(record.savedUri), null, null) }
+            val record = downloadRecords.firstOrNull { it.id == id } ?: return@runOnUiThread
+            val saved = record.savedUri
+            if (saved != null) {
+                val deleted = runCatching { contentResolver.delete(Uri.parse(saved), null, null) }.getOrDefault(0)
+                if (deleted <= 0) {
+                    Toast.makeText(this, "Не удалось удалить файл. Запись сохранена.", Toast.LENGTH_LONG).show()
+                    return@runOnUiThread
+                }
             }
             downloadRecords.removeAll { it.id == id }
+            persistDownloads()
+        }
+    }
+
+    private fun refreshDownloadRecords() {
+        val refreshed = downloadRecords.map { record ->
+            val saved = record.savedUri ?: return@map record
+            val metadata = runCatching {
+                contentResolver.openAssetFileDescriptor(Uri.parse(saved), "r")?.use { it.length }
+            }
+            if (metadata.isFailure || metadata.getOrNull() == null) {
+                record.copy(status = "Файл недоступен")
+            } else {
+                val actualSize = metadata.getOrNull()?.takeIf { it >= 0L } ?: record.downloadedBytes
+                record.copy(status = "Сохранено", downloadedBytes = actualSize,
+                    totalBytes = if (actualSize > 0L) actualSize else record.totalBytes)
+            }
+        }
+        if (refreshed != downloadRecords.toList()) {
+            downloadRecords.clear()
+            downloadRecords.addAll(refreshed)
             persistDownloads()
         }
     }
@@ -391,7 +417,7 @@ class MainActivity : ComponentActivity() {
             ?.replace(Regex("[\\\\/:*?\"<>|]"), "_") ?: "download"
         val recordId = System.currentTimeMillis()
         pendingDownloadId = recordId
-        downloadRecords.add(0, DownloadRecord(recordId, filename, "Ожидает сохранения"))
+        downloadRecords.add(0, DownloadRecord(recordId, filename, "Ожидает сохранения", createdAt = recordId))
         persistDownloads()
         saveDownloadLauncher.launch(filename)
     }
@@ -3157,7 +3183,7 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
                 Text("Тип: $mimeType", color = Muted, fontSize = 12.sp)
                 Text("Формат: $extension", color = Muted, fontSize = 12.sp)
                 Text("Размер: ${formatDownloadSize(details.downloadedBytes)}", color = Muted, fontSize = 12.sp)
-                Text("Дата добавления: ${java.text.DateFormat.getDateTimeInstance().format(java.util.Date(details.id))}", color = Muted, fontSize = 12.sp)
+                Text("Дата добавления: ${java.text.DateFormat.getDateTimeInstance().format(java.util.Date(details.createdAt))}", color = Muted, fontSize = 12.sp)
                 Text("Расположение: ${details.savedUri ?: "ещё не сохранён"}", color = Muted, fontSize = 10.sp)
             } },
             confirmButton = { TextButton(onClick = { detailsRecord = null }) { Text("Закрыть", color = Orange) } },
