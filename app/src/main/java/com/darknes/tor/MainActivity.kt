@@ -1580,18 +1580,6 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 return result
             }
 
-            fun onAndroidPermissionsRequest(
-                session: GeckoSession,
-                permissions: Array<String>,
-                callback: GeckoSession.PermissionDelegate.Callback
-            ) {
-                val granted = permissions.all { permission ->
-                    androidx.core.content.ContextCompat.checkSelfPermission(context, permission) ==
-                        android.content.pm.PackageManager.PERMISSION_GRANTED
-                }
-                if (granted) callback.grant() else callback.reject()
-            }
-
             override fun onMediaPermissionRequest(
                 session: GeckoSession,
                 uri: String,
