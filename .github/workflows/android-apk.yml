@@ -1,15 +1,6 @@
 name: Darknes Tor Android APK
 
 on:
-  push:
-    branches:
-      - remaster/2.0
-    paths:
-      - 'app/**'
-      - '*.gradle.kts'
-      - 'settings.gradle.kts'
-      - 'gradle/**'
-      - '.github/workflows/android-apk.yml'
   workflow_dispatch:
 
 permissions:
