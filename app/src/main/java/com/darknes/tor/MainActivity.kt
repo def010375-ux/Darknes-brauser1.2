@@ -146,6 +146,7 @@ private fun readSavedPages(raw: String?): List<SavedPage> = runCatching {
 
 
 private data class BrowserTabSnapshot(val title: String, val url: String)
+private data class WorkspaceTabState(val tabs: List<BrowserTabSnapshot>, val groups: List<String>)
 
 private fun readBrowserTabs(raw: String?): List<BrowserTabSnapshot> = runCatching {
     val array = JSONArray(raw ?: "[]")
@@ -157,6 +158,24 @@ private fun readBrowserTabs(raw: String?): List<BrowserTabSnapshot> = runCatchin
     }.take(30).ifEmpty { listOf(BrowserTabSnapshot("Новая вкладка", "")) }
 }.getOrDefault(listOf(BrowserTabSnapshot("Новая вкладка", "")))
 
+private fun readWorkspaceTabState(raw: String?): WorkspaceTabState = runCatching {
+    val root = org.json.JSONObject(raw ?: "{}")
+    val tabs = mutableListOf<BrowserTabSnapshot>()
+    val groups = mutableListOf<String>()
+    root.keys().forEach { group ->
+        val array = root.optJSONArray(group) ?: return@forEach
+        for (index in 0 until array.length()) {
+            if (tabs.size >= 120) break
+            val item = array.optJSONObject(index) ?: continue
+            val url = item.optString("url")
+            if (url.isNotBlank() && !url.startsWith("https://") && !url.startsWith("http://")) continue
+            tabs.add(BrowserTabSnapshot(item.optString("title").ifBlank { "Новая вкладка" }, url))
+            groups.add(group.ifBlank { "Основная" })
+        }
+    }
+    WorkspaceTabState(tabs, groups)
+}.getOrDefault(WorkspaceTabState(emptyList(), emptyList()))
+
 private fun encodeBrowserTabs(titles: List<String>, urls: List<String>): String = JSONArray().apply {
     titles.indices.take(30).forEach { index ->
         val url = urls.getOrNull(index).orEmpty()
@@ -165,6 +184,21 @@ private fun encodeBrowserTabs(titles: List<String>, urls: List<String>): String 
         }
     }
 }.toString()
+
+private fun encodeWorkspaceTabs(titles: List<String>, urls: List<String>, groups: List<String>): String {
+    val root = org.json.JSONObject()
+    groups.indices.forEach { index ->
+        val group = groups[index].ifBlank { "Основная" }
+        val url = urls.getOrNull(index).orEmpty()
+        if (url.isBlank() || url.startsWith("https://") || url.startsWith("http://")) {
+            val array = root.optJSONArray(group) ?: JSONArray().also { root.put(group, it) }
+            if (array.length() < 30) array.put(org.json.JSONObject()
+                .put("title", titles.getOrNull(index).orEmpty().ifBlank { "Новая вкладка" })
+                .put("url", url))
+        }
+    }
+    return root.toString()
+}
 
 private fun encodeSavedPages(pages: List<SavedPage>): String = JSONArray().apply {
     pages.forEach { page ->
@@ -629,9 +663,13 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
     }
     val context = LocalContext.current
     val tabsPrefs = remember(context) { context.getSharedPreferences("darknes_tabs", android.content.Context.MODE_PRIVATE) }
-    val restoredTabs = remember(tabsPrefs) {
-        readBrowserTabs(tabsPrefs.getString("tabs", null))
+    val restoredWorkspaceState = remember(tabsPrefs) {
+        readWorkspaceTabState(tabsPrefs.getString("workspace_sessions", null))
     }
+    val restoredTabs = remember(tabsPrefs, restoredWorkspaceState) {
+        restoredWorkspaceState.tabs.ifEmpty { readBrowserTabs(tabsPrefs.getString("tabs", null)) }
+    }
+    val restoredTabGroups = restoredWorkspaceState.groups
     var incognito by remember { mutableStateOf(false) }
     DisposableEffect(incognito, context) {
         val window = (context as? ComponentActivity)?.window
@@ -660,7 +698,11 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
             (0 until array.length()).map { array.optString(it, "Основная") }
         }.getOrDefault(emptyList())
         mutableStateListOf<String>().apply {
-            addAll(restoredTabs.indices.map { stored.getOrNull(it)?.takeIf { group -> group.isNotBlank() } ?: "Основная" })
+            addAll(restoredTabs.indices.map { index ->
+                restoredTabGroups.getOrNull(index)?.takeIf { it.isNotBlank() }
+                    ?: stored.getOrNull(index)?.takeIf { group -> group.isNotBlank() }
+                    ?: "Основная"
+            })
         }
     }
     val tabPinned = remember(tabsPrefs) {
@@ -934,6 +976,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         if (!incognito && !privateModeUsed) {
             tabsPrefs.edit()
                 .putString("tabs", encodeBrowserTabs(tabTitles.toList(), tabUrls.toList()))
+                .putString("workspace_sessions", encodeWorkspaceTabs(tabTitles.toList(), tabUrls.toList(), tabGroups.toList()))
                 .putString("groups", JSONArray(tabGroups.toList()).toString())
                 .putString("pinned_tabs", JSONArray(tabPinned.toList()).toString())
                 .putInt("active", activeTab.coerceIn(0, (tabTitles.size - 1).coerceAtLeast(0)))
