@@ -169,7 +169,7 @@ private fun readWorkspaceTabState(raw: String?): WorkspaceTabState = runCatching
             val item = array.optJSONObject(index) ?: continue
             val url = item.optString("url")
             if (url.isNotBlank() && !url.startsWith("https://") && !url.startsWith("http://")) continue
-            tabs.add(BrowserTabSnapshot(item.optString("title").ifBlank { "Новая вкладка" }, url))
+            tabs.add(BrowserTabSnapshot(item.optString("title").ifBlank { "Новая вкладка" }, url, item.optBoolean("pinned", false)))
             groups.add(group.ifBlank { "Основная" })
         }
     }
@@ -194,7 +194,8 @@ private fun encodeWorkspaceTabs(titles: List<String>, urls: List<String>, groups
             val array = root.optJSONArray(group) ?: JSONArray().also { root.put(group, it) }
             if (array.length() < 30) array.put(org.json.JSONObject()
                 .put("title", titles.getOrNull(index).orEmpty().ifBlank { "Новая вкладка" })
-                .put("url", url))
+                .put("url", url)
+                .put("pinned", pinned.getOrNull(index) ?: false))
         }
     }
     return root.toString()
