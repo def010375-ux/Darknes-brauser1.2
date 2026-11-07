@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -921,6 +922,7 @@ private fun MaintenanceLockScreen(hour: Int, minute: Int) {
     }
 }
 
+@Composable
 private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit, downloads: List<DownloadRecord>, onRemoveDownload: (Long) -> Unit, onCancelDownload: (Long) -> Unit, onSystemImageDownload: (Uri, String) -> Unit, onRetrySystemDownload: (Long) -> Unit, onRefreshSystemDownloads: () -> Unit) {
     // Daily maintenance window uses Moscow time regardless of the device's selected timezone.
     var maintenanceClockTick by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -1248,8 +1250,8 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
         tabGroups.add(insertAt, saved.third)
         activeTab = insertAt
         recentlyClosedTab = null
-        canGoBack = false
-        canGoForward = false
+        navigationBackBySession[restoredSession] = false
+        navigationForwardBySession[restoredSession] = false
         query = saved.second
         loaded = saved.second.isNotBlank()
         showSearchResults = false
@@ -1578,7 +1580,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                 return result
             }
 
-            override fun onAndroidPermissionsRequest(
+            fun onAndroidPermissionsRequest(
                 session: GeckoSession,
                 permissions: Array<String>,
                 callback: GeckoSession.PermissionDelegate.Callback
@@ -2100,7 +2102,7 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                             }, {
                                 runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))) }
                                     .onFailure { toast = "Не удалось открыть настройки Android" }
-                            },
+                            }),
                             "Чтение" -> ReaderPanel(readerSource, readerContent, readerLoading, readerError, onRetry = { openReader() })
                             "Офлайн-страницы" -> OfflinePagesPanel(
                                 offlinePages = offlinePages.toList(),
@@ -3664,7 +3666,7 @@ private fun TesterPanel(onDownload: (String) -> Unit) {
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(host, color = Paper, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                    Text(kind + " · " + if (entry.second) "Разрешено" else "Запрещено", color = if (entry.value) Color(0xFF62E6C2) else Peach, fontSize = 10.sp)
+                    Text(kind + " · " + if (entry.second) "Разрешено" else "Запрещено", color = if (entry.second) Color(0xFF62E6C2) else Peach, fontSize = 10.sp)
                 }
                 IconButton(onClick = { clearDecision(entry.first) }) { Icon(Icons.Default.Refresh, contentDescription = "Сбросить решение сайта", tint = Orange) }
             }
