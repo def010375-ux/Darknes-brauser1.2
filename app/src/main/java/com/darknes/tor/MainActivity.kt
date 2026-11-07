@@ -1,6 +1,7 @@
 package com.darknes.tor
 
 import android.os.Bundle
+import android.os.Environment
 import android.view.WindowManager
 import android.content.Intent
 import android.os.SystemClock
@@ -2068,6 +2069,35 @@ private fun DarknesApp(runtime: GeckoRuntime, onDownload: (WebResponse) -> Unit,
                                     loaded = true
                                     pendingContextAction = null
                                 }) { Text("Открыть изображение в новой вкладке", color = Orange) }
+                                if (!incognito) {
+                                    TextButton(onClick = {
+                                        val parsedImage = Uri.parse(media)
+                                        val rawName = parsedImage.lastPathSegment.orEmpty()
+                                        val safeName = rawName
+                                            .replace(Regex("[^A-Za-z0-9._-]"), "_")
+                                            .take(90)
+                                            .takeIf { it.isNotBlank() && it != "." && it != ".." }
+                                            ?: "image"
+                                        val fileName = "Darknes_" + System.currentTimeMillis() + "_" + safeName
+                                        runCatching {
+                                            val downloadManager = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+                                            val request = android.app.DownloadManager.Request(parsedImage)
+                                                .setTitle(fileName)
+                                                .setDescription("Изображение из Darknes Tor")
+                                                .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                                                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+                                            val mime = java.net.URLConnection.guessContentTypeFromName(safeName)
+                                            if (!mime.isNullOrBlank()) request.setMimeType(mime)
+                                            downloadManager.enqueue(request)
+                                            toast = "Изображение отправлено в загрузки"
+                                        }.onFailure {
+                                            toast = "Не удалось начать загрузку изображения"
+                                        }
+                                        pendingContextAction = null
+                                    }) { Text("Сохранить изображение в загрузки", color = Orange) }
+                                } else {
+                                    Text("Сохранение изображений отключено в приватном режиме", color = Muted, fontSize = 11.sp)
+                                }
                             }
                             if (selectedText != null) {
                                 TextButton(onClick = {
