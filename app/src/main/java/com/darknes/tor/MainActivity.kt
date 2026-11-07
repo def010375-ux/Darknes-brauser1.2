@@ -6,6 +6,7 @@ import android.view.WindowManager
 import android.content.Intent
 import android.os.SystemClock
 import android.net.Uri
+import android.webkit.MimeTypeMap
 import android.widget.Toast
 import android.graphics.BitmapFactory
 import android.graphics.Bitmap
@@ -272,6 +273,10 @@ class MainActivity : ComponentActivity() {
 
     private fun removeDownload(id: Long) {
         runOnUiThread {
+            val record = downloadRecords.firstOrNull { it.id == id }
+            if (record?.savedUri != null) {
+                runCatching { contentResolver.delete(Uri.parse(record.savedUri), null, null) }
+            }
             downloadRecords.removeAll { it.id == id }
             persistDownloads()
         }
@@ -3004,6 +3009,8 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
     var category by remember { mutableStateOf("Все") }
     var sortNewestFirst by remember { mutableStateOf(true) }
     var previewRecord by remember { mutableStateOf<DownloadRecord?>(null) }
+    var detailsRecord by remember { mutableStateOf<DownloadRecord?>(null) }
+    var deleteCandidate by remember { mutableStateOf<DownloadRecord?>(null) }
     val context = LocalContext.current
     val previewBitmap by produceState<Bitmap?>(null, previewRecord?.savedUri) {
         value = null
@@ -3101,6 +3108,7 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
                                 Text(formatDownloadSize(item.downloadedBytes), color = Muted, fontSize = 9.sp)
                             }
                         }
+                        IconButton(onClick = { detailsRecord = item }) { Icon(Icons.Default.Info, contentDescription = "Сведения о файле", tint = Muted) }
                         if (completed && downloadCategory(item.name) == "Изображения") {
                             IconButton(onClick = { previewRecord = item }) { Icon(Icons.Default.Visibility, contentDescription = "Предпросмотр изображения", tint = Orange) }
                         }
@@ -3110,7 +3118,7 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
                                 Icon(Icons.Default.Close, contentDescription = "Отменить загрузку", tint = Color(0xFFFF8A80))
                             }
                         }
-                        IconButton(onClick = { onRemove(item.id) }) { Icon(Icons.Default.DeleteOutline, contentDescription = "Удалить запись", tint = Muted, modifier = Modifier.size(18.dp)) }
+                        IconButton(onClick = { deleteCandidate = item }) { Icon(Icons.Default.DeleteOutline, contentDescription = "Удалить файл", tint = Muted, modifier = Modifier.size(18.dp)) }
                     }
                 }
             }
@@ -3137,6 +3145,32 @@ private fun DownloadsPanel(downloads: List<DownloadRecord>, onRemove: (Long) -> 
             dismissButton = { TextButton(onClick = { previewRecord = null }) { Text("Закрыть", color = Muted) } },
             containerColor = Color(0xFF17233A), titleContentColor = Paper, textContentColor = Paper
         )
+    }
+    val details = detailsRecord
+    if (details != null) {
+        val extension = details.name.substringAfterLast(".", "").uppercase().ifBlank { "не определён" }
+        val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.lowercase()) ?: "не определён"
+        AlertDialog(onDismissRequest = { detailsRecord = null },
+            title = { Text("Сведения о файле", color = Paper) },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text(details.name, color = Paper, fontWeight = FontWeight.SemiBold)
+                Text("Тип: $mimeType", color = Muted, fontSize = 12.sp)
+                Text("Формат: $extension", color = Muted, fontSize = 12.sp)
+                Text("Размер: ${formatDownloadSize(details.downloadedBytes)}", color = Muted, fontSize = 12.sp)
+                Text("Дата добавления: ${java.text.DateFormat.getDateTimeInstance().format(java.util.Date(details.id))}", color = Muted, fontSize = 12.sp)
+                Text("Расположение: ${details.savedUri ?: "ещё не сохранён"}", color = Muted, fontSize = 10.sp)
+            } },
+            confirmButton = { TextButton(onClick = { detailsRecord = null }) { Text("Закрыть", color = Orange) } },
+            containerColor = Color(0xFF17233A), titleContentColor = Paper, textContentColor = Paper)
+    }
+    val candidate = deleteCandidate
+    if (candidate != null) {
+        AlertDialog(onDismissRequest = { deleteCandidate = null },
+            title = { Text("Удалить файл?", color = Paper) },
+            text = { Text("Будет удалена запись и, если доступно, сам сохранённый файл «${candidate.name}». Это действие нельзя отменить.", color = Muted) },
+            confirmButton = { TextButton(onClick = { onRemove(candidate.id); deleteCandidate = null }) { Text("Удалить", color = Color(0xFFFF8A80)) } },
+            dismissButton = { TextButton(onClick = { deleteCandidate = null }) { Text("Отмена", color = Muted) } },
+            containerColor = Color(0xFF17233A), titleContentColor = Paper, textContentColor = Paper)
     }
     Text("Категории определяются по расширению файла. История хранится на устройстве; незавершённые загрузки после перезапуска отмечаются как прерванные. При отмене частичный файл может остаться в выбранной папке.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
 }
