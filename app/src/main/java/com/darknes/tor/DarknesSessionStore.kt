@@ -107,7 +107,10 @@ internal suspend fun refreshDarknesSession(
         val body = JSONObject().put("refresh_token", oldSession.refreshToken).toString()
         connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
         if (connection.responseCode !in 200..299) {
-            DarknesSessionStore.clear(context)
+            // A failed refresh does not prove that the stored refresh token is
+            // invalid: the response may be caused by a temporary server or
+            // network problem. Keep the encrypted session so the user can
+            // retry instead of being silently signed out.
             return@withContext null
         }
         val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
